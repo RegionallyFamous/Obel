@@ -1,0 +1,46 @@
+{
+  "$schema": "https://playground.wordpress.net/blueprint-schema.json",
+  "meta": {
+    "title": "Obel — WooCommerce demo (Wonders & Oddities)",
+    "description": "WordPress + WooCommerce + Obel, pre-loaded with the Wonders & Oddities sample shop and blog.",
+    "author": "RegionallyFamous"
+  },
+  "preferredVersions": { "php": "8.3", "wp": "latest" },
+  "features": { "networking": true },
+  "login": true,
+  "landingPage": "/shop/",
+  "plugins": ["woocommerce", "wordpress-importer"],
+  "steps": [
+    {
+      "step": "installTheme",
+      "themeData": {
+        "resource": "url",
+        "url": "https://github-proxy.com/proxy/?repo=RegionallyFamous/fifty&directory=obel"
+      },
+      "options": { "activate": true }
+    },
+    {
+      "step": "runPHP",
+      "code": "<?php require_once '/wordpress/wp-load.php'; delete_transient('_wc_activation_redirect');"
+    },
+    {
+      "step": "runPHP",
+      "code": "<?php require_once '/wordpress/wp-load.php'; require_once WC_ABSPATH.'includes/admin/importers/class-wc-product-csv-importer-controller.php'; require_once WC_ABSPATH.'includes/import/class-wc-product-csv-importer.php'; $csv=wp_tempnam('wo-products'); file_put_contents($csv, wp_remote_retrieve_body(wp_remote_get('https://raw.githubusercontent.com/RegionallyFamous/wonders-oddities/main/wonders-oddities-products.csv', ['timeout'=>60]))); $fh=fopen($csv,'r'); $headers=fgetcsv($fh); fclose($fh); $mapping=WC_Product_CSV_Importer_Controller::auto_map_columns($headers,false); (new WC_Product_CSV_Importer($csv,['mapping'=>$mapping,'parse'=>true,'update_existing'=>true,'delimiter'=>',','lines'=>-1]))->import(); unlink($csv);"
+    },
+    {
+      "step": "importWxr",
+      "file": {
+        "resource": "url",
+        "url": "https://raw.githubusercontent.com/RegionallyFamous/wonders-oddities/main/wonders-oddities-content.xml"
+      }
+    },
+    {
+      "step": "wp-cli",
+      "command": "wp option update show_on_front page && wp option update page_on_front $(wp post list --post_type=page --name=home --field=ids) && wp option update page_for_posts $(wp post list --post_type=page --name=journal --field=ids)"
+    },
+    {
+      "step": "wp-cli",
+      "command": "wp menu location assign main-navigation primary || true; wp menu location assign footer-navigation footer || true"
+    }
+  ]
+}
