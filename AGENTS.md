@@ -87,6 +87,30 @@ The short version:
 7. `python3 bin/build-index.py <new_name>`
 8. `python3 bin/check.py <new_name>`
 
+## WordPress Playground blueprints
+
+Each theme has a Playground blueprint at `<theme>/playground/blueprint.json`. The blueprints share a single Wonders & Oddities sample-data importer at `playground/wo-import.php` (repo root, not under any theme).
+
+**The script is inlined into both blueprints**, not fetched at boot. Don't change the blueprints' `writeFile` step to use a `{ resource: url }` data field — Playground caches URL resources aggressively (and `raw.githubusercontent.com` ships `cache-control: max-age=300`), so a freshly-pushed script change can take 5+ minutes to propagate and Playground will run the previous version against the new blueprint. Inlining puts the script body in the same payload as the blueprint, so there is one URL to invalidate, not two.
+
+After editing `playground/wo-import.php`:
+
+```bash
+python3 bin/sync-playground.py   # re-inlines the script into both blueprints
+```
+
+Commit the resulting `*/playground/blueprint.json` changes alongside the script change. `bin/check.py` does not (yet) enforce that the blueprints are in sync — keep them in sync by hand.
+
+The script must be type-aware when calling WC product setters:
+
+- `WC_Product_External` and `WC_Product_Grouped` reject `set_manage_stock()` / `set_stock_quantity()` / `set_weight()` / `set_length()` / `set_width()` / `set_height()` with `WC_Data_Exception`.
+- `WC_Product_Grouped` also rejects `set_regular_price()` / `set_sale_price()` (price comes from children).
+- `WC_Product_External` exposes `set_product_url()` and `set_button_text()`.
+
+Wrap the entire per-row loop body in a single `try { … } catch ( Exception $e )` so one bad product can't kill the whole import.
+
+Use only WC's stable public CRUD surface (`WC_Product_*`, `set_*`, `wc_get_product_id_by_sku`, `wp_insert_term`, `get_term_by`). Do **not** call `WC_Product_CSV_Importer` or `WC_Product_CSV_Importer_Controller` directly — both have unstable signatures (visibility/static modifiers have flipped multiple times across releases) and the importer's `read_file()` rejects any file path that doesn't satisfy `wp_check_filetype()`, which Playground's WASM PHP can't always satisfy even with a `.csv` suffix.
+
 ## Working on shared tooling
 
 `bin/` is shared. Anything you change there affects every theme. After editing:
