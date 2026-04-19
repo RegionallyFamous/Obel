@@ -203,16 +203,16 @@ The blueprint also seeds: a working checkout (Flat Rate + Free shipping, COD + B
 
 Default login: `admin` / `password`. To check the customer dashboard, log out and sign in as `customer` / `customer`.
 
-| Page | Link |
-| --- | --- |
-| Home | [/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/) |
-| Shop | [/shop/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/shop/) |
-| Single product | [/product/bottled-morning/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/product/bottled-morning/) |
-| Cart (pre-filled) | [/cart/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/cart/?demo=cart) |
-| Checkout | [/checkout/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/checkout/?demo=cart) |
-| My Account | [/my-account/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/my-account/) |
-| Journal | [/journal/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/journal/) |
-| 404 | [/this-route-does-not-exist/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/this-route-does-not-exist/) |
+| Page | Short URL | Long URL (what the short URL redirects to) |
+| --- | --- | --- |
+| Home | [`chonk/`](https://regionallyfamous.github.io/fifty/chonk/) | [/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/) |
+| Shop | [`chonk/shop/`](https://regionallyfamous.github.io/fifty/chonk/shop/) | [/shop/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/shop/) |
+| Single product | [`chonk/product/bottled-morning/`](https://regionallyfamous.github.io/fifty/chonk/product/bottled-morning/) | [/product/bottled-morning/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/product/bottled-morning/) |
+| Cart (pre-filled) | [`chonk/cart/`](https://regionallyfamous.github.io/fifty/chonk/cart/) | [/cart/?demo=cart](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/cart/?demo=cart) |
+| Checkout | [`chonk/checkout/`](https://regionallyfamous.github.io/fifty/chonk/checkout/) | [/checkout/?demo=cart](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/checkout/?demo=cart) |
+| My Account | [`chonk/my-account/`](https://regionallyfamous.github.io/fifty/chonk/my-account/) | [/my-account/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/my-account/) |
+| Journal | [`chonk/journal/`](https://regionallyfamous.github.io/fifty/chonk/journal/) | [/journal/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/journal/) |
+| 404 | [`chonk/404/`](https://regionallyfamous.github.io/fifty/chonk/404/) | [/this-route-does-not-exist/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/this-route-does-not-exist/) |
 
 The blueprint lives at [`chonk/playground/blueprint.json`](playground/blueprint.json).
 

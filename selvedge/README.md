@@ -186,16 +186,16 @@ The blueprint also seeds: a working checkout (Flat Rate + Free shipping, COD + B
 
 Default login: `admin` / `password`. To check the customer dashboard, log out and sign in as `customer` / `customer`.
 
-| Page | Link |
-| --- | --- |
-| Home | [/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/selvedge/playground/blueprint.json&url=/) |
-| Shop | [/shop/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/selvedge/playground/blueprint.json&url=/shop/) |
-| Single product | [/product/bottled-morning/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/selvedge/playground/blueprint.json&url=/product/bottled-morning/) |
-| Cart (pre-filled) | [/cart/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/selvedge/playground/blueprint.json&url=/cart/?demo=cart) |
-| Checkout | [/checkout/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/selvedge/playground/blueprint.json&url=/checkout/?demo=cart) |
-| My Account | [/my-account/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/selvedge/playground/blueprint.json&url=/my-account/) |
-| Journal | [/journal/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/selvedge/playground/blueprint.json&url=/journal/) |
-| 404 | [/this-route-does-not-exist/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/selvedge/playground/blueprint.json&url=/this-route-does-not-exist/) |
+| Page | Short URL | Long URL (what the short URL redirects to) |
+| --- | --- | --- |
+| Home | [`selvedge/`](https://regionallyfamous.github.io/fifty/selvedge/) | [/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/selvedge/playground/blueprint.json&url=/) |
+| Shop | [`selvedge/shop/`](https://regionallyfamous.github.io/fifty/selvedge/shop/) | [/shop/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/selvedge/playground/blueprint.json&url=/shop/) |
+| Single product | [`selvedge/product/bottled-morning/`](https://regionallyfamous.github.io/fifty/selvedge/product/bottled-morning/) | [/product/bottled-morning/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/selvedge/playground/blueprint.json&url=/product/bottled-morning/) |
+| Cart (pre-filled) | [`selvedge/cart/`](https://regionallyfamous.github.io/fifty/selvedge/cart/) | [/cart/?demo=cart](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/selvedge/playground/blueprint.json&url=/cart/?demo=cart) |
+| Checkout | [`selvedge/checkout/`](https://regionallyfamous.github.io/fifty/selvedge/checkout/) | [/checkout/?demo=cart](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/selvedge/playground/blueprint.json&url=/checkout/?demo=cart) |
+| My Account | [`selvedge/my-account/`](https://regionallyfamous.github.io/fifty/selvedge/my-account/) | [/my-account/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/selvedge/playground/blueprint.json&url=/my-account/) |
+| Journal | [`selvedge/journal/`](https://regionallyfamous.github.io/fifty/selvedge/journal/) | [/journal/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/selvedge/playground/blueprint.json&url=/journal/) |
+| 404 | [`selvedge/404/`](https://regionallyfamous.github.io/fifty/selvedge/404/) | [/this-route-does-not-exist/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/selvedge/playground/blueprint.json&url=/this-route-does-not-exist/) |
 
 The blueprint lives at [`selvedge/playground/blueprint.json`](playground/blueprint.json).
 

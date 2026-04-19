@@ -164,6 +164,15 @@ def main() -> int:
     print(f"     and the per-theme constants are prepended to each inlined script")
     print(f"     (the blueprint itself was already copied from {source.name} and the")
     print(f"     '{source.name}' / '{title_case(source.name)}' identifiers were rewritten above)")
+    print(f"  8. Run `python3 bin/build-redirects.py` to (re)generate the GH")
+    print(f"     Pages short URLs for every theme. The new theme will be")
+    print(f"     reachable at:")
+    print(f"        https://regionallyfamous.github.io/fifty/{dest.name}/")
+    print(f"     (plus /shop/, /product/bottled-morning/, /cart/, …) as soon")
+    print(f"     as you commit + push the new docs/{dest.name}/ folder and")
+    print(f"     GH Pages picks up the change. GH Pages must be enabled once")
+    print(f"     for the repo (Source: deploy from branch, Branch: main, Folder: /docs).")
+    print(f"  9. Commit and push everything (theme, blueprint, content, images, docs/).")
     return 0
 
 

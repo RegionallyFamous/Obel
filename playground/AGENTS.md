@@ -125,12 +125,25 @@ After cloning a new theme via `bin/clone.py <name>`, you have to:
    python3 bin/sync-playground.py
    ```
 
-3. Open the new theme's deeplink and verify the surface checklist (front
-   page, shop, single product, cart, checkout, blog post, 404). The
-   blueprint URL is
-   `https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/<name>/playground/blueprint.json`.
+3. Generate the GH Pages short-URL redirector for the new theme:
+   ```bash
+   python3 bin/build-redirects.py
+   ```
+   This writes `docs/<name>/<page>/index.html` for every entry in the
+   script's `PAGES` list. The new theme becomes reachable at
+   `https://regionallyfamous.github.io/fifty/<name>/` once the change
+   is committed and pushed (Pages picks it up within ~1 minute). See
+   the root `AGENTS.md` "GitHub Pages short URLs" section for the
+   contract; you should never edit anything under `docs/` by hand.
 
-4. (Optional) Replace any seeded image with theme-styled artwork by
+4. Open the new theme's short URL and verify the surface checklist
+   (front page, shop, single product, cart, checkout, blog post, 404).
+   `https://regionallyfamous.github.io/fifty/<name>/` redirects to the
+   canonical Playground deeplink
+   `https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/<name>/playground/blueprint.json&url=/`,
+   which is what to share when GH Pages is not yet enabled on a fork.
+
+5. (Optional) Replace any seeded image with theme-styled artwork by
    dropping a same-named file into `<name>/playground/images/`. Re-running
    the seed script with `--force` will overwrite seeded files, but normal
    runs preserve any per-theme imagery already present (this is how

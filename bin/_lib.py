@@ -21,6 +21,61 @@ from typing import Iterable
 
 MONOREPO_ROOT = Path(__file__).resolve().parent.parent
 
+# GitHub identity for this monorepo. Used by bin/sync-playground.py to derive
+# per-theme `WO_CONTENT_BASE_URL` constants and the `importWxr` URL inside
+# every blueprint, and by bin/build-redirects.py to derive both the raw
+# blueprint URL (for the Playground deeplink) and the GH Pages short URL.
+# Change here in one place if the org / repo / default branch ever moves.
+GITHUB_ORG = "RegionallyFamous"
+GITHUB_REPO = "fifty"
+GITHUB_BRANCH = "main"
+
+# GH Pages always lower-cases the user/org segment of the URL regardless of
+# how it's written on GitHub itself.
+GH_PAGES_BASE_URL = f"https://{GITHUB_ORG.lower()}.github.io/{GITHUB_REPO}/"
+
+# raw.githubusercontent.com base for any file in this repo on the default
+# branch. Trailing slash is significant — callers concatenate a sub-path.
+RAW_GITHUB_BASE_URL = (
+    f"https://raw.githubusercontent.com/"
+    f"{GITHUB_ORG}/{GITHUB_REPO}/{GITHUB_BRANCH}/"
+)
+
+
+def theme_content_base_url(theme_slug: str) -> str:
+    """Per-theme `playground/` base URL on raw.githubusercontent.com.
+
+    This is what gets baked into each blueprint as `WO_CONTENT_BASE_URL`
+    so the inlined PHP can reach `<theme>/playground/content/products.csv`,
+    `<theme>/playground/content/category-images.json`, and the per-theme
+    images folder."""
+    return f"{RAW_GITHUB_BASE_URL}{theme_slug}/playground/"
+
+
+def theme_blueprint_raw_url(theme_slug: str) -> str:
+    """Public raw URL of `<theme>/playground/blueprint.json`. This is what
+    Playground fetches when a user clicks a `?blueprint-url=…` link."""
+    return f"{RAW_GITHUB_BASE_URL}{theme_slug}/playground/blueprint.json"
+
+
+def playground_deeplink(theme_slug: str, url_path: str = "/") -> str:
+    """Full https://playground.wordpress.net/?blueprint-url=…&url=… deeplink
+    for a theme + an in-site path (e.g. "/", "/shop/", "/cart/?demo=cart").
+
+    These URLs are long and ugly on purpose: every byte after `?blueprint-url=`
+    is a fully-qualified raw GitHub URL. Use bin/build-redirects.py to expose
+    short `regionallyfamous.github.io/fifty/<theme>/<page>/` aliases."""
+    bp = theme_blueprint_raw_url(theme_slug)
+    return f"https://playground.wordpress.net/?blueprint-url={bp}&url={url_path}"
+
+
+def gh_pages_short_url(theme_slug: str, page_slug: str = "") -> str:
+    """Short URL served by GH Pages from the docs/ folder. `page_slug` is
+    a path component without leading/trailing slash ("" = theme root,
+    "shop", "product/bottled-morning", etc.)."""
+    suffix = f"{page_slug}/" if page_slug else ""
+    return f"{GH_PAGES_BASE_URL}{theme_slug}/{suffix}"
+
 
 def resolve_theme_root(name: str | None = None) -> Path:
     """Return the absolute path of the target theme directory.

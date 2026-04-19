@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Fifty — WordPress Block Theme Variants</title>
+	<meta name="viewport" content="width=device-width,initial-scale=1">
+	<meta name="description" content="Open one of the Fifty WordPress block theme variants live in WordPress Playground. No install, runs entirely in your browser.">
+	<meta property="og:type" content="website">
+	<meta property="og:title" content="Fifty — WordPress Block Theme Variants">
+	<meta property="og:description" content="Open one of the Fifty WordPress block theme variants live in WordPress Playground. No install, runs entirely in your browser.">
+	<meta property="og:url" content="https://regionallyfamous.github.io/fifty/">
+	<style>
+		:root{color-scheme:dark light}
+		html,body{margin:0;background:#0f0f10;color:#f5f5f4;font:16px/1.55 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+		main{max-width:64rem;margin:0 auto;padding:clamp(2rem,5vw,4rem) clamp(1.25rem,4vw,2rem)}
+		header{margin-bottom:3rem}
+		header h1{font-size:clamp(1.75rem,3.5vw,2.5rem);margin:0 0 .5rem;font-weight:700;letter-spacing:-.01em}
+		header p{margin:0;color:#a8a29e;max-width:42rem}
+		header p a{color:#fafaf9}
+		.themes{display:grid;gap:1.25rem;grid-template-columns:repeat(auto-fit,minmax(18rem,1fr))}
+		.theme{border:1px solid #2c2a27;border-radius:14px;padding:1.5rem;background:#1a1917;display:flex;flex-direction:column;gap:1rem;transition:border-color 160ms ease,transform 160ms ease}
+		.theme:hover{border-color:#57534e;transform:translateY(-1px)}
+		.theme h2{margin:0;font-size:1.25rem;font-weight:600}
+		.theme p{margin:0;color:#a8a29e;font-size:.95rem}
+		.cta{display:inline-flex;align-items:center;gap:.5rem;background:#fafaf9;color:#0f0f10;padding:.55rem .95rem;border-radius:9999px;text-decoration:none;font-weight:600;font-size:.9rem;align-self:flex-start;transition:background 160ms ease}
+		.cta:hover{background:#fff}
+		.pages{margin:0;padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:.4rem .6rem;font-size:.8rem}
+		.pages a{color:#d6d3d1;text-decoration:none;border-bottom:1px solid #44403c;padding-bottom:1px}
+		.pages a:hover{color:#fafaf9;border-color:#fafaf9}
+		footer{margin-top:3rem;padding-top:2rem;border-top:1px solid #2c2a27;color:#78716c;font-size:.85rem}
+		footer a{color:#d6d3d1}
+		@media (prefers-color-scheme:light){
+			html,body{background:#fafaf9;color:#1c1917}
+			header p,.theme p{color:#57534e}
+			.theme{background:#fff;border-color:#e7e5e4}
+			.theme:hover{border-color:#a8a29e}
+			.cta{background:#1c1917;color:#fafaf9}
+			.cta:hover{background:#0c0a09}
+			.pages a{color:#44403c;border-color:#d6d3d1}
+			.pages a:hover{color:#0c0a09;border-color:#0c0a09}
+			footer{border-color:#e7e5e4;color:#78716c}
+			footer a{color:#44403c}
+		}
+	</style>
+</head>
+<body>
+	<main>
+		<header>
+			<h1>Fifty</h1>
+			<p>A monorepo of WordPress block themes built around a shared <a href="https://github.com/RegionallyFamous/fifty/blob/main/obel/">Obel</a> base. Click any theme below to boot a live demo storefront in WordPress Playground — no install, runs entirely in your browser.</p>
+		</header>
+		<section class="themes">
+			<article class="theme">
+				<h2>Chonk</h2>
+				<p>A Chonk demo storefront with WooCommerce and sample content, ready to click through.</p>
+				<a class="cta" href="chonk/">Open in Playground →</a>
+				<ul class="pages" aria-label="More Chonk pages"><li><a href="shop/">Shop</a></li><li><a href="product/bottled-morning/">Single product</a></li><li><a href="cart/">Cart (pre-filled)</a></li><li><a href="checkout/">Checkout</a></li><li><a href="my-account/">My Account</a></li><li><a href="journal/">Journal</a></li><li><a href="404/">404</a></li></ul>
+			</article>
+			<article class="theme">
+				<h2>Obel</h2>
+				<p>A Obel demo storefront with WooCommerce and sample content, ready to click through.</p>
+				<a class="cta" href="obel/">Open in Playground →</a>
+				<ul class="pages" aria-label="More Obel pages"><li><a href="shop/">Shop</a></li><li><a href="product/bottled-morning/">Single product</a></li><li><a href="cart/">Cart (pre-filled)</a></li><li><a href="checkout/">Checkout</a></li><li><a href="my-account/">My Account</a></li><li><a href="journal/">Journal</a></li><li><a href="404/">404</a></li></ul>
+			</article>
+			<article class="theme">
+				<h2>Selvedge</h2>
+				<p>A Selvedge demo storefront with WooCommerce and sample content, ready to click through.</p>
+				<a class="cta" href="selvedge/">Open in Playground →</a>
+				<ul class="pages" aria-label="More Selvedge pages"><li><a href="shop/">Shop</a></li><li><a href="product/bottled-morning/">Single product</a></li><li><a href="cart/">Cart (pre-filled)</a></li><li><a href="checkout/">Checkout</a></li><li><a href="my-account/">My Account</a></li><li><a href="journal/">Journal</a></li><li><a href="404/">404</a></li></ul>
+			</article>
+		</section>
+		<footer>
+			<p>Source: <a href="https://github.com/RegionallyFamous/fifty">github.com/RegionallyFamous/fifty</a> · The first boot of any theme takes 20–60 seconds while it downloads WordPress, WooCommerce, and the demo content.</p>
+		</footer>
+	</main>
+</body>
+</html>

@@ -16,6 +16,8 @@ fifty/
 │   ├── INDEX.md
 │   └── …
 ├── bin/           # shared CLI tooling (theme-aware)
+├── playground/    # shared Playground PHP helpers (read playground/AGENTS.md)
+├── docs/          # generated GH Pages site of short URLs (read bin/build-redirects.py)
 ├── README.md      # human-facing project intro
 ├── AGENTS.md      # you are here
 └── LICENSE
@@ -89,7 +91,8 @@ The short version:
 8. `python3 bin/seed-playground-content.py` — populates the new theme's `playground/content/` (CSV + WXR + category-images map) and `playground/images/` (product / page / post / category artwork) from the canonical W&O source, rewriting every image URL to point at the new theme's own folder.
 9. `python3 bin/sync-playground.py` — auto-discovers the new theme and re-inlines the shared helpers into its blueprint, prepending the per-theme constants and rewriting the importWxr URL.
 10. `python3 bin/check.py <new_name>`
-11. Open the new theme's Playground deeplink (`https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/<org>/<repo>/main/<new_name>/playground/blueprint.json`) and walk the surface checklist before declaring done. The blueprint is part of the deliverable — see "WordPress Playground blueprints" below.
+11. `python3 bin/build-redirects.py` — regenerates `docs/<new_name>/<page>/index.html` so the theme is reachable at `https://regionallyfamous.github.io/fifty/<new_name>/` once the change is pushed and GH Pages picks it up. Re-run any time you add a theme or change the `PAGES` list inside the script. See "GitHub Pages short URLs" below.
+12. Open the new theme's short URL (`https://regionallyfamous.github.io/fifty/<new_name>/`, which redirects to the canonical `playground.wordpress.net/?blueprint-url=…` deeplink) and walk the surface checklist before declaring done. The blueprint AND the short-URL redirector are part of the deliverable — see "WordPress Playground blueprints" and "GitHub Pages short URLs" below.
 
 ## WordPress Playground blueprints
 
@@ -197,6 +200,49 @@ Do not add JavaScript for this. Cross-document VT is a CSS-only feature, and thi
 
 When cloning a theme via `bin/clone.py`, both halves come along automatically (the CSS lives in `theme.json`, the filter lives in `functions.php`). Do not delete either half during a restyle.
 
+## GitHub Pages short URLs
+
+**Every theme MUST have a working short URL** at `https://regionallyfamous.github.io/fifty/<theme>/`. The canonical Playground deeplink is ~200 characters before any extra parameters (`?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/<theme>/playground/blueprint.json&url=/shop/`) — unusable in tweets, slide decks, or anywhere a human reads the URL out loud. wp.me is not an option (it only mints links for posts on real wordpress.com / wordpress.org-hosted sites), so we self-host the redirector via GH Pages.
+
+The contract:
+
+```
+fifty/
+├── docs/                       # GH Pages serves this folder from main
+│   ├── .nojekyll               # disable Jekyll on Pages (required)
+│   ├── CNAME                   # optional custom domain — preserved across rebuilds
+│   ├── index.html              # landing page listing every theme
+│   ├── obel/
+│   │   ├── index.html          # → playground.wordpress.net/?blueprint-url=…&url=/
+│   │   ├── shop/index.html     # → …&url=/shop/
+│   │   ├── product/bottled-morning/index.html
+│   │   ├── cart/index.html     # → …&url=/cart/?demo=cart
+│   │   ├── checkout/index.html # → …&url=/checkout/?demo=cart
+│   │   ├── my-account/index.html
+│   │   ├── journal/index.html
+│   │   └── 404/index.html
+│   ├── chonk/…                 # same shape
+│   └── <theme>/…               # auto-generated for every theme
+└── bin/build-redirects.py      # the only thing allowed to write into docs/
+```
+
+How it works:
+
+- `bin/build-redirects.py` walks `_lib.iter_themes()`, reads each theme's `playground/blueprint.json` URL via `_lib.theme_blueprint_raw_url(slug)`, and emits one HTML file per `(theme, page)` pair under `docs/`. Every redirector ships both a `<meta http-equiv="refresh">` (works without JS / on link previews) and a `<script>location.replace(…)</script>` (no flash, faster). The page list lives in the script as `PAGES`; add a row there if a new entry point becomes interesting.
+- The script wipes and rewrites `docs/` from scratch on every run, **except** for `docs/CNAME` which is preserved so a custom domain doesn't drop on every regeneration. If you delete a theme, its `docs/<theme>/` folder disappears on the next run.
+- One-time GH Pages setup (already done for the canonical repo): repo settings → Pages → Source "Deploy from a branch", Branch `main`, Folder `/docs`. Pushes to `main` propagate within ~1 minute.
+
+When you must re-run `bin/build-redirects.py`:
+
+- After `bin/clone.py` (a new theme appeared).
+- After deleting a theme.
+- After changing the `PAGES` list inside `build-redirects.py`.
+- After changing `_lib.GITHUB_ORG` / `GITHUB_REPO` / `GITHUB_BRANCH` (also re-run `bin/sync-playground.py` because both consumers read from the same source of truth).
+
+You should **not** edit any file under `docs/` by hand. The whole tree is generated; manual edits are wiped on the next `build-redirects.py` run. If you need a redirector that isn't reachable from `(theme, page)` shape (e.g. a top-level alias), add it to `build-redirects.py` so the next run still produces it.
+
+When you write theme READMEs, prefer the short URL (`https://regionallyfamous.github.io/fifty/<theme>/<page>/`) over the long deeplink. Keep the long deeplink in a "Long-form deeplinks" table for the case where someone runs the repo on a fork before GH Pages is enabled.
+
 ## Working on shared tooling
 
 `bin/` is shared. Anything you change there affects every theme. After editing:
@@ -205,7 +251,7 @@ When cloning a theme via `bin/clone.py`, both halves come along automatically (t
 python3 bin/check.py --all --quick
 ```
 
-`bin/_lib.py` contains the theme resolver (`resolve_theme_root`, `iter_themes`, `MONOREPO_ROOT`). Every script imports from it. New scripts should follow the same pattern: positional theme arg, `--all` flag where it makes sense, default to cwd if it contains `theme.json`.
+`bin/_lib.py` contains the theme resolver (`resolve_theme_root`, `iter_themes`, `MONOREPO_ROOT`) AND the canonical GitHub identity (`GITHUB_ORG`, `GITHUB_REPO`, `GITHUB_BRANCH`, `GH_PAGES_BASE_URL`, `RAW_GITHUB_BASE_URL`, `theme_content_base_url(slug)`, `theme_blueprint_raw_url(slug)`, `playground_deeplink(slug, url_path)`, `gh_pages_short_url(slug, page_slug)`). `bin/sync-playground.py` and `bin/build-redirects.py` both consume those helpers — if you change the org / repo / branch, change it once in `_lib.py` and re-run both scripts. Every new bin/ script should follow the same pattern: positional theme arg, `--all` flag where it makes sense, default to cwd if it contains `theme.json`, and pull any GH-identity URL from `_lib` rather than re-encoding it.
 
 ## When in doubt
 

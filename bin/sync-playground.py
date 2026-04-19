@@ -65,7 +65,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _lib import MONOREPO_ROOT, iter_themes  # noqa: E402
+from _lib import MONOREPO_ROOT, iter_themes, theme_content_base_url  # noqa: E402
 
 # Map each blueprint writeFile target path -> source file path (relative to ROOT).
 MAPPINGS: dict[str, Path] = {
@@ -84,14 +84,6 @@ TARGETS_NEEDING_CONSTANTS = {
     "/wordpress/wo-import.php",
     "/wordpress/wo-configure.php",
 }
-
-# The fifty monorepo on GitHub. Used to derive the per-theme content base
-# URL that gets baked into each blueprint and into the inlined PHP. If we
-# ever rename the GitHub org or repo, change this in one place.
-GITHUB_ORG = "RegionallyFamous"
-GITHUB_REPO = "fifty"
-GITHUB_BRANCH = "main"
-
 
 def theme_display_name(theme_dir: Path) -> str:
     """Return the human-readable theme name from theme.json `title`,
@@ -113,16 +105,6 @@ def theme_display_name(theme_dir: Path) -> str:
     return slug[:1].upper() + slug[1:].lower()
 
 
-def content_base_url(theme_slug: str) -> str:
-    """Return the per-theme playground/ base URL on raw.githubusercontent.com.
-    Trailing slash is significant — every PHP consumer concatenates a
-    sub-path onto this prefix."""
-    return (
-        f"https://raw.githubusercontent.com/"
-        f"{GITHUB_ORG}/{GITHUB_REPO}/{GITHUB_BRANCH}/{theme_slug}/playground/"
-    )
-
-
 def build_body(target_path: str, source_path: Path, theme_name: str, theme_slug: str) -> str:
     """Read source_path. For scripts that need theme-aware constants,
     prepend a `<?php define(...)` block with WO_THEME_NAME / WO_THEME_SLUG /
@@ -138,7 +120,7 @@ def build_body(target_path: str, source_path: Path, theme_name: str, theme_slug:
 
     safe_name = theme_name.replace("\\", "\\\\").replace("'", "\\'")
     safe_slug = theme_slug.replace("\\", "\\\\").replace("'", "\\'")
-    base_url = content_base_url(theme_slug)
+    base_url = theme_content_base_url(theme_slug)
 
     constants_block = (
         "<?php\n"
@@ -184,7 +166,7 @@ def sync_import_wxr_step(bp: dict, theme_slug: str) -> bool:
     blueprint omits it entirely, return False without warning -- a theme
     that legitimately has no WXR to import is allowed to drop the step
     (though none currently do)."""
-    expected_url = content_base_url(theme_slug) + "content/content.xml"
+    expected_url = theme_content_base_url(theme_slug) + "content/content.xml"
     changed = False
     for step in bp.get("steps", []):
         if step.get("step") != "importWxr":

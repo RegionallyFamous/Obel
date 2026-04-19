@@ -28,7 +28,7 @@ Read this **before** running `bin/clone.py` or touching any files, the moment th
  6. STRUCTURE       → restyle templates/parts to match mockup composition
  7. DYNAMIC         → swap hardcoded content for core/terms-query, core/query, core/navigation, core/site-*
  8. SEED DATA       → ensure menus, pages, categories exist in the DB so dynamic blocks render real content
- 9. PLAYGROUND      → bin/seed-playground-content.py + bin/sync-playground.py, then load the new theme's blueprint URL and walk the surface checklist
+ 9. PLAYGROUND      → bin/seed-playground-content.py + bin/sync-playground.py + bin/build-redirects.py, then load the new theme's short URL and walk the surface checklist
 10. VERIFY          → check.py + screenshots at mobile/tablet/desktop
 11. REPORT          → ship a single summary, not a back-and-forth
 ```
@@ -44,7 +44,8 @@ The pipeline:
 1. `bin/clone.py` copied obel's blueprint and rewrote `obel`→`<new>` / `Obel`→`<New>`. It deliberately did NOT copy obel's `playground/content/` or `playground/images/` (text substitution doesn't touch CSV/XML, so copying would leave you pointing at obel's image URLs).
 2. `bin/seed-playground-content.py` populates the new theme's content + assets from the canonical W&O source, rewriting every image URL to point at the new theme's own `images/` folder.
 3. `bin/sync-playground.py` auto-discovers every theme via `_lib.iter_themes()`, re-inlines the shared `playground/*.php` helpers (with the per-theme constants prepended), and rewrites the `importWxr` URL to point at the per-theme `content.xml`.
-4. Open the deeplink (`https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/<org>/<repo>/main/<theme>/playground/blueprint.json`) and click through front page → shop → single product → cart → checkout → blog post → 404 once. If any pretty URL 404s, the blueprint is broken — see "Playground gotchas" below. If product or page imagery looks like every other theme's, the seed step was skipped.
+4. `bin/build-redirects.py` regenerates the `docs/` GH Pages site so the new theme is reachable at `https://regionallyfamous.github.io/fifty/<theme>/` (plus `/shop/`, `/product/bottled-morning/`, `/cart/`, `/checkout/`, `/my-account/`, `/journal/`, `/404/`). The short URLs forward to the canonical Playground deeplinks so they're shareable. Re-run any time you add or remove a theme.
+5. Open the short URL (`https://regionallyfamous.github.io/fifty/<theme>/`) and click through front page → shop → single product → cart → checkout → blog post → 404 once. If any pretty URL 404s inside Playground, the blueprint is broken — see "Playground gotchas" below. If product or page imagery looks like every other theme's, the seed step was skipped. If the short URL itself 404s on `regionallyfamous.github.io`, the build-redirects step was skipped (or GH Pages hasn't picked up the latest push yet — give it ~1 minute).
 
 ---
 
@@ -560,26 +561,41 @@ This auto-discovers every theme in the monorepo (via `_lib.iter_themes()`) and r
 
 Per-theme content edits (replacing artwork, rewriting copy, swapping SKUs) do NOT require re-syncing — those URLs are fetched live by the blueprint and importer at boot. The sync script only matters when the shared scaffolding or the per-theme constants need to change inside the inlined PHP bodies.
 
-Then load the deeplink and walk the surface checklist:
+Now generate the GH Pages short-URL redirector for the new theme:
+
+```bash
+python3 bin/build-redirects.py
+```
+
+This wipes and regenerates the `docs/` folder, which GitHub Pages serves at `https://regionallyfamous.github.io/fifty/`. For every theme it writes `docs/<theme>/<page>/index.html` for every entry in the script's `PAGES` list, plus a `docs/index.html` landing page that lists every theme. Each redirector has both a `<meta http-equiv="refresh">` and a `<script>location.replace(…)</script>` so it works without JS, in link previews, and in modern browsers without flashing. The script is idempotent and reads each theme's blueprint URL from `_lib.theme_blueprint_raw_url(slug)` so adding a new theme requires zero code changes — just re-run the script. **Never edit anything under `docs/` by hand**; the next run wipes it. If you need a new alias, add a row to `PAGES` inside the script.
+
+Then load the short URL and walk the surface checklist:
+
+```
+https://regionallyfamous.github.io/fifty/<theme>/
+```
+
+Or open the canonical deeplink directly if GH Pages isn't enabled on your fork yet:
 
 ```
 https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/<org>/<repo>/main/<theme>/playground/blueprint.json
 ```
 
-Append `&url=/<path>/` to deep-link into a specific surface. Walk these at minimum, in order:
+Append `&url=/<path>/` to deep-link into a specific surface (or use the corresponding `https://regionallyfamous.github.io/fifty/<theme>/<page>/` short URL). Walk these at minimum, in order:
 
 ```
-&url=/                            front page
-&url=/shop/                       shop archive
-&url=/product/bottled-morning/    single product
-&url=/cart/?demo=cart             cart (pre-filled by the mu-plugin)
-&url=/checkout/?demo=cart         checkout
-&url=/journal/                    blog index
-&url=/welcome-to-wonders-and-oddities/   single post
-&url=/this-route-does-not-exist/  404
+short URL                                              long URL (redirected to)
+fifty/<theme>/                                         &url=/                            front page
+fifty/<theme>/shop/                                    &url=/shop/                       shop archive
+fifty/<theme>/product/bottled-morning/                 &url=/product/bottled-morning/    single product
+fifty/<theme>/cart/                                    &url=/cart/?demo=cart             cart (pre-filled by the mu-plugin)
+fifty/<theme>/checkout/                                &url=/checkout/?demo=cart         checkout
+fifty/<theme>/journal/                                 &url=/journal/                    blog index
+                                                       &url=/welcome-to-wonders-and-oddities/   single post
+fifty/<theme>/404/                                     &url=/this-route-does-not-exist/  404
 ```
 
-If **any** pretty URL 404s, the blueprint is broken — almost certainly the permalink-flush gotcha (see below). Don't ship until every URL above resolves to a designed page.
+If **any** pretty URL 404s inside Playground, the blueprint is broken — almost certainly the permalink-flush gotcha (see below). If the short URL itself 404s on `regionallyfamous.github.io`, either GH Pages hasn't picked up the latest push yet (give it ~1 minute), or `bin/build-redirects.py` was skipped. Don't ship until every URL above resolves to a designed page.
 
 ### Playground gotchas
 
@@ -757,6 +773,9 @@ These are real mistakes from the Chonk build. Don't repeat them.
 | Shipped a theme variant without ever loading its Playground blueprint | Step 9 is non-optional. Every theme must have a working `<theme>/playground/blueprint.json`, which `bin/clone.py` creates and `bin/sync-playground.py` keeps in sync automatically. Walk the deeplink surface checklist before declaring done. |
 | Skipped `bin/seed-playground-content.py` after cloning, so the new theme's Playground booted with no products / blank pages OR — worse — with image URLs pointing at obel's `playground/images/` because someone "fixed" clone.py to copy `playground/content/` over | clone.py deliberately skips per-theme `playground/content/` and `playground/images/`. Those folders bake the theme slug into every image URL inside the CSV and XML, and clone.py's text substitution doesn't touch CSV/XML. Always run `python3 bin/seed-playground-content.py` after `bin/clone.py` so the new theme's content/ is seeded fresh with image URLs rewritten to its own slug. |
 | Hardcoded an image URL or theme name inside `playground/wo-import.php` or `playground/wo-configure.php` | Those scripts are SHARED across every theme — they must stay theme-agnostic and read URLs/names from the three constants `WO_THEME_NAME`, `WO_THEME_SLUG`, `WO_CONTENT_BASE_URL`. `bin/sync-playground.py` prepends the constants block when it inlines each script body. If the value you need can be expressed as a path under `WO_CONTENT_BASE_URL`, use that. Per-theme divergence belongs in `<theme>/playground/content/` (data) or `<theme>/playground/images/` (assets), never in the shared scripts. |
+| Skipped `bin/build-redirects.py` after cloning, so the new theme has no `regionallyfamous.github.io/fifty/<theme>/` short URL — leaving every social share / slide deck / docs link stuck with the 200-character `?blueprint-url=…&url=/shop/` deeplink | Step 9 ends with `bin/build-redirects.py`, not `bin/sync-playground.py`. The script auto-discovers themes (no code change required to add a new one) and writes `docs/<theme>/<page>/index.html` for every entry in its `PAGES` list. Re-run it any time a theme is added or removed; commit the new `docs/` files alongside the theme. GH Pages picks up the change within ~1 minute. |
+| Edited a file under `docs/` by hand (e.g. tweaked the landing page copy, fixed a redirect) | Every file under `docs/` is regenerated from scratch by `bin/build-redirects.py`. Edits there will be silently wiped on the next run. Move the change into the script's `REDIRECT_TEMPLATE` / `INDEX_HEAD` / `PAGES` constants instead, then re-run the script. The exception is `docs/CNAME` (custom domain), which is preserved across rebuilds. |
+| Hardcoded the GitHub org / repo / branch (or the `regionallyfamous.github.io/fifty/` URL) anywhere in `bin/` outside `_lib.py` | `bin/_lib.py` is the single source of truth for `GITHUB_ORG`, `GITHUB_REPO`, `GITHUB_BRANCH`, `GH_PAGES_BASE_URL`, `RAW_GITHUB_BASE_URL`, and the helpers built on top of them (`theme_content_base_url`, `theme_blueprint_raw_url`, `playground_deeplink`, `gh_pages_short_url`). Both `bin/sync-playground.py` and `bin/build-redirects.py` import from there, so renaming the org/repo/branch is a single-line change. Re-encoding the URL anywhere else means the next rename silently desyncs the two consumers. |
 | "Simplified" the permalink section of `playground/wo-configure.php` back to `update_option(...)` + `flush_rewrite_rules(...)` | That's the bug. In a `wp eval-file` context the global `$wp_rewrite` is stale; you must use `$wp_rewrite->set_permalink_structure()` first. See "Playground gotchas" in step 9. |
 | Removed the focus ring (`outline:none`) for visual cleanliness | Always keep a visible focus ring at ≥ 3:1 contrast. Style it; don't remove it. Tab through the homepage to verify before declaring done. |
 | Status colors (sale price, error, success) defaulted to red/green with no recalibration against the variant palette | Treat status colors as palette slugs (`status-positive`, `status-negative`, `status-warning`) and run them through the contrast script along with everything else. |
@@ -859,8 +878,9 @@ Plus generate a mockup image alongside, so the user can react to a picture, not 
 - [ ] Sample image URLs inside `<theme>/playground/content/products.csv` and `content.xml` start with `https://raw.githubusercontent.com/<org>/<repo>/main/<theme>/playground/images/` — NOT `wonders-oddities` and NOT another theme's slug
 - [ ] `python3 bin/sync-playground.py` reports "already in sync" for every theme (no stale inlined helpers)
 - [ ] Blueprint metadata references the correct theme — `meta.title`, `meta.description`, `installTheme.path`, `installTheme.options.targetFolderName`, `setSiteOptions.blogname`, the `define('WO_THEME_NAME', '<Theme>')` constants prepended to `wo-import.php` and `wo-configure.php`, and the `importWxr` step's `file.url` all read `<Theme>` / `<theme>`, not `Obel` / `obel`
-- [ ] Loaded the deeplink (`https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/<org>/<repo>/main/<theme>/playground/blueprint.json`) in a fresh browser / incognito window — boot completes without errors
-- [ ] Walked every URL in the surface checklist (`/`, `/shop/`, `/product/bottled-morning/`, `/cart/?demo=cart`, `/checkout/?demo=cart`, `/journal/`, `/welcome-to-wonders-and-oddities/`, `/this-route-does-not-exist/`) — every pretty URL resolves to a designed page, no 404s on legitimate URLs, the 404 page renders the variant's branded 404
+- [ ] `python3 bin/build-redirects.py` ran successfully and `docs/<theme>/index.html` plus `docs/<theme>/{shop,product/bottled-morning,cart,checkout,my-account,journal,404}/index.html` exist; the new theme is listed as a card on the regenerated `docs/index.html`
+- [ ] Opened the short URL (`https://regionallyfamous.github.io/fifty/<theme>/`) in a fresh browser / incognito window — it forwards to the canonical Playground deeplink and boot completes without errors. (If GH Pages is not enabled on your fork, fall back to the long deeplink: `https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/<org>/<repo>/main/<theme>/playground/blueprint.json`.)
+- [ ] Walked every URL in the surface checklist via the short URLs (`fifty/<theme>/`, `fifty/<theme>/shop/`, `fifty/<theme>/product/bottled-morning/`, `fifty/<theme>/cart/`, `fifty/<theme>/checkout/`, `fifty/<theme>/my-account/`, `fifty/<theme>/journal/`, `fifty/<theme>/404/`) — every pretty URL resolves to a designed page inside Playground, no 404s on legitimate URLs, the 404 page renders the variant's branded 404
 - [ ] `playground/wo-configure.php`'s permalink section still uses `$wp_rewrite->set_permalink_structure(...)` (not just `update_option(...)`)
 
 **Modern-blocks-only audit (run the validation greps from the hard rule):**
