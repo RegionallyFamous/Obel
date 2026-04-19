@@ -162,6 +162,25 @@ Playground's `wp-cli` step has **no shell**. The command string is parsed into a
 - For a single WP-CLI call that needs a value from another query, do the lookup in PHP and inline the resulting literal — never `$(wp post list …)`.
 - If you genuinely need WP-CLI semantics for a long script, write it to disk with `writeFile` and run it with a single `wp eval-file <path>` step.
 
+## View Transitions (cross-document)
+
+**Every theme in this monorepo MUST opt into cross-document View Transitions** with the same contract Obel and Chonk already implement. It is part of the visual baseline, not an enhancement — clones inherit it by default and you should not strip it out.
+
+The contract has two halves:
+
+1. **CSS opt-in (in `theme.json` root `styles.css`)** — prepend the View Transitions block at the start of the existing root `css` string. It declares `@view-transition { navigation: auto }`, defines the `fifty-vt-in` / `fifty-vt-out` keyframes, sets refined `::view-transition-old(root)` and `::view-transition-new(root)` animations, and assigns persistent names: `fifty-site-header` to `.wp-site-blocks > header`, `fifty-site-footer` to `.wp-site-blocks > footer`, `fifty-site-title` to `.wp-block-site-title`. It also disables transitions under `prefers-reduced-motion: reduce`.
+2. **PHP per-post names (in `functions.php`)** — a single `render_block` filter that uses `WP_HTML_Tag_Processor` to add `style="view-transition-name:fifty-post-{ID}-{kind}"` to `core/post-title` and `core/post-featured-image` outputs. The post ID comes from the block context (`$instance->context['postId']`), falling back to `get_the_ID()` and `get_queried_object_id()` for singular templates. Together with the CSS opt-in, this produces a real morph from the archive card to the single post hero.
+
+Why both halves are required:
+
+- Without the CSS opt-in there is no transition at all (cross-document VT is opt-in on both pages).
+- Without the PHP filter the per-post elements have no shared identity, so the browser falls back to a root crossfade — you lose the morph that makes it feel modern.
+- Per-page uniqueness: `view-transition-name` must be unique on each page. The site-level names (`fifty-site-header`, `fifty-site-footer`, `fifty-site-title`) appear once per page; the per-post names use the post ID, which is unique inside a single archive page and trivially unique on a singular page.
+
+Do not add JavaScript for this. Cross-document VT is a CSS-only feature, and this monorepo bans JS bundles. If you want fancier behaviors (typed transitions, back/forward direction awareness via `pagereveal`, etc.), either ship them as theme-level CSS only or skip them — adding a `<script>` is a hard-rule violation.
+
+When cloning a theme via `bin/clone.py`, both halves come along automatically (the CSS lives in `theme.json`, the filter lives in `functions.php`). Do not delete either half during a restyle.
+
 ## Working on shared tooling
 
 `bin/` is shared. Anything you change there affects every theme. After editing:
