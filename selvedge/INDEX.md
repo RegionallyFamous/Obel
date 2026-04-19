@@ -22,6 +22,8 @@ Read this file at the start of any LLM session to discover the project's structu
 |   `-- template.html.txt
 |-- assets/
 |   `-- fonts/
+|       |-- playfair-display-v40-latin-700.woff2
+|       `-- playfair-display-v40-latin-700italic.woff2
 |-- parts/
 |   |-- announcement-bar.html
 |   |-- checkout-header.html
@@ -134,89 +136,89 @@ Read this file at the start of any LLM session to discover the project's structu
 
 ### `patterns/brand-story.php`
 
-- **Slug:** `obel/brand-story`
+- **Slug:** `selvedge/brand-story`
 - **Title:** Brand story, image and text
-- **Categories:** obel
+- **Categories:** selvedge
 - **Keywords:** about, brand, story, two-column, media-text
 - **Description:** Two-column section pairing a brand photo with a short story. Replace the image and text.
 
 ### `patterns/category-tiles.php`
 
-- **Slug:** `obel/category-tiles`
+- **Slug:** `selvedge/category-tiles`
 - **Title:** Shop-by-category tiles
-- **Categories:** obel, woo-commerce
+- **Categories:** selvedge, woo-commerce
 - **Keywords:** categories, browse, shop, tiles, grid
 - **Description:** Three image tiles linking to top product categories. Replace images and labels with your own categories.
 
 ### `patterns/cta-banner.php`
 
-- **Slug:** `obel/cta-banner`
+- **Slug:** `selvedge/cta-banner`
 - **Title:** Call-to-action banner
-- **Categories:** obel, call-to-action
+- **Categories:** selvedge, call-to-action
 - **Keywords:** cta, banner, conversion, button
 - **Description:** Full-width banner with a single headline and primary CTA. Use to push toward a single conversion goal.
 
 ### `patterns/faq-accordion.php`
 
-- **Slug:** `obel/faq-accordion`
+- **Slug:** `selvedge/faq-accordion`
 - **Title:** FAQ accordion
-- **Categories:** obel
+- **Categories:** selvedge
 - **Keywords:** faq, questions, accordion, support
 - **Description:** Five-item FAQ section using the core Accordion block. Replace the questions and answers.
 
 ### `patterns/featured-products.php`
 
-- **Slug:** `obel/featured-products`
+- **Slug:** `selvedge/featured-products`
 - **Title:** Featured products grid
-- **Categories:** obel, woo-commerce
+- **Categories:** selvedge, woo-commerce
 - **Keywords:** products, collection, grid, shop, featured
 - **Description:** 3-column grid of featured products using the Product Collection block. Adjust the query attributes for your needs.
 
 ### `patterns/footer-columns.php`
 
-- **Slug:** `obel/footer-columns`
+- **Slug:** `selvedge/footer-columns`
 - **Title:** Four-column footer with site map
-- **Categories:** obel, footer
+- **Categories:** selvedge, footer
 - **Keywords:** footer, columns, sitemap
 - **Description:** Replacement footer with shop, support, about, and legal columns. Drop into the footer template part.
 
 ### `patterns/hero-image.php`
 
-- **Slug:** `obel/hero-image`
+- **Slug:** `selvedge/hero-image`
 - **Title:** Hero with image background
-- **Categories:** obel, featured
+- **Categories:** selvedge, featured
 - **Keywords:** hero, banner, header, cover
 - **Description:** Full-width cover image with headline, subhead, and primary CTA. Replace the placeholder image.
 
 ### `patterns/hero-text.php`
 
-- **Slug:** `obel/hero-text`
+- **Slug:** `selvedge/hero-text`
 - **Title:** Hero, text only
-- **Categories:** obel, featured
+- **Categories:** selvedge, featured
 - **Keywords:** hero, banner, header
 - **Description:** Centered text-only hero with headline, subhead, and CTA. Use when imagery would distract.
 
 ### `patterns/newsletter.php`
 
-- **Slug:** `obel/newsletter`
+- **Slug:** `selvedge/newsletter`
 - **Title:** Newsletter signup
-- **Categories:** obel, call-to-action
+- **Categories:** selvedge, call-to-action
 - **Keywords:** newsletter, signup, email, subscribe
 - **Description:** Inline newsletter call-out. Connect a real form provider when wiring up; this is a visual placeholder using the core Search block as a stand-in.
 
 ### `patterns/testimonials.php`
 
-- **Slug:** `obel/testimonials`
+- **Slug:** `selvedge/testimonials`
 - **Title:** Customer testimonials
-- **Categories:** obel, testimonials
+- **Categories:** selvedge, testimonials
 - **Keywords:** testimonials, reviews, social proof, quotes
 - **Description:** Three short customer quotes with attribution. Replace with your own.
 
 ### `patterns/value-props.php`
 
-- **Slug:** `obel/value-props`
+- **Slug:** `selvedge/value-props`
 - **Title:** Value propositions, three columns
-- **Categories:** obel
+- **Categories:** selvedge
 - **Keywords:** value, USP, benefits, features, columns
 - **Description:** Three-column row of short value statements. Replace the headlines with your shop's shipping, returns, and guarantee promises.
 
@@ -233,22 +235,26 @@ Read this file at the start of any LLM session to discover the project's structu
 
 ### Colors
 
-- `base` = #FAFAF7 (Base)
-- `surface` = #FFFFFF (Surface)
-- `subtle` = #F2F1EC (Subtle)
-- `muted` = #E6E4DD (Muted)
-- `border` = #D9D6CC (Border)
-- `tertiary` = #6A6760 (Tertiary)
-- `secondary` = #5A574F (Secondary)
-- `contrast` = #1A1A1A (Contrast)
-- `primary` = #1A1A1A (Primary)
-- `primary-hover` = #3D3D3D (Primary Hover)
-- `accent` = #C07241 (Accent)
-- `accent-soft` = #EFD9C3 (Accent Soft)
-- `success` = #2F7A4D (Success)
-- `warning` = #B58231 (Warning)
-- `error` = #B33A3A (Error)
-- `info` = #3A6FB3 (Info)
+- `base` = #160F08 (Base)
+- `surface` = #1F1610 (Surface)
+- `subtle` = #2C2016 (Subtle)
+- `muted` = #2C2016 (Muted)
+- `border` = #7A6248 (Border)
+- `tertiary` = #A89068 (Tertiary)
+- `secondary` = #B09878 (Secondary)
+- `contrast` = #EDE3CE (Contrast)
+- `primary` = #6B2E08 (Primary)
+- `primary-hover` = #8B3A0F (Primary Hover)
+- `accent` = #D06030 (Accent)
+- `accent-soft` = #2A1608 (Accent Soft)
+- `success` = #2F6B45 (Success)
+- `warning` = #8A6520 (Warning)
+- `error` = #8C2828 (Error)
+- `info` = #2C4A5E (Info)
+- `badge-new` = #8B3A0F (Badge New)
+- `badge-restock` = #2C4A60 (Badge Restock)
+- `badge-limited` = #5C4E20 (Badge Limited)
+- `badge-sale` = #8C2020 (Badge Sale)
 
 ### Font sizes
 
@@ -269,7 +275,7 @@ Read this file at the start of any LLM session to discover the project's structu
 - `sans` = -apple-system
 - `serif` = Iowan Old Style
 - `mono` = ui-monospace
-- `display` = Iowan Old Style
+- `display` = Playfair Display
 
 ### Spacing scale
 
@@ -286,12 +292,12 @@ Read this file at the start of any LLM session to discover the project's structu
 
 ### Shadows
 
-- `xs` = 0 1px 2px rgba(26,26,26,0.06)
-- `sm` = 0 1px 3px rgba(26,26,26,0.08), 0 1px 2px rgba(26,26,26,0.04)
-- `md` = 0 4px 8px rgba(26,26,26,0.06), 0 2px 4px rgba(26,26,26,0.04)
-- `lg` = 0 12px 24px rgba(26,26,26,0.08), 0 4px 8px rgba(26,26,26,0.04)
-- `xl` = 0 24px 48px rgba(26,26,26,0.12), 0 8px 16px rgba(26,26,26,0.06)
-- `inset` = inset 0 1px 2px rgba(26,26,26,0.08)
+- `xs` = 0 1px 2px rgba(0,0,0,0.4)
+- `sm` = 0 2px 4px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.3)
+- `md` = 0 4px 12px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.4)
+- `lg` = 0 12px 32px rgba(0,0,0,0.7), 0 4px 8px rgba(0,0,0,0.4)
+- `xl` = 0 24px 56px rgba(0,0,0,0.8), 0 8px 16px rgba(0,0,0,0.5)
+- `inset` = inset 0 1px 3px rgba(0,0,0,0.5)
 
 ### Layout
 
@@ -316,22 +322,23 @@ Read this file at the start of any LLM session to discover the project's structu
 - `border.width.hairline` = 1px
 - `border.width.thick` = 2px
 - `radius.none` = 0
-- `radius.sm` = 4px
-- `radius.md` = 8px
-- `radius.lg` = 16px
-- `radius.xl` = 24px
-- `radius.pill` = 9999px
+- `radius.sm` = 2px
+- `radius.md` = 4px
+- `radius.lg` = 6px
+- `radius.xl` = 10px
+- `radius.pill` = 3px
+- `line-height.tighter` = 0.95
 - `line-height.tight` = 1.1
 - `line-height.snug` = 1.25
 - `line-height.normal` = 1.5
 - `line-height.relaxed` = 1.65
 - `line-height.loose` = 1.85
 - `letter-spacing.tighter` = -0.03em
-- `letter-spacing.tight` = -0.015em
-- `letter-spacing.normal` = 0
-- `letter-spacing.wide` = 0.04em
-- `letter-spacing.wider` = 0.08em
-- `letter-spacing.widest` = 0.16em
+- `letter-spacing.tight` = -0.02em
+- `letter-spacing.normal` = -0.01em
+- `letter-spacing.wide` = 0.06em
+- `letter-spacing.wider` = 0.1em
+- `letter-spacing.widest` = 0.18em
 - `font-weight.regular` = 400
 - `font-weight.medium` = 500
 - `font-weight.semibold` = 600

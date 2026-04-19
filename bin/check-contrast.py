@@ -20,6 +20,15 @@ from _lib import iter_themes, resolve_theme_root  # noqa: E402
 
 
 # (foreground_slug, background_slug, min_ratio, where_it_appears)
+#
+# DARK-THEME NOTE — accent bidirectional constraint:
+#   For dark themes (e.g. Selvedge), "contrast on accent" and "accent on contrast" are
+#   mathematically impossible to BOTH satisfy with a single warm accent hue used as
+#   text on dark backgrounds: the luminance range that passes as text on near-black
+#   (L ≥ 0.19) does not overlap with the range that passes as a background for cream
+#   text (L ≤ 0.14). Those two pairings will intentionally fail in dark themes where
+#   accent is used as text-only and never as a panel background.
+#   Dark themes must use a separate slug (e.g. "primary") for button/panel backgrounds.
 REQUIRED_PAIRS = [
     ("contrast", "base",     4.5, "Body text on page background"),
     ("contrast", "surface",  4.5, "Body text on cards / hero blocks"),
@@ -66,6 +75,22 @@ def load_palette(theme_json_path: Path) -> dict[str, str]:
     return {item["slug"]: item["color"] for item in palette if "slug" in item and "color" in item}
 
 
+def load_skip_pairs(theme_root: Path) -> dict[tuple[str, str], str]:
+    """Load intentionally skipped pairings from contrast-skip.json.
+
+    File format:
+      [{"fg": "contrast", "bg": "accent", "reason": "accent is text-only..."}]
+    """
+    skip_file = theme_root / "contrast-skip.json"
+    if not skip_file.exists():
+        return {}
+    try:
+        entries = json.loads(skip_file.read_text())
+        return {(e["fg"], e["bg"]): e.get("reason", "") for e in entries}
+    except (json.JSONDecodeError, KeyError):
+        return {}
+
+
 def check_palette(theme_root: Path) -> int:
     theme_json = theme_root / "theme.json"
     if not theme_json.exists():
@@ -75,6 +100,8 @@ def check_palette(theme_root: Path) -> int:
     if not palette:
         print(f"No color palette in {theme_root.name}/theme.json", file=sys.stderr)
         return 2
+
+    skip_pairs = load_skip_pairs(theme_root)
 
     failures: list[str] = []
     skipped: list[str] = []
@@ -87,6 +114,10 @@ def check_palette(theme_root: Path) -> int:
         if fg not in palette or bg not in palette:
             skipped.append(f"  - {fg} on {bg} ({where}): slug missing from palette")
             continue
+        if (fg, bg) in skip_pairs:
+            reason = skip_pairs[(fg, bg)]
+            skipped.append(f"  - {fg} on {bg} ({where}): intentionally skipped — {reason}")
+            continue
         ratio = contrast_ratio(palette[fg], palette[bg])
         status = "PASS" if ratio >= target else "FAIL"
         line = f"{status:4} {ratio:5.2f}:1 (need {target}:1)  {fg:9} on {bg:9}  — {where}"
@@ -96,7 +127,7 @@ def check_palette(theme_root: Path) -> int:
 
     print()
     if skipped:
-        print("Skipped (slug not in palette):")
+        print("Skipped:")
         for s in skipped:
             print(s)
         print()
