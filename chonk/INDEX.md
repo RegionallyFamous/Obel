@@ -9,7 +9,7 @@ Read this file at the start of any LLM session to discover the project's structu
 ## At a glance
 
 - 24 templates, 8 parts
-- 11 starter patterns
+- 10 starter patterns
 - 3 style variations
 - 157 block style entries in `theme.json` (85 core, 72 woocommerce)
 
@@ -38,7 +38,6 @@ Read this file at the start of any LLM session to discover the project's structu
 |   |-- cta-banner.php
 |   |-- faq-accordion.php
 |   |-- featured-products.php
-|   |-- footer-columns.php
 |   |-- hero-image.php
 |   |-- hero-text.php
 |   |-- newsletter.php
@@ -169,14 +168,6 @@ Read this file at the start of any LLM session to discover the project's structu
 - **Keywords:** products, collection, grid, shop, featured
 - **Description:** 3-column grid of featured products using the Product Collection block. Adjust the query attributes for your needs.
 
-### `patterns/footer-columns.php`
-
-- **Slug:** `chonk/footer-columns`
-- **Title:** Four-column footer with site map
-- **Categories:** chonk, footer
-- **Keywords:** footer, columns, sitemap
-- **Description:** Replacement footer with shop, support, about, and legal columns. Drop into the footer template part.
-
 ### `patterns/hero-image.php`
 
 - **Slug:** `chonk/hero-image`
@@ -261,6 +252,7 @@ Read this file at the start of any LLM session to discover the project's structu
 - `4-xl` = 4.25rem
 - `5-xl` = 5.5rem
 - `6-xl` = 7rem
+- `7-xl` = 10rem
 
 ### Font families
 
@@ -307,6 +299,8 @@ Read this file at the start of any LLM session to discover the project's structu
 - `layout.narrow` = 480px
 - `layout.prose` = 560px
 - `layout.comfortable` = 640px
+- `layout.reading` = 720px
+- `layout.fluid` = 100%
 - `cover.hero` = 640px
 - `cover.promo` = 520px
 - `cover.tile` = 320px
