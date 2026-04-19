@@ -13,7 +13,7 @@
     "networking": true
   },
   "login": true,
-  "landingPage": "/shop/",
+  "landingPage": "/",
   "plugins": [
     "woocommerce",
     "wordpress-importer"
