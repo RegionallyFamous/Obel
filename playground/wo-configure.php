@@ -89,7 +89,7 @@ update_option( 'woocommerce_thumbnail_cropping', '1:1' );
 WP_CLI::log( 'WC store options: set.' );
 
 // ---------------------------------------------------------------------------
-// 4. Suppress WC onboarding notices
+// 4. Suppress WC onboarding notices + disable "Coming soon" site visibility
 // ---------------------------------------------------------------------------
 update_option( 'woocommerce_show_marketplace_suggestions', 'no' );
 update_option( 'woocommerce_task_list_complete', 'yes' );
@@ -99,6 +99,12 @@ update_option( 'woocommerce_setup_wizard_complete', 'yes' );
 update_option( 'woocommerce_admin_notices', array() );
 delete_transient( 'woocommerce_activation_redirect' );
 delete_option( 'woocommerce_queue_flush_rewrite_rules' );
+
+// WC 8.4+ ships with a "Coming soon" site-visibility mode that redirects every
+// non-shop frontend URL to /shop/ for logged-out visitors. Disable it so the
+// homepage and all other pages are publicly visible on first load.
+update_option( 'woocommerce_coming_soon', 'no' );
+update_option( 'woocommerce_store_pages_only', 'no' );
 
 // Mark all known WC onboarding note actions as actioned so the inbox is quiet.
 if ( class_exists( '\Automattic\WooCommerce\Admin\Notes\Notes' ) ) {
@@ -360,6 +366,26 @@ if ( $backorder_pid ) {
 	}
 }
 WP_CLI::log( 'Stock states: sale prices, OOS, and backorder set.' );
+
+// ---------------------------------------------------------------------------
+// 9b. Featured products — mark 4 hero SKUs so the homepage hero grid fills.
+// ---------------------------------------------------------------------------
+// The front-page hero collection uses collection="woocommerce/product-collection/featured"
+// which only surfaces products with is_featured = true. Without this step the
+// hero's right column renders empty because the CSV import sets featured = false
+// on all rows by default.
+foreach ( array( 'WO-BOTTLED-MORNING', 'WO-POCKET-THUNDER', 'WO-MOON-DUST', 'WO-SILENCE-JAR' ) as $sku ) {
+	$pid = wc_get_product_id_by_sku( $sku );
+	if ( ! $pid ) {
+		continue;
+	}
+	$p = wc_get_product( $pid );
+	if ( $p ) {
+		$p->set_featured( true );
+		$p->save();
+	}
+}
+WP_CLI::log( 'Featured: 4 hero products flagged.' );
 
 // ---------------------------------------------------------------------------
 // 10. Variable products
