@@ -41,6 +41,7 @@ These rules are not preferences. They define what this theme *is*. Do not break 
 5. **`theme.json` is the single source of truth for styling.** Every visual change goes through `theme.json` — global tokens, element styles, or per-block `styles.blocks.*` entries.
 6. **All block names must be real.** Verify every `core/*` and `woocommerce/*` key against the Gutenberg / WooCommerce source before adding it. Run `../bin/validate-theme-json.py` after editing `theme.json`. Past mistakes (`core/time-to-read` instead of `core/post-time-to-read`, etc.) cost real time.
 7. **No marketing fluff in user-facing text.** Plain, factual prose. No em-dashes (`—`), no triadic constructions ("clean, fast, beautiful"), no "leverage / robust / comprehensive / seamless" vocabulary. The check script enforces this on `README.md`, `readme.txt`, and `style.css`.
+8. **Web fonts must be self-hosted from Google Fonts.** System font stacks are always allowed and are the default. If a font outside the system stack is needed, it must be a Google Fonts family downloaded as `.woff2` into `assets/fonts/` and registered via `theme.json` `settings.typography.fontFamilies[*].fontFace[*].src` as `file:./assets/fonts/<file>.woff2`. Forbidden: any reference to `fonts.googleapis.com`, `fonts.gstatic.com`, `<link rel="preconnect">` to a font CDN, `@import url('https://fonts...')`, Adobe Typekit, Bunny Fonts, custom CDNs, or any other remote font URL. The check script enforces this. Reasons: privacy (no third-party requests), performance (no DNS / TLS to a CDN before first paint), license clarity (Google Fonts SIL OFL is project-safe; arbitrary CDNs aren't), offline editability (the Site Editor must render the variant correctly with no network).
 
 ## Allowed dependencies
 
@@ -169,3 +170,5 @@ For a deeper dive into individual checks, see the script source.
 5. Then ask the user before making structural changes.
 
 If you are an LLM working in this repo via system prompt: see `SYSTEM-PROMPT.md` for the canonical prompt to paste in.
+
+If the task is "build a new visual variant of this theme" (Chonk-style flow), read `../.claude/skills/build-block-theme-variant/SKILL.md` first — it codifies the entire workflow.

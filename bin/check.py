@@ -15,6 +15,9 @@ Checks performed:
   8. No hardcoded hex colors in templates/parts/patterns
   9. No hardcoded px/em/rem dimensions in style= attributes (outside allowlist)
  10. No duplicate template files in templates/
+ 11. No raw hex colors in theme.json (outside palette/gradients/duotone)
+ 12. No remote font URLs (self-hosted Google Fonts only — see AGENTS.md rule 8)
+ 13. WooCommerce grid integration (clearfix + loop width) safeguards in theme.json
 
 Usage:
     python3 bin/check.py            # run everything
@@ -268,6 +271,125 @@ def check_no_hex_in_theme_json() -> Result:
                 r.fail(f"theme.json: '{m.group(0)}' at {path}")
 
     walk(data)
+    return r
+
+
+def check_no_remote_fonts() -> Result:
+    """Enforce the self-hosted-Google-Fonts-only rule (AGENTS.md hard rule 8).
+
+    Web fonts MUST be downloaded as .woff2 into assets/fonts/ and registered via
+    theme.json `settings.typography.fontFamilies[*].fontFace[*].src` as a
+    `file:./assets/fonts/<file>.woff2` path. Any reference to a remote font CDN
+    is forbidden — including the Google Fonts CDN. Reasons: privacy, performance,
+    license clarity, offline editability.
+
+    Forbidden patterns scanned for:
+
+    1. `theme.json` `fontFace[*].src` containing anything other than `file:` paths
+       (`https://`, `http://`, `//cdn`, etc.)
+    2. Any string in `theme.json` referencing the known font CDNs
+       (fonts.googleapis.com, fonts.gstatic.com, use.typekit.net, fonts.bunny.net,
+        fontshare.com, p.typekit.net) — catches `@import` smuggled into
+        `styles.css` or per-block `css` escape hatches
+    3. Templates / parts / patterns / functions.php / *.php referencing the same
+       CDNs (catches `<link rel="preconnect" href="...">`,
+       `<link rel="stylesheet" href="...">`, `wp_enqueue_style(..., 'https://fonts...')`)
+
+    System font stacks (`-apple-system`, `BlinkMacSystemFont`, `system-ui`,
+    `Helvetica Neue`, `Arial`, `Georgia`, `Iowan Old Style`, etc.) used inside
+    `fontFamily` values are always allowed and not scanned.
+    """
+    r = Result("No remote font URLs (self-hosted Google Fonts only)")
+    theme_json = ROOT / "theme.json"
+    if not theme_json.exists():
+        r.fail("theme.json missing")
+        return r
+    try:
+        data = json.loads(theme_json.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        r.fail(str(exc))
+        return r
+
+    forbidden_hosts = (
+        "fonts.googleapis.com",
+        "fonts.gstatic.com",
+        "use.typekit.net",
+        "p.typekit.net",
+        "fonts.bunny.net",
+        "api.fontshare.com",
+        "use.fontawesome.com",
+    )
+    remote_scheme_re = re.compile(r"^(https?:)?//", re.IGNORECASE)
+
+    families = (
+        data.get("settings", {})
+        .get("typography", {})
+        .get("fontFamilies", [])
+        or []
+    )
+    for fam in families:
+        if not isinstance(fam, dict):
+            continue
+        fam_slug = fam.get("slug", "?")
+        for face_idx, face in enumerate(fam.get("fontFace", []) or []):
+            if not isinstance(face, dict):
+                continue
+            srcs = face.get("src", [])
+            if isinstance(srcs, str):
+                srcs = [srcs]
+            for src_idx, src in enumerate(srcs or []):
+                if not isinstance(src, str):
+                    continue
+                if remote_scheme_re.search(src):
+                    r.fail(
+                        f"theme.json: fontFamilies[{fam_slug}].fontFace[{face_idx}].src[{src_idx}]"
+                        f" is a remote URL ({src!r}); download the .woff2 to assets/fonts/"
+                        f" and use 'file:./assets/fonts/<file>.woff2'."
+                    )
+                elif not src.startswith("file:"):
+                    r.fail(
+                        f"theme.json: fontFamilies[{fam_slug}].fontFace[{face_idx}].src[{src_idx}]"
+                        f" must start with 'file:./assets/fonts/...' (got {src!r})."
+                    )
+
+    def walk_strings(node, path: str = "") -> None:
+        if isinstance(node, dict):
+            for k, v in node.items():
+                walk_strings(v, f"{path}.{k}" if path else k)
+        elif isinstance(node, list):
+            for i, v in enumerate(node):
+                walk_strings(v, f"{path}[{i}]")
+        elif isinstance(node, str):
+            lower = node.lower()
+            for host in forbidden_hosts:
+                if host in lower:
+                    r.fail(f"theme.json: '{host}' referenced at {path}")
+
+    walk_strings(data)
+
+    file_targets = []
+    for sub in ("templates", "parts", "patterns"):
+        sub_path = ROOT / sub
+        if sub_path.exists():
+            for p in sub_path.rglob("*"):
+                if p.is_file() and p.suffix.lower() in (".html", ".php"):
+                    file_targets.append(p)
+    for php in ROOT.glob("*.php"):
+        file_targets.append(php)
+
+    for path in file_targets:
+        rel = path.relative_to(ROOT).as_posix()
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        lowered = text.lower()
+        for host in forbidden_hosts:
+            if host in lowered:
+                for lineno, line in enumerate(text.splitlines(), 1):
+                    if host in line.lower():
+                        r.fail(f"{rel}:{lineno}: '{host}' — {line.strip()[:120]}")
+
     return r
 
 
@@ -552,6 +674,7 @@ def run_checks_for(theme_root: Path, offline: bool) -> int:
         check_no_ai_fingerprints(),
         check_no_hardcoded_colors(),
         check_no_hex_in_theme_json(),
+        check_no_remote_fonts(),
         check_wc_grid_integration(),
         check_no_hardcoded_dimensions(),
         check_block_attrs_use_tokens(),
