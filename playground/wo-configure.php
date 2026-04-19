@@ -34,8 +34,29 @@ $theme_name = defined( 'WO_THEME_NAME' ) ? WO_THEME_NAME : 'Demo';
 // ---------------------------------------------------------------------------
 // 1. Permalinks
 // ---------------------------------------------------------------------------
-update_option( 'permalink_structure', '/%postname%/' );
-flush_rewrite_rules( true );
+//
+// Subtle but critical: just calling
+//     update_option( 'permalink_structure', '/%postname%/' );
+//     flush_rewrite_rules( true );
+// does NOT work in a `wp eval-file` context. The global $wp_rewrite was
+// constructed at WP boot using the previous (default = empty) structure, so
+// $wp_rewrite->permalink_structure is still ''. flush_rewrite_rules() then
+// regenerates the `rewrite_rules` option from that stale property, producing
+// rules for the default permalink structure. Result: requests to
+// /welcome-to-wonders-and-oddities/, /product/foo/, /journal/, etc. all
+// 404 inside Playground.
+//
+// The fix is to use WP_Rewrite::set_permalink_structure(), which updates
+// both the option and the in-memory $wp_rewrite state (via init()), then
+// flush. The trailing delete_option() is belt + suspenders so any next
+// frontend request will lazily rebuild the rules even if the in-process
+// flush misses a permastruct registered by a plugin loaded after $wp_rewrite.
+global $wp_rewrite;
+$wp_rewrite->set_permalink_structure( '/%postname%/' );
+$wp_rewrite->set_category_base( '' );
+$wp_rewrite->set_tag_base( '' );
+$wp_rewrite->flush_rules( true );
+delete_option( 'rewrite_rules' );
 WP_CLI::log( 'Permalinks: set to /%postname%/ and flushed.' );
 
 // ---------------------------------------------------------------------------
