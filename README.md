@@ -29,25 +29,50 @@ Each theme directory is self-contained from WordPress's perspective: it has its 
 
 ## Try a theme in WordPress Playground
 
-Every theme ships a Playground blueprint at `<theme>/playground/blueprint.json`. Click a link below and a disposable WordPress instance boots in your browser with the theme, WooCommerce, and the [Wonders & Oddities](https://github.com/RegionallyFamous/wonders-oddities) sample dataset (30 products, 20 posts, 8 pages, menus, images) pre-loaded. No local install. Expect 60 to 90 seconds the first time the dataset downloads.
-
-| Theme | One-click URL |
-| --- | --- |
-| Obel  | https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json |
-| Chonk | https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json |
+Every theme ships a Playground blueprint at `<theme>/playground/blueprint.json`. Click any link below and a disposable WordPress instance boots in your browser — no local install. Expect 60 to 90 seconds on first boot while the dataset and images download.
 
 Each blueprint:
 
 - Boots WordPress (latest) on PHP 8.3 with the kitchen-sink extension bundle and networking enabled.
-- Logs you in as `admin`.
+- Logs you in as `admin` (password: `password`).
 - Installs WooCommerce and the WordPress Importer from wordpress.org.
 - Pulls the theme directly from this repo via Playground's `git:directory` resource (only the `obel/` or `chonk/` subfolder is fetched, not the whole monorepo).
-- Imports the Wonders & Oddities product CSV and content XML, sets the front page and posts page, and assigns menu locations.
-- Lands you on `/shop/`. From there `/wp-admin/site-editor.php` is one click away.
+- Imports the Wonders & Oddities product CSV and content XML (30 products with images, 20 posts, 8 pages, menus).
+- Configures the WC store: shipping zones (Flat Rate + Free), payment methods (COD + Bank Transfer), store address, pretty permalinks.
+- Seeds a sample customer account, 5 orders in varied statuses, 2 variable products, a mix of on-sale / out-of-stock / backorder states, and 12 product reviews.
+- Lands you on `/shop/`.
+
+To inspect the customer dashboard, log out and sign in as `customer` / `customer`.
+
+### Obel deeplinks
+
+| Page | Link |
+| --- | --- |
+| Home | [/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/) |
+| Shop | [/shop/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/shop/) |
+| Single product | [/product/bottled-morning/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/product/bottled-morning/) |
+| Cart (pre-filled) | [/cart/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/cart/?demo=cart) |
+| Checkout | [/checkout/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/checkout/?demo=cart) |
+| My Account | [/my-account/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/my-account/) |
+| Journal | [/journal/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/journal/) |
+| 404 | [/this-route-does-not-exist/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/this-route-does-not-exist/) |
+
+### Chonk deeplinks
+
+| Page | Link |
+| --- | --- |
+| Home | [/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/) |
+| Shop | [/shop/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/shop/) |
+| Single product | [/product/bottled-morning/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/product/bottled-morning/) |
+| Cart (pre-filled) | [/cart/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/cart/?demo=cart) |
+| Checkout | [/checkout/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/checkout/?demo=cart) |
+| My Account | [/my-account/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/my-account/) |
+| Journal | [/journal/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/journal/) |
+| 404 | [/this-route-does-not-exist/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/this-route-does-not-exist/) |
 
 To try an in-flight branch, swap `ref` in the blueprint to your branch name (keep `refType: "branch"`). To pin to a specific commit, set `ref` to the SHA and `refType: "commit"`.
 
-If you want a faster, data-free version (just the theme + WooCommerce, no sample content), copy `<theme>/playground/blueprint.json`, drop the `wordpress-importer` plugin, the two `runPHP` blocks, the `importWxr` step, and the two `wp-cli` steps, and serve the trimmed blueprint from any HTTPS URL. Same pattern, ~15 second cold start.
+If you want a faster, data-free version (just the theme + WooCommerce, no sample content), copy `<theme>/playground/blueprint.json`, drop the `wordpress-importer` plugin, the two `runPHP` blocks, the `importWxr` step, and the `wp-cli` steps, and serve the trimmed blueprint from any HTTPS URL. Same pattern, ~15 second cold start.
 
 ## Loading themes into WordPress
 

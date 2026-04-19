@@ -197,15 +197,24 @@ The "INDEX.md in sync" check fails if you forget. See [Working with LLMs](https:
 
 ## Try in Playground
 
-One click spins up a fresh WordPress + WooCommerce install with Chonk active and the [Wonders & Oddities](https://github.com/RegionallyFamous/wonders-oddities) sample dataset pre-loaded: 30 products, 20 blog posts, 8 pages, menus, and all images. Nothing to install locally.
+Each link below opens a disposable WordPress + WooCommerce install with Chonk active and the [Wonders & Oddities](https://github.com/RegionallyFamous/wonders-oddities) dataset pre-loaded. Nothing to install locally. Expect 60 to 90 seconds on first boot while the dataset and images download.
 
-[![Open in Playground](https://playground.wordpress.net/assets/playground-badge.svg)](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json)
+The blueprint also seeds: a working checkout (Flat Rate + Free shipping, COD + Bank Transfer payments), a sample customer account, 5 orders in varied statuses, 2 variable products, on-sale / out-of-stock / backorder states, and 12 product reviews.
 
-```
-https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json
-```
+Default login: `admin` / `password`. To check the customer dashboard, log out and sign in as `customer` / `customer`.
 
-The blueprint lives at [`chonk/playground/blueprint.json`](playground/blueprint.json). It requires network access to fetch the theme zip and the dataset, so expect a 60–90 second startup. Once loaded you land on `/shop/` with all 30 products and images in place.
+| Page | Link |
+| --- | --- |
+| Home | [/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/) |
+| Shop | [/shop/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/shop/) |
+| Single product | [/product/bottled-morning/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/product/bottled-morning/) |
+| Cart (pre-filled) | [/cart/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/cart/?demo=cart) |
+| Checkout | [/checkout/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/checkout/?demo=cart) |
+| My Account | [/my-account/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/my-account/) |
+| Journal | [/journal/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/journal/) |
+| 404 | [/this-route-does-not-exist/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/this-route-does-not-exist/) |
+
+The blueprint lives at [`chonk/playground/blueprint.json`](playground/blueprint.json).
 
 ## License
 
