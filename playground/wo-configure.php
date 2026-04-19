@@ -60,6 +60,11 @@ update_option( 'woocommerce_ship_to_countries', '' );
 update_option( 'woocommerce_store_address', '123 Curiosity Lane' );
 update_option( 'woocommerce_store_city', 'Los Angeles' );
 update_option( 'woocommerce_store_postcode', '90001' );
+
+// Product image sizes: 800px single (matches source resolution), 600px thumbnails.
+update_option( 'woocommerce_single_image_width', 800 );
+update_option( 'woocommerce_thumbnail_image_width', 600 );
+update_option( 'woocommerce_thumbnail_cropping', '1:1' );
 WP_CLI::log( 'WC store options: set.' );
 
 // ---------------------------------------------------------------------------
@@ -229,7 +234,7 @@ if ( $customer_id && ! get_option( '_wo_orders_seeded' ) ) {
 
 	// Grab a handful of real product IDs to use as line items.
 	$order_products = array();
-	foreach ( array( 'BOTL-MORN', 'CHAOS-SEAS', 'POCK-THUN', 'SILENCE-JAR', 'MOON-DUST' ) as $sku ) {
+	foreach ( array( 'WO-BOTTLED-MORNING', 'WO-CHAOS-SEASONING', 'WO-POCKET-THUNDER', 'WO-SILENCE-JAR', 'WO-MOON-DUST' ) as $sku ) {
 		$pid = wc_get_product_id_by_sku( $sku );
 		if ( $pid ) {
 			$order_products[] = $pid;
@@ -297,7 +302,7 @@ if ( $customer_id && ! get_option( '_wo_orders_seeded' ) ) {
 // 9. Stock-state variety
 // ---------------------------------------------------------------------------
 // Put a couple of existing products on-sale and mark one out-of-stock.
-$sale_skus = array( 'CHAOS-SEAS', 'MOON-DUST', 'SILENCE-JAR' );
+$sale_skus = array( 'WO-CHAOS-SEASONING', 'WO-MOON-DUST', 'WO-SILENCE-JAR' );
 foreach ( $sale_skus as $sku ) {
 	$pid = wc_get_product_id_by_sku( $sku );
 	if ( ! $pid ) {
@@ -314,7 +319,7 @@ foreach ( $sale_skus as $sku ) {
 	}
 }
 
-$oos_pid = wc_get_product_id_by_sku( 'VOID-SAMP' );
+$oos_pid = wc_get_product_id_by_sku( 'WO-VOID-SAMPLER' );
 if ( $oos_pid ) {
 	$oos = wc_get_product( $oos_pid );
 	if ( $oos ) {
@@ -323,7 +328,7 @@ if ( $oos_pid ) {
 	}
 }
 
-$backorder_pid = wc_get_product_id_by_sku( 'GRAV-DISC' );
+$backorder_pid = wc_get_product_id_by_sku( 'WO-DISCOUNT-GRAVITY' );
 if ( $backorder_pid ) {
 	$bop = wc_get_product( $backorder_pid );
 	if ( $bop && $bop->is_type( 'simple' ) ) {
@@ -338,15 +343,24 @@ WP_CLI::log( 'Stock states: sale prices, OOS, and backorder set.' );
 // ---------------------------------------------------------------------------
 // 10. Variable products
 // ---------------------------------------------------------------------------
-if ( ! wc_get_product_id_by_sku( 'BOTL-MORN-S-AMB' ) ) {
+if ( ! wc_get_product_id_by_sku( 'WO-BOTL-S-AMB' ) ) {
 	try {
 		$variable = new WC_Product_Variable();
 		$variable->set_name( 'Bottled Morning (Variants)' );
 		$variable->set_status( 'publish' );
-		$variable->set_sku( 'BOTL-MORN-VAR' );
+		$variable->set_sku( 'WO-BOTL-VAR' );
 		$variable->set_description( 'Bottled Morning in multiple sizes and finishes. Each bottle is guaranteed to contain exactly one morning.' );
 		$variable->set_short_description( 'Your morning, your way.' );
 		$variable->set_featured( false );
+
+		// Inherit the featured image from the matching simple product.
+		$botl_simple_id = wc_get_product_id_by_sku( 'WO-BOTTLED-MORNING' );
+		if ( $botl_simple_id ) {
+			$botl_img_id = get_post_thumbnail_id( $botl_simple_id );
+			if ( $botl_img_id ) {
+				$variable->set_image_id( $botl_img_id );
+			}
+		}
 
 		$attr_size = new WC_Product_Attribute();
 		$attr_size->set_name( 'Size' );
@@ -355,23 +369,23 @@ if ( ! wc_get_product_id_by_sku( 'BOTL-MORN-S-AMB' ) ) {
 		$attr_size->set_visible( true );
 		$attr_size->set_variation( true );
 
-		$attr_color = new WC_Product_Attribute();
-		$attr_color->set_name( 'Finish' );
-		$attr_color->set_options( array( 'Amber', 'Clear' ) );
-		$attr_color->set_position( 1 );
-		$attr_color->set_visible( true );
-		$attr_color->set_variation( true );
+		$attr_finish = new WC_Product_Attribute();
+		$attr_finish->set_name( 'Finish' );
+		$attr_finish->set_options( array( 'Amber', 'Clear' ) );
+		$attr_finish->set_position( 1 );
+		$attr_finish->set_visible( true );
+		$attr_finish->set_variation( true );
 
-		$variable->set_attributes( array( $attr_size, $attr_color ) );
+		$variable->set_attributes( array( $attr_size, $attr_finish ) );
 		$variable_id = $variable->save();
 
 		$variations = array(
-			array( 'Size' => 'Small',  'Finish' => 'Amber', 'sku' => 'BOTL-MORN-S-AMB', 'price' => '9.00',  'stock' => 20 ),
-			array( 'Size' => 'Small',  'Finish' => 'Clear', 'sku' => 'BOTL-MORN-S-CLR', 'price' => '9.00',  'stock' => 15 ),
-			array( 'Size' => 'Medium', 'Finish' => 'Amber', 'sku' => 'BOTL-MORN-M-AMB', 'price' => '14.00', 'stock' => 10 ),
-			array( 'Size' => 'Medium', 'Finish' => 'Clear', 'sku' => 'BOTL-MORN-M-CLR', 'price' => '14.00', 'stock' => 8  ),
-			array( 'Size' => 'Large',  'Finish' => 'Amber', 'sku' => 'BOTL-MORN-L-AMB', 'price' => '22.00', 'stock' => 5  ),
-			array( 'Size' => 'Large',  'Finish' => 'Clear', 'sku' => 'BOTL-MORN-L-CLR', 'price' => '22.00', 'stock' => 3  ),
+			array( 'Size' => 'Small',  'Finish' => 'Amber', 'sku' => 'WO-BOTL-S-AMB', 'price' => '9.00',  'stock' => 20 ),
+			array( 'Size' => 'Small',  'Finish' => 'Clear', 'sku' => 'WO-BOTL-S-CLR', 'price' => '9.00',  'stock' => 15 ),
+			array( 'Size' => 'Medium', 'Finish' => 'Amber', 'sku' => 'WO-BOTL-M-AMB', 'price' => '14.00', 'stock' => 10 ),
+			array( 'Size' => 'Medium', 'Finish' => 'Clear', 'sku' => 'WO-BOTL-M-CLR', 'price' => '14.00', 'stock' => 8  ),
+			array( 'Size' => 'Large',  'Finish' => 'Amber', 'sku' => 'WO-BOTL-L-AMB', 'price' => '22.00', 'stock' => 5  ),
+			array( 'Size' => 'Large',  'Finish' => 'Clear', 'sku' => 'WO-BOTL-L-CLR', 'price' => '22.00', 'stock' => 3  ),
 		);
 
 		foreach ( $variations as $vdata ) {
@@ -399,14 +413,23 @@ if ( ! wc_get_product_id_by_sku( 'BOTL-MORN-S-AMB' ) ) {
 	}
 }
 
-if ( ! wc_get_product_id_by_sku( 'POCK-THUN-SOFT' ) ) {
+if ( ! wc_get_product_id_by_sku( 'WO-THUN-SOFT' ) ) {
 	try {
 		$thunder = new WC_Product_Variable();
 		$thunder->set_name( 'Pocket Thunder (Variants)' );
 		$thunder->set_status( 'publish' );
-		$thunder->set_sku( 'POCK-THUN-VAR' );
+		$thunder->set_sku( 'WO-THUN-VAR' );
 		$thunder->set_description( 'A compact thunderstorm, available in two intensities.' );
 		$thunder->set_short_description( 'The storm that fits in your pocket.' );
+
+		// Inherit the featured image from the matching simple product.
+		$thun_simple_id = wc_get_product_id_by_sku( 'WO-POCKET-THUNDER' );
+		if ( $thun_simple_id ) {
+			$thun_img_id = get_post_thumbnail_id( $thun_simple_id );
+			if ( $thun_img_id ) {
+				$thunder->set_image_id( $thun_img_id );
+			}
+		}
 
 		$attr_int = new WC_Product_Attribute();
 		$attr_int->set_name( 'Intensity' );
@@ -418,7 +441,7 @@ if ( ! wc_get_product_id_by_sku( 'POCK-THUN-SOFT' ) ) {
 		$thunder->set_attributes( array( $attr_int ) );
 		$thunder_id = $thunder->save();
 
-		foreach ( array( 'Soft' => array( 'sku' => 'POCK-THUN-SOFT', 'price' => '18.00', 'stock' => 12 ), 'Loud' => array( 'sku' => 'POCK-THUN-LOUD', 'price' => '24.00', 'stock' => 6 ) ) as $intensity => $vdata ) {
+		foreach ( array( 'Soft' => array( 'sku' => 'WO-THUN-SOFT', 'price' => '18.00', 'stock' => 12 ), 'Loud' => array( 'sku' => 'WO-THUN-LOUD', 'price' => '24.00', 'stock' => 6 ) ) as $intensity => $vdata ) {
 			$v = new WC_Product_Variation();
 			$v->set_parent_id( $thunder_id );
 			$v->set_attributes( array( 'attribute_intensity' => $intensity ) );
@@ -443,18 +466,18 @@ if ( ! wc_get_product_id_by_sku( 'POCK-THUN-SOFT' ) ) {
 // ---------------------------------------------------------------------------
 if ( ! get_option( '_wo_reviews_seeded' ) ) {
 	$review_data = array(
-		array( 'sku' => 'BOTL-MORN',  'author' => 'Priya S.',    'rating' => 5, 'comment' => 'Genuinely changed my mornings. Worth every penny.' ),
-		array( 'sku' => 'BOTL-MORN',  'author' => 'James W.',    'rating' => 4, 'comment' => 'Tastes like optimism with a faint hint of regret.' ),
-		array( 'sku' => 'CHAOS-SEAS', 'author' => 'Dana K.',     'rating' => 5, 'comment' => 'Transformed my bland meals into something unpredictable. 10/10.' ),
-		array( 'sku' => 'CHAOS-SEAS', 'author' => 'Mikael R.',   'rating' => 3, 'comment' => 'Exciting, but I wish there was a mild setting.' ),
-		array( 'sku' => 'POCK-THUN',  'author' => 'Leila M.',    'rating' => 5, 'comment' => 'Perfect for dramatic emphasis in presentations.' ),
-		array( 'sku' => 'SILENCE-JAR','author' => 'Tom B.',      'rating' => 4, 'comment' => 'My family has never been quieter. Miraculous.' ),
-		array( 'sku' => 'SILENCE-JAR','author' => 'Carmen O.',   'rating' => 5, 'comment' => 'Works as described. No complaints — literally.' ),
-		array( 'sku' => 'MOON-DUST',  'author' => 'Noah F.',     'rating' => 4, 'comment' => 'Smells exactly like you would expect the moon to smell.' ),
-		array( 'sku' => 'MOON-DUST',  'author' => 'Aiko T.',     'rating' => 5, 'comment' => 'Bought three jars. Planning to buy more.' ),
-		array( 'sku' => 'VOID-SAMP',  'author' => 'Remy D.',     'rating' => 3, 'comment' => 'The void is real. Not sure I was ready for that.' ),
-		array( 'sku' => 'GRAV-DISC',  'author' => 'Fatima A.',   'rating' => 5, 'comment' => 'Finally, a discount that is tangible in every sense.' ),
-		array( 'sku' => 'GRAV-DISC',  'author' => 'Carlos N.',   'rating' => 4, 'comment' => 'Applied it to my grocery bill. Neighbours are concerned.' ),
+		array( 'sku' => 'WO-BOTTLED-MORNING',  'author' => 'Priya S.',    'rating' => 5, 'comment' => 'Genuinely changed my mornings. Worth every penny.' ),
+		array( 'sku' => 'WO-BOTTLED-MORNING',  'author' => 'James W.',    'rating' => 4, 'comment' => 'Tastes like optimism with a faint hint of regret.' ),
+		array( 'sku' => 'WO-CHAOS-SEASONING',  'author' => 'Dana K.',     'rating' => 5, 'comment' => 'Transformed my bland meals into something unpredictable. 10/10.' ),
+		array( 'sku' => 'WO-CHAOS-SEASONING',  'author' => 'Mikael R.',   'rating' => 3, 'comment' => 'Exciting, but I wish there was a mild setting.' ),
+		array( 'sku' => 'WO-POCKET-THUNDER',   'author' => 'Leila M.',    'rating' => 5, 'comment' => 'Perfect for dramatic emphasis in presentations.' ),
+		array( 'sku' => 'WO-SILENCE-JAR',      'author' => 'Tom B.',      'rating' => 4, 'comment' => 'My family has never been quieter. Miraculous.' ),
+		array( 'sku' => 'WO-SILENCE-JAR',      'author' => 'Carmen O.',   'rating' => 5, 'comment' => 'Works as described. No complaints -- literally.' ),
+		array( 'sku' => 'WO-MOON-DUST',        'author' => 'Noah F.',     'rating' => 4, 'comment' => 'Smells exactly like you would expect the moon to smell.' ),
+		array( 'sku' => 'WO-MOON-DUST',        'author' => 'Aiko T.',     'rating' => 5, 'comment' => 'Bought three jars. Planning to buy more.' ),
+		array( 'sku' => 'WO-VOID-SAMPLER',     'author' => 'Remy D.',     'rating' => 3, 'comment' => 'The void is real. Not sure I was ready for that.' ),
+		array( 'sku' => 'WO-DISCOUNT-GRAVITY', 'author' => 'Fatima A.',   'rating' => 5, 'comment' => 'Finally, a discount that is tangible in every sense.' ),
+		array( 'sku' => 'WO-DISCOUNT-GRAVITY', 'author' => 'Carlos N.',   'rating' => 4, 'comment' => 'Applied it to my grocery bill. Neighbours are concerned.' ),
 	);
 
 	$review_count = 0;
@@ -492,9 +515,8 @@ if ( ! get_option( '_wo_reviews_seeded' ) ) {
 		}
 	}
 
-	// Refresh average ratings.
-	$reviewed_skus = array_unique( array_column( $review_data, 'sku' ) );
-	foreach ( $reviewed_skus as $sku ) {
+	// Refresh average ratings for all reviewed products.
+	foreach ( array_unique( array_column( $review_data, 'sku' ) ) as $sku ) {
 		$pid = wc_get_product_id_by_sku( $sku );
 		if ( $pid ) {
 			WC_Comments::get_average_rating_for_product( wc_get_product( $pid ) );

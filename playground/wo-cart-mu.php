@@ -33,7 +33,7 @@ add_action(
 
 		WC()->cart->empty_cart();
 
-		$skus = array( 'BOTL-MORN', 'POCK-THUN', 'CHAOS-SEAS' );
+		$skus = array( 'WO-BOTTLED-MORNING', 'WO-POCKET-THUNDER', 'WO-CHAOS-SEASONING' );
 		foreach ( $skus as $sku ) {
 			$pid = wc_get_product_id_by_sku( $sku );
 			if ( $pid ) {
