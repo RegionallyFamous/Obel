@@ -18,6 +18,7 @@ Checks performed:
  11. No raw hex colors in theme.json (outside palette/gradients/duotone)
  12. No remote font URLs (self-hosted Google Fonts only — see AGENTS.md rule 8)
  13. WooCommerce grid integration (clearfix + loop width) safeguards in theme.json
+ 14. WooCommerce frontend CSS overrides (product tabs etc.) — see AGENTS.md rule 6
 
 Usage:
     python3 bin/check.py            # run everything
@@ -635,6 +636,86 @@ def check_no_duplicate_templates() -> Result:
     return r
 
 
+def check_wc_overrides_styled() -> Result:
+    """Fail if any WC block known to ship hardcoded frontend CSS lacks a
+    `styles.blocks.<block>.css` override that nullifies WC's defaults.
+
+    See AGENTS.md rule 6 (No raw WooCommerce frontend CSS bleeds through).
+
+    Each entry in WC_OVERRIDE_TARGETS lists:
+      - the block name,
+      - one or more substrings that the `css` field MUST contain (these are
+        the WC selectors we are overriding),
+      - one or more substrings that MUST appear at least once across the
+        full css string (these are the "kill" declarations: `content:none`,
+        `border-radius:0`, etc., that prove the WC default has been
+        explicitly suppressed rather than left to leak).
+
+    Without these tells, an inherited theme.json may technically have a
+    `css` field but still not address the surface (e.g. only setting
+    typography/spacing), which is the failure mode that motivated this
+    check.
+    """
+    r = Result("WooCommerce frontend CSS is overridden via theme.json")
+    theme_json = ROOT / "theme.json"
+    if not theme_json.exists():
+        r.fail("theme.json missing")
+        return r
+    try:
+        data = json.loads(theme_json.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        r.fail(str(exc))
+        return r
+
+    blocks = (data.get("styles", {}) or {}).get("blocks", {}) or {}
+
+    WC_OVERRIDE_TARGETS = [
+        {
+            "block": "woocommerce/product-details",
+            "must_target": ["wc-tabs"],
+            "must_kill": ["content: none", "content:none"],
+            "why": "Product tabs ship as rounded WC 'folder' tabs by default",
+        },
+    ]
+
+    for target in WC_OVERRIDE_TARGETS:
+        block = blocks.get(target["block"])
+        css = ""
+        if isinstance(block, dict):
+            css_field = block.get("css")
+            if isinstance(css_field, str):
+                css = css_field
+        css_norm = re.sub(r"\s+", " ", css)
+
+        if not css:
+            r.fail(
+                f"`styles.blocks[\"{target['block']}\"]` has no `css` field. "
+                f"{target['why']} — add a css override that uses project tokens."
+            )
+            continue
+
+        if not any(t in css for t in target["must_target"]):
+            r.fail(
+                f"`styles.blocks[\"{target['block']}\"].css` does not target "
+                f"any of {target['must_target']}. WC's default markup will "
+                f"render with WC's default styles."
+            )
+            continue
+
+        if not any(k.replace(" ", "") in css_norm.replace(" ", "")
+                   for k in target["must_kill"]):
+            r.fail(
+                f"`styles.blocks[\"{target['block']}\"].css` does not "
+                f"explicitly kill WC's defaults (expected one of "
+                f"{target['must_kill']} somewhere in the rule body). "
+                f"Without these, WC's `::before`/`::after` shapes leak through."
+            )
+
+    if r.passed and not r.skipped:
+        r.details.append(f"{len(WC_OVERRIDE_TARGETS)} WC surface(s) checked")
+    return r
+
+
 def check_no_ai_fingerprints() -> Result:
     r = Result("No AI-fingerprint vocabulary in user-facing files")
     for name in AI_FINGERPRINT_TARGETS:
@@ -676,6 +757,7 @@ def run_checks_for(theme_root: Path, offline: bool) -> int:
         check_no_hex_in_theme_json(),
         check_no_remote_fonts(),
         check_wc_grid_integration(),
+        check_wc_overrides_styled(),
         check_no_hardcoded_dimensions(),
         check_block_attrs_use_tokens(),
         check_no_duplicate_templates(),

@@ -32,7 +32,8 @@ These are inherited by every theme in the monorepo. Per-theme `AGENTS.md` files 
 3. **No `!important`.** If you reach for it, the cascade is wrong; fix the cascade instead.
 4. **Only modern blocks.** Only `core/*` and `woocommerce/*` blocks. No `core/freeform`, `core/html`, `core/shortcode`, no `[woocommerce_*]` shortcodes, no other shortcodes. Custom blocks are forbidden — if a built-in block can do it, use that.
 5. **Nothing static.** Menus must be `core/navigation` blocks backed by real `wp_navigation` posts. Category lists must be `core/terms-query`. Product grids must be `woocommerce/product-collection`. No hardcoded link lists masquerading as menus, no hand-typed category tiles.
-6. **Run `python3 bin/check.py <theme> --quick` before every commit.** It catches every mistake the other rules try to prevent.
+6. **No raw WooCommerce frontend CSS bleeds through.** WC ships a lot of opinionated frontend CSS that survives a block theme (rounded "folder" product tabs, hard-coded notice colours, `.button` overrides, etc.). Any WC surface whose default markup is styled by `plugins/woocommerce/assets/css/woocommerce.css` MUST be re-styled in `theme.json` via `styles.blocks.<wc-block>.css` using project tokens, with the WC defaults explicitly nullified (`content: none`, `display: none`, `box-shadow: none`, `border-radius: 0`, etc. as needed). Known surfaces: `woocommerce/product-details` (the `.wc-tabs` block), `woocommerce/store-notices`, `woocommerce/cart`/`woocommerce/checkout` form rows, the legacy `.button` class. If you add a new theme variant, copy the full block override — never just the spacing/typography. The check script enforces this for the known surfaces.
+7. **Run `python3 bin/check.py <theme> --quick` before every commit.** It catches every mistake the other rules try to prevent.
 
 ## Working on a theme
 
