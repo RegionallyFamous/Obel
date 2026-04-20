@@ -1,20 +1,29 @@
 #!/usr/bin/env python3
-"""Append the WC override CSS chunk to every theme's top-level styles.css.
+"""Append WC override CSS chunks to every theme's top-level styles.css.
 
-This script is intentionally idempotent: it looks for a unique sentinel
-string (`/* wc-tells: */`) and refuses to append a second copy if the
-sentinel already exists. Run repeatedly without harm.
+This script is a small append-only chain: each entry in CHUNKS is a
+named CSS block bracketed by a unique `/* sentinel */ ... /* /sentinel */`
+pair. On every run we walk CHUNKS in order, and for each chunk:
 
-The CSS chunk re-uses the same `var(--wp--preset--color--*)` /
-`var(--wp--custom--*)` tokens every theme already defines, so a single
-chunk styles all four themes with no per-theme CSS forking.
+  * if its sentinel is already present in the theme's styles.css, skip;
+  * otherwise splice it in just AFTER the previous chunk's closing
+    sentinel (or, for the first chunk, after the canonical archive-page
+    marker `/* /archive-product polish */` that already lives at the end
+    of every theme's hand-authored CSS).
 
-Why a script and not StrReplace on theme.json directly:
-  * styles.css is a single ~17 KB minified string per theme that contains
-    URL-encoded SVG, embedded double quotes (escaped with `\\"` in JSON),
-    and CSS that itself contains `:` and `{` which look like JSON.
-    Writing the chunk through json.loads/json.dumps round-trips it safely.
-  * The chunk can grow without re-anchoring StrReplace each time.
+This means the script is idempotent (running it twice produces the same
+file) and additive (a follow-up fix is just one more entry in CHUNKS;
+the original chunk is left untouched).
+
+The CSS uses tokens (`var(--wp--preset--color--*)`, `var(--wp--custom--*)`)
+so the same chunk styles all four themes correctly with no per-theme
+forking.
+
+Why we splice raw text instead of round-tripping JSON: the existing
+styles.css value is a single ~17 KB minified string per theme, containing
+URL-encoded SVG and embedded double quotes (`\\"` in JSON). Round-tripping
+through json.loads/json.dumps would re-encode every other string in the
+file and produce massive irrelevant diffs.
 
 Run from the theme repo root:
   python3 bin/append-wc-overrides.py
@@ -164,46 +173,106 @@ table.variations select:focus{{outline:none;border-color:var(--wp--preset--color
 {SENTINEL_CLOSE}"""
 
 
-ANCHOR = "/* /archive-product polish */"
+# ---------------------------------------------------------------------------
+# Follow-up chunk: cart page sidebar fix.
+# ---------------------------------------------------------------------------
+# The original group A (cart interior) used `grid-template-columns:2fr 1fr`
+# at the 782px breakpoint. On tablet / narrow-desktop widths (~800-1000px)
+# that shrinks the sidebar column to ~200px, which then squeezes the
+# coupon disclosure into one-letter-per-line text and turns the
+# Proceed-to-Checkout button into an oversized pill that overflows the
+# card. The fix:
+#   1. Clamp the sidebar to minmax(300px, 360px) so it always has usable
+#      width and never grows beyond a comfortable reading column.
+#   2. `min-width:0` on the grid children so they can shrink without
+#      forcing the row to overflow horizontally.
+#   3. Make the coupon disclosure an explicit flex row with the chevron
+#      pinned to the right (was inline, with the chevron eating the row
+#      width and forcing the label to wrap).
+#   4. Tighten the submit button's padding + line-height so a two-word
+#      label like "Proceed to Checkout" doesn't balloon into a tall pill.
+# Same selectors target the WC Blocks cart on all four themes; tokens
+# resolve per-theme.
+SENTINEL_OPEN_CART_FIX = "/* wc-tells-cart-sidebar-fix */"
+SENTINEL_CLOSE_CART_FIX = "/* /wc-tells-cart-sidebar-fix */"
+CSS_CART_FIX = f"""{SENTINEL_OPEN_CART_FIX}
+.wc-block-cart{{align-items:start;}}
+@media (min-width:782px){{.wc-block-cart{{grid-template-columns:minmax(0,1fr) minmax(300px,360px);}}}}
+.wc-block-cart__main,.wc-block-components-sidebar-layout__main,.wc-block-cart__sidebar,.wc-block-components-sidebar-layout__sidebar{{min-width:0;}}
+.wc-block-cart__sidebar{{overflow-wrap:break-word;word-break:normal;hyphens:none;}}
+.wc-block-cart__sidebar .wp-block-heading{{font-family:var(--wp--preset--font-family--display);font-size:var(--wp--preset--font-size--xl);font-weight:var(--wp--custom--font-weight--regular);margin:0 0 var(--wp--preset--spacing--xs);overflow-wrap:break-word;}}
+.wc-block-components-totals-coupon{{padding:0;}}
+.wc-block-components-totals-coupon .wc-block-components-panel__button,.wc-block-components-panel>.wc-block-components-panel__button{{display:flex;align-items:center;justify-content:space-between;width:100%;gap:var(--wp--preset--spacing--xs);background:transparent;border:0;padding:var(--wp--preset--spacing--xs) 0;font-family:var(--wp--preset--font-family--sans);font-size:var(--wp--preset--font-size--xs);letter-spacing:var(--wp--custom--letter-spacing--wider);text-transform:uppercase;color:var(--wp--preset--color--secondary);cursor:pointer;text-align:left;white-space:normal;overflow-wrap:break-word;word-break:normal;}}
+.wc-block-components-totals-coupon .wc-block-components-panel__button-icon,.wc-block-components-panel__button-icon{{flex:0 0 auto;width:14px;height:14px;}}
+.wc-block-cart__submit-container{{margin-top:var(--wp--preset--spacing--sm);}}
+.wc-block-cart__submit-container .wc-block-components-checkout-place-order-button,.wc-block-cart__submit-container a.wc-block-cart__submit-button{{padding:var(--wp--preset--spacing--sm) var(--wp--preset--spacing--md);font-size:var(--wp--preset--font-size--xs);letter-spacing:var(--wp--custom--letter-spacing--wider);text-transform:uppercase;border-radius:var(--wp--custom--radius--pill);overflow-wrap:break-word;word-break:normal;line-height:1.2;min-width:0;}}
+{SENTINEL_CLOSE_CART_FIX}"""
+
+
+# Each entry: (sentinel_open, sentinel_close, raw_css, anchor_after).
+# `anchor_after` is the marker the chunk is spliced in after — for the
+# first chunk that's the canonical archive-page marker; for follow-ups
+# it's the previous chunk's close sentinel so chunks land in a stable
+# documented order.
+CHUNKS: list[tuple[str, str, str, str]] = [
+    (
+        SENTINEL_OPEN,
+        SENTINEL_CLOSE,
+        CSS,
+        "/* /archive-product polish */",
+    ),
+    (
+        SENTINEL_OPEN_CART_FIX,
+        SENTINEL_CLOSE_CART_FIX,
+        CSS_CART_FIX,
+        SENTINEL_CLOSE,
+    ),
+]
+
+
+def _flatten(css: str) -> str:
+    """Collapse our authored CSS to one line, matching the existing
+    minified style of the surrounding styles.css value."""
+    return " ".join(line.strip() for line in css.splitlines() if line.strip())
+
+
+def _json_escape(s: str) -> str:
+    """JSON-string-escape a CSS chunk. Only backslash and double quote
+    need escaping for our CSS (no control chars; the chevron SVG uses
+    single quotes internally)."""
+    return s.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _splice_after(text: str, anchor: str, payload: str) -> tuple[str, str]:
+    """Insert `payload` immediately after the first occurrence of `anchor`
+    inside `text`. Returns (new_text, status_message). If anchor is missing
+    or non-unique we return text unchanged so a typo can't silently pad
+    the file with duplicate or misplaced content."""
+    if text.count(anchor) != 1:
+        return text, f"anchor {anchor!r} missing or non-unique"
+    idx = text.index(anchor) + len(anchor)
+    return text[:idx] + payload + text[idx:], "ok"
 
 
 def append_for(theme: str) -> str:
-    """Append the chunk to the END of styles.css, just before the closing
-    JSON-string `"`. We do raw text manipulation rather than round-tripping
-    json.loads/dumps because:
-      * the existing minified styles.css uses one long line, hand-tuned
-        whitespace, and embedded URL-encoded SVG; round-tripping would
-        cause spurious formatting churn across the whole 50 KB file,
-      * there is exactly one occurrence of the marker `/* /archive-product
-        polish */` in each theme.json, and it appears immediately before
-        the closing `"` of the styles.css JSON value (3 themes) or
-        immediately before `",` (selvedge, which has another property
-        following). Both cases are handled by anchoring on `"` after the
-        marker.
-    """
+    """Walk every chunk in CHUNKS for one theme. Skips chunks whose
+    open-sentinel is already present so re-runs are no-ops."""
     path = ROOT / theme / "theme.json"
     text = path.read_text(encoding="utf-8")
-    if SENTINEL_OPEN in text:
-        return f"{theme}: already has wc-tells (skipped)"
-    if text.count(ANCHOR) != 1:
-        return f"{theme}: anchor {ANCHOR!r} missing or non-unique"
-    # Flatten the CSS chunk to one line (matches existing minified style).
-    flat = " ".join(line.strip() for line in CSS.splitlines() if line.strip())
-    # JSON-escape the chunk: only `\\` and `"` need escaping in our CSS
-    # (no control chars, no `/` requiring escape). The chevron SVG uses
-    # single quotes inside, so the only `"` are the outer `url("...")`
-    # delimiters, which become `\"` here.
-    escaped = flat.replace("\\", "\\\\").replace('"', '\\"')
-    # Splice the escaped chunk in just BEFORE the JSON-string closing `"`.
-    # The marker line currently ends `... /* /archive-product polish */"`
-    # (or `*/",`). We insert immediately after the marker and before the
-    # closing `"`.
-    needle = ANCHOR + '"'
-    if needle not in text:
-        return f"{theme}: closing quote after anchor not found"
-    text = text.replace(needle, ANCHOR + escaped + '"', 1)
+    notes: list[str] = []
+    for sentinel_open, _close, css, anchor in CHUNKS:
+        if sentinel_open in text:
+            notes.append(f"skip {sentinel_open}")
+            continue
+        flat = _flatten(css)
+        escaped = _json_escape(flat)
+        text, status = _splice_after(text, anchor, escaped)
+        if status != "ok":
+            notes.append(f"FAIL {sentinel_open}: {status}")
+            continue
+        notes.append(f"+{len(flat)} {sentinel_open}")
     path.write_text(text, encoding="utf-8")
-    return f"{theme}: appended {len(flat)} chars (escaped {len(escaped)})"
+    return f"{theme}: " + "; ".join(notes)
 
 
 def main(argv: list[str]) -> int:
