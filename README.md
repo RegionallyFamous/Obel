@@ -42,11 +42,11 @@ Each blueprint:
 - Boots WordPress (latest) on PHP 8.3 with the kitchen-sink extension bundle and networking enabled.
 - Logs you in as `admin` (password: `password`).
 - Installs WooCommerce and the WordPress Importer from wordpress.org.
-- Pulls the theme directly from this repo via Playground's `git:directory` resource (only the `obel/` or `chonk/` subfolder is fetched, not the whole monorepo).
+- Pulls the theme directly from this repo via Playground's `git:directory` resource (only the matching `<theme>/` subfolder is fetched, not the whole monorepo).
 - Imports the Wonders & Oddities product CSV and content XML (30 products with images, 20 posts, 8 pages, menus).
 - Configures the WC store: shipping zones (Flat Rate + Free), payment methods (COD + Bank Transfer), store address, pretty permalinks.
 - Seeds a sample customer account, 5 orders in varied statuses, 2 variable products, a mix of on-sale / out-of-stock / backorder states, and 12 product reviews.
-- Lands you on `/shop/`.
+- Sets `show_on_front=page` to the seeded `home` page and `page_for_posts` to the seeded `journal` page, then lands you at `/` so you see the designed homepage (not WP's "your latest posts" fallback and not `/shop/`).
 
 To inspect the customer dashboard, log out and sign in as `customer` / `customer`.
 

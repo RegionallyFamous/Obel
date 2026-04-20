@@ -143,6 +143,16 @@ After editing any per-theme `<theme>/playground/content/` file or replacing artw
 
 Commit the resulting `*/playground/blueprint.json` changes alongside the source-file change. `bin/check.py` does not (yet) enforce that the blueprints are in sync — keep them in sync by running `sync-playground.py` before every commit that touches `playground/`.
 
+### Default landing page
+
+Every blueprint MUST set `"landingPage": "/"`. Reasons:
+
+- The `docs/<theme>/index.html` redirector built by `bin/build-redirects.py` sends visitors to `…&url=/` (PAGES[0] in `bin/_lib.py`). Keep the blueprint's standalone default aligned with the homepage card on `demo.regionallyfamous.com` so they tell the same story.
+- WP's stock default (no `show_on_front=page`) is "Your latest posts" — for a storefront that's empty / wrong. WC 8.4's "Coming soon" mode (already disabled in `wo-configure.php`) would otherwise pin the default landing to `/shop/`, which is the second-worst option.
+- The seeded `home` page exists precisely so the blueprint can show a designed homepage on first paint. `wo-configure.php`'s `runPHP` block sets `show_on_front=page` and `page_on_front` to that page; `landingPage: "/"` is what makes `/` actually resolve to it on first load.
+
+`bin/check.py` enforces this via `check_blueprint_landing_page` — any drift fails the check before push.
+
 ### Permalinks gotcha (the one footgun that will burn you)
 
 In a `wp eval-file` context (which is how `wo-configure.php` runs), the global `$wp_rewrite` was constructed at WP boot from the previous (default = empty) `permalink_structure` option. Calling

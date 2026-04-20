@@ -896,6 +896,68 @@ def check_no_wc_tabs_block() -> Result:
     return r
 
 
+def check_blueprint_landing_page() -> Result:
+    """Fail if `playground/blueprint.json`'s `landingPage` is anything other
+    than `/`.
+
+    Why this matters:
+      The repo's docs/<theme>/index.html homepage redirector sends visitors
+      to `…&url=/` (because PAGES[0] in bin/_lib.py is `{"slug": "",
+      "url": "/", "label": "Home"}`). Playground's `&url=` query param
+      overrides `landingPage` from the blueprint, so a stale `landingPage`
+      in the JSON wouldn't immediately break the short URL — but it WOULD
+      take effect any time someone:
+
+        - Loads the bare blueprint (drag-and-drop, blueprint editor,
+          `?blueprint-url=…` with no extra `&url=`),
+        - Embeds the blueprint in a third-party launcher,
+        - Builds a deep link from `bin/_lib.playground_deeplink(theme,
+          "/")` (which omits `&url=` for the home case in some versions).
+
+      Pinning `landingPage` to `/` keeps the blueprint's standalone
+      behaviour aligned with the homepage card on demo.regionallyfamous.com
+      ("opens the homepage", not "/shop/" or "/wp-admin/"). This check
+      exists because the repo's READMEs once silently disagreed with the
+      blueprint about which page visitors land on, and the only way to
+      catch that is to assert the contract in code.
+
+    See AGENTS.md (monorepo).
+    """
+    r = Result("Playground blueprint lands on `/`")
+    blueprint_path = ROOT / "playground" / "blueprint.json"
+    if not blueprint_path.exists():
+        r.skip("no playground/blueprint.json (theme without a Playground blueprint)")
+        return r
+    try:
+        data = json.loads(blueprint_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        r.fail(f"playground/blueprint.json: invalid JSON ({exc}). Cannot validate `landingPage`.")
+        return r
+    landing = data.get("landingPage")
+    if landing is None:
+        r.fail(
+            "playground/blueprint.json: missing `landingPage`. Set it to "
+            "`\"/\"` so the bare blueprint opens the designed homepage "
+            "(not WP's default `/wp-admin/` landing). The docs/<theme>/ "
+            "redirector forces `&url=/` already, but the blueprint is "
+            "consumed standalone too (drag-and-drop, blueprint editor, "
+            "third-party launchers)."
+        )
+    elif landing != "/":
+        r.fail(
+            f"playground/blueprint.json: `landingPage` is "
+            f"`{json.dumps(landing)}`, expected `\"/\"`. The repo's "
+            f"homepage card on demo.regionallyfamous.com claims the "
+            f"blueprint lands on the home page; keep them in sync. If "
+            f"you really do want a different default, update PAGES[0] in "
+            f"bin/_lib.py and every README's deeplink table at the same "
+            f"time."
+        )
+    if r.passed and not r.skipped:
+        r.details.append("landingPage is `/`")
+    return r
+
+
 def check_front_page_unique_layout() -> Result:
     """Every theme's homepage must be structurally distinct from every other theme's.
 
@@ -996,6 +1058,7 @@ def run_checks_for(theme_root: Path, offline: bool) -> int:
         check_no_hardcoded_dimensions(),
         check_block_attrs_use_tokens(),
         check_no_duplicate_templates(),
+        check_blueprint_landing_page(),
         check_front_page_unique_layout(),
     ]
 
