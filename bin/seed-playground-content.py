@@ -46,7 +46,24 @@ What this script does:
            images/ folder, BUT only when the destination file does not
            already exist. This preserves chonk's per-theme generated
            imagery (which already lives in chonk/playground/images/) while
-           seeding obel and selvedge with the canonical PNGs.
+           seeding obel and selvedge with the canonical PNGs. The copy
+           also unconditionally skips `wonders-<product-slug>.png` when a
+           per-theme `product-wo-<slug>.jpg` photograph is already in the
+           destination — those cartoons would only be deleted seconds
+           later by the upgrade pass.
+         - Runs an UPGRADE pass over the per-theme CSV + WXR after the
+           assets are in place: every `wonders-<product-slug>.png` URL is
+           rewritten to `product-wo-<slug>.jpg` when the photograph is
+           present in the theme's images/ folder. This is what makes the
+           Playground render real product photography instead of the
+           upstream's flat cartoon placeholders. Page/post hero refs
+           (`wonders-page-*.png`, `wonders-post-*.png`) are left alone
+           until per-theme photographic equivalents exist.
+         - Cleans up `wonders-<product-slug>.png` cartoon files from the
+           theme's images/ folder once they are no longer referenced (i.e.
+           the upgrade pass already swung the URLs over to the JPGs).
+           Page/post cartoons remain on disk because they are still the
+           live image for those entries.
 
     The script is fully idempotent. Re-running it is a no-op once every
     theme is seeded; pass --force to overwrite existing per-theme content
@@ -64,6 +81,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -154,6 +172,46 @@ def rewrite_image_urls(text: str, theme_slug: str) -> str:
     )
 
 
+_WONDERS_PNG_RE = re.compile(r'wonders-([a-z0-9-]+)\.png')
+
+
+def upgrade_product_image_refs(text: str, available_images: set[str]) -> tuple[str, int]:
+    """Rewrite every `wonders-<slug>.png` reference to `product-wo-<slug>.jpg`
+    when the photographic version is present in the theme's images folder.
+
+    Background: the upstream `wonders-oddities` source ships flat cartoon PNGs
+    (mug silhouette on yellow, lightning cloud, etc.) AND -- since the per-theme
+    image generation work landed -- per-theme photographic JPGs that live
+    alongside them under `<theme>/playground/images/product-wo-<slug>.jpg`. The
+    upstream CSV/XML still references the cartoons, so without this rewrite
+    every theme renders the catalogue with placeholder illustrations even
+    though it has real product photography sitting next to them on disk.
+
+    Page/post hero references (`wonders-page-*.png`, `wonders-post-*.png`)
+    are deliberately left alone -- their photographic counterparts haven't
+    been generated yet, so rewriting them would produce 404s. Once those
+    exist, this function will pick them up automatically.
+
+    Returns the rewritten text plus a count of substitutions, so the seeder
+    can log a one-line summary per file.
+    """
+
+    count = 0
+
+    def replace(match: re.Match[str]) -> str:
+        nonlocal count
+        slug = match.group(1)
+        if slug.startswith(("page-", "post-")):
+            return match.group(0)
+        photo = f"product-wo-{slug}.jpg"
+        if photo in available_images:
+            count += 1
+            return photo
+        return match.group(0)
+
+    return _WONDERS_PNG_RE.sub(replace, text), count
+
+
 def copy_text_with_rewrite(src: Path, dst: Path, theme_slug: str, force: bool) -> str:
     """Copy a CSV/XML file, rewriting image URLs to the per-theme prefix.
     Returns 'created' / 'updated' / 'skipped'."""
@@ -179,10 +237,21 @@ def copy_asset_files(src_dir: Path, dst_dir: Path, force: bool) -> tuple[int, in
     """Copy every file in src_dir whose extension is in ASSET_SUFFIXES
     into dst_dir. Returns (copied, skipped) counts. Existing destination
     files are left alone unless force=True -- this preserves per-theme
-    generated imagery (e.g. chonk/playground/images/)."""
+    generated imagery (e.g. chonk/playground/images/).
+
+    One specific source file is filtered out unconditionally:
+    `wonders-<product-slug>.png` whenever a `product-wo-<slug>.jpg`
+    photograph is already present in the destination. The cartoon would
+    otherwise be re-copied on every run and immediately deleted by
+    `cleanup_unused_product_cartoons`, which is correct but wastes I/O
+    and makes the seeder log misleading. The filter does NOT apply to
+    `wonders-page-*.png` / `wonders-post-*.png` (those have no photo
+    equivalents yet — see the Phase B follow-up to generate them).
+    """
     if not src_dir.is_dir():
         return (0, 0)
     dst_dir.mkdir(parents=True, exist_ok=True)
+    available = {p.name for p in dst_dir.iterdir()} if dst_dir.exists() else set()
     copied = 0
     skipped = 0
     for entry in sorted(src_dir.iterdir()):
@@ -190,6 +259,12 @@ def copy_asset_files(src_dir: Path, dst_dir: Path, force: bool) -> tuple[int, in
             continue
         if entry.suffix.lower() not in ASSET_SUFFIXES:
             continue
+        m = re.match(r"wonders-([a-z0-9-]+)\.png$", entry.name)
+        if m and not m.group(1).startswith(("page-", "post-")):
+            slug = m.group(1)
+            if f"product-wo-{slug}.jpg" in available:
+                skipped += 1
+                continue
         dst = dst_dir / entry.name
         if dst.exists() and not force:
             skipped += 1
@@ -217,11 +292,59 @@ def seed_theme(theme_dir: Path, source_dir: Path, force: bool) -> None:
     asset_copied, asset_skipped = copy_asset_files(source_dir, images_dir, force)
     cat_copied, cat_skipped = copy_asset_files(LEGACY_CATEGORY_IMAGES_DIR, images_dir, force)
 
+    # Upgrade pass: run AFTER assets are in place, so that
+    # upgrade_product_image_refs can see which `product-wo-<slug>.jpg`
+    # photographs are actually present and only rewrite refs that have a
+    # real file to point at. Idempotent — re-running on already-upgraded
+    # files is a no-op (no `wonders-<product-slug>.png` left to match).
+    available = {p.name for p in images_dir.iterdir()} if images_dir.exists() else set()
+    csv_upgraded = upgrade_text_file(theme_dir / DEST_CSV_RELPATH, available)
+    xml_upgraded = upgrade_text_file(theme_dir / DEST_XML_RELPATH, available)
+    cleaned = cleanup_unused_product_cartoons(images_dir)
+
     print(
         f"{slug:>10}  csv={csv_status:<8} xml={xml_status:<8} "
         f"assets={asset_copied}+{asset_skipped}-skip  "
-        f"cat={cat_copied}+{cat_skipped}-skip"
+        f"cat={cat_copied}+{cat_skipped}-skip  "
+        f"upgrade=csv:{csv_upgraded}/xml:{xml_upgraded}  "
+        f"cleaned-cartoons={cleaned}"
     )
+
+
+def upgrade_text_file(path: Path, available_images: set[str]) -> int:
+    """Apply `upgrade_product_image_refs` to a file in place. Returns the
+    substitution count (0 if the file was already upgraded or absent)."""
+    if not path.is_file():
+        return 0
+    text = path.read_text(encoding="utf-8")
+    new_text, n = upgrade_product_image_refs(text, available_images)
+    if n > 0 and new_text != text:
+        path.write_text(new_text, encoding="utf-8")
+    return n
+
+
+def cleanup_unused_product_cartoons(images_dir: Path) -> int:
+    """Delete `wonders-<product-slug>.png` files that have a photographic
+    `product-wo-<slug>.jpg` sibling — the seeder rewrites every product
+    reference away from these PNGs in the same pass, so the cartoons are
+    pure dead weight after upgrade. Page/post hero PNGs are preserved
+    because their references are NOT rewritten (no photo equivalents yet).
+    """
+    if not images_dir.is_dir():
+        return 0
+    available = {p.name for p in images_dir.iterdir()}
+    deleted = 0
+    for entry in sorted(images_dir.iterdir()):
+        m = re.match(r"wonders-([a-z0-9-]+)\.png$", entry.name)
+        if not m:
+            continue
+        slug = m.group(1)
+        if slug.startswith(("page-", "post-")):
+            continue
+        if f"product-wo-{slug}.jpg" in available:
+            entry.unlink()
+            deleted += 1
+    return deleted
 
 
 def main() -> int:

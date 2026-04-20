@@ -92,27 +92,6 @@ Read this file at the start of any LLM session to discover the project's structu
 |   |   |-- product-wo-tangible-wifi.jpg
 |   |   |-- product-wo-void-sampler.jpg
 |   |   |-- product-wo-whispering-stone.jpg
-|   |   |-- wonders-borrowed-nostalgia.png
-|   |   |-- wonders-bottled-morning.png
-|   |   |-- wonders-chaos-seasoning.png
-|   |   |-- wonders-cosmic-mystery-box.png
-|   |   |-- wonders-deja-vu-session.png
-|   |   |-- wonders-discount-gravity.png
-|   |   |-- wonders-dread-repellent.png
-|   |   |-- wonders-fog-in-bottle.png
-|   |   |-- wonders-forbidden-honey.png
-|   |   |-- wonders-gently-used-luck.png
-|   |   |-- wonders-handcrafted-echo.png
-|   |   |-- wonders-haunted-candle.png
-|   |   |-- wonders-imaginary-deed.png
-|   |   |-- wonders-interdim-bazaar.png
-|   |   |-- wonders-invisible-umbrella.png
-|   |   |-- wonders-left-sock.png
-|   |   |-- wonders-lost-recipe-time.png
-|   |   |-- wonders-memory-foam-memory.png
-|   |   |-- wonders-monday-kit.png
-|   |   |-- wonders-moon-dust.png
-|   |   |-- wonders-one-hand-clapping.png
 |   |   |-- wonders-page-about.png
 |   |   |-- wonders-page-contact.png
 |   |   |-- wonders-page-faq.png
@@ -121,8 +100,6 @@ Read this file at the start of any LLM session to discover the project's structu
 |   |   |-- wonders-page-lookbook.png
 |   |   |-- wonders-page-privacy-policy.png
 |   |   |-- wonders-page-shipping-returns.png
-|   |   |-- wonders-pocket-thunder.png
-|   |   |-- wonders-portable-hole.png
 |   |   |-- wonders-post-behind-the-scenes-bottling-mondays.png
 |   |   |-- wonders-post-caring-for-your-portable-hole.png
 |   |   |-- wonders-post-carl-on-the-moon.png
@@ -142,14 +119,7 @@ Read this file at the start of any LLM session to discover the project's structu
 |   |   |-- wonders-post-tangible-wifi-30-day-review.png
 |   |   |-- wonders-post-the-art-of-artisanal-silence.png
 |   |   |-- wonders-post-welcome-to-wonders-and-oddities.png
-|   |   |-- wonders-post-year-one-abridged.png
-|   |   |-- wonders-sensory-starter.png
-|   |   |-- wonders-silence-jar.png
-|   |   |-- wonders-spare-key-nowhere.png
-|   |   |-- wonders-spare-tuesday.png
-|   |   |-- wonders-tangible-wifi.png
-|   |   |-- wonders-void-sampler.png
-|   |   `-- wonders-whispering-stone.png
+|   |   `-- wonders-post-year-one-abridged.png
 |   `-- blueprint.json
 |-- styles/
 |   |-- claude.json
