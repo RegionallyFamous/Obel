@@ -172,7 +172,17 @@ def main() -> int:
     print(f"     as you commit + push the new docs/{dest.name}/ folder and")
     print(f"     GH Pages picks up the change. GH Pages must be enabled once")
     print(f"     for the repo (Source: deploy from branch, Branch: main, Folder: /docs).")
-    print(f"  9. Commit and push everything (theme, blueprint, content, images, docs/).")
+    print(f"  9. Redesign templates/front-page.html. Hard rule: every theme's")
+    print(f"     homepage must be STRUCTURALLY distinct from every sibling's —")
+    print(f"     not just different colors. Change the section count, swap the")
+    print(f"     dynamic-surface mix (woocommerce/product-collection vs terms-query")
+    print(f"     vs query vs media-text vs cover), introduce your own hero pattern,")
+    print(f"     or reorder. `bin/check.py check_front_page_unique_layout` enforces")
+    print(f"     this — see AGENTS.md rule 8 and the SKILL.md hard-rule section")
+    print(f"     'every theme's homepage layout must be unique'.")
+    print(f"  10. Run `python3 bin/check.py {dest.name} --quick` and fix anything")
+    print(f"      that fails (especially the front-page uniqueness check).")
+    print(f"  11. Commit and push everything (theme, blueprint, content, images, docs/).")
     return 0
 
 

@@ -173,6 +173,45 @@ The Chonk theme currently has hardcoded `<li><a href="/about">About</a></li>` li
 
 ---
 
+## HARD RULE: every theme's homepage layout must be unique
+
+**`templates/front-page.html` is the variant's visual signature.** Two themes that ship the same composition with only different colors and fonts are not two themes — they are one theme with a config switch. The monorepo refuses that.
+
+`bin/check.py` enforces this via `check_front_page_unique_layout`: it computes a structural fingerprint of `<main>`'s direct children for every theme (block name + first className, or `pattern:slug` for `wp:pattern` references) and fails the build if any two themes have the identical fingerprint. Identical means identical, in the same order. Three valid fingerprints from the existing themes:
+
+| Theme | Fingerprint (compact) | Notes |
+|---|---|---|
+| obel | `[pattern:obel/hero-split, group, group]` | 3 sections: split hero pattern → featured products group → journal group |
+| chonk | `[group(chonk-grid)]` | 1 outer asymmetric grid wrapper containing hero photo card, category mosaic, week's drop, manifesto, newsletter band |
+| selvedge | `[group, group, group, group, group]` | 5 sections: 2-col hero with 2×2 product mini-grid → 5-col category covers → 8-product catalog table → manifesto split → blog grid |
+
+Notice: same number of sections is OK if the surface mix differs; same surface mix is OK if the section count differs. **Identical** counts AND sequence is what fails.
+
+### How to earn a unique fingerprint
+
+Pick one or more, with intent — don't randomize:
+
+1. **Different section count.** Obel runs lean (3 sections). Selvedge runs dense (5+ sections, including a category strip and manifesto). Chonk runs as a single asymmetric grid (1 wrapper). Pick the rhythm that matches the brand.
+2. **Different dynamic-surface mix.** Choose at least two from `{woocommerce/product-collection, terms-query, query, media-text, cover, gallery}` and use them in a configuration that doesn't match any sibling. Obel uses `woocommerce/product-collection` + `query`; selvedge adds `terms-query` (5-col category covers) and `cover`; chonk uses `terms-query` for category cards, `woocommerce/product-collection` for "this week's drop", and skips a blog query entirely.
+3. **Different hero pattern.** If the hero is wrapped in a `wp:pattern`, give the new theme its own pattern under `<theme>/patterns/hero-*.php` and reference it via `<!-- wp:pattern {"slug":"<theme>/hero-X"} /-->`. The fingerprint includes the slug, so a different slug is automatically a different fingerprint.
+4. **Different section order.** Don't always lead with the hero followed by featured products. A boutique might lead with a category mosaic; a publication might lead with a featured story; a marketplace might lead with a search bar.
+
+### What does NOT earn a unique fingerprint
+
+- Renaming classNames on the same blocks. Fingerprint includes className but the check fails iff the *full* sequence matches.
+- Swapping background colors / fonts / spacing tokens. The fingerprint is purely structural.
+- Adding extra inline `core/spacer` / `core/separator` blocks at the top level just to bump the count. The reviewer will spot it; ship a real section instead.
+
+### Before declaring a homepage done
+
+Run `python3 bin/check.py <theme> --quick` and confirm the line `Front page layout differs from every other theme` passes. If it fails, the message includes both fingerprints — read them, decide which axis to vary, and rework the composition. Do not weaken the check to make it pass.
+
+### Templates other than `front-page.html`
+
+`single-product.html`, `archive-product.html`, `single.html`, `archive.html`, `cart`, `checkout`, `my-account`, `404.html`, `header.html`, `footer.html`, etc. are deliberately NOT subject to this rule. The shop function must remain coherent across variants — a customer should recognize "this is a checkout page" regardless of theme. Vary those via tokens (color, type, spacing) and small composition tweaks, but don't redesign their structure for the sake of differentiation. The front page is the only place where structural uniqueness is mandatory.
+
+---
+
 ## Step 1 — Preflight (read before writing)
 
 Always read these in this order, from the **base theme** being cloned (usually `obel`):
@@ -759,6 +798,7 @@ These are real mistakes from the Chonk build. Don't repeat them.
 | Hardcoded `#000000` in shadow definitions | Use `var(--wp--preset--color--contrast)` |
 | Reached for the `css` escape hatch ≥ 5 times | Cap it at 2-3 unfixable cases (sticker positioning, asymmetric flex-wrap override). Anything more means the design tokens are wrong. |
 | Built homepage faithfully but left the footer as the cloned default | Audit every template + part in step 6. The user will notice. |
+| Cloned obel, repainted the palette and swapped the fonts, and called the variant done — leaving `templates/front-page.html` byte-for-byte structurally identical to obel's | The monorepo refuses "same shape, different colors" reskins. Read the "every theme's homepage layout must be unique" hard rule above. Restructure the front page: change the section count, swap the dynamic-surface mix (`woocommerce/product-collection` vs `terms-query` vs `query` vs `media-text` vs `cover`), introduce the variant's own hero pattern, and/or reorder. `bin/check.py check_front_page_unique_layout` will fail the build until the fingerprint differs from every sibling theme. |
 | Used hardcoded category names in nav menus | Use `core/terms-query` so it auto-updates when the user adds categories |
 | Asked "should I make X dynamic?" mid-build | Default is yes, always, via core blocks. Only ask if there's no core block for it. |
 | Slug `6xl` → CSS class `has-6xl-font-size` rendered tiny | Always use dashed form `6-xl` to match WordPress's CSS variable normalization |
@@ -859,6 +899,7 @@ Plus generate a mockup image alongside, so the user can react to a picture, not 
 - [ ] `bin/check.py --quick` exits 0
 - [ ] `bin/check-contrast.py` exits 0 (every required palette pairing meets WCAG AA)
 - [ ] `INDEX.md` regenerated
+- [ ] `templates/front-page.html` has a structurally unique top-level composition vs every sibling theme (different section count, different surface mix, or different hero pattern). The `Front page layout differs from every other theme` line in `bin/check.py` confirms it.
 - [ ] No `!important` in `theme.json` (grep confirms)
 - [ ] No hardcoded hex colors in `theme.json` `css` field
 - [ ] No remote font URLs anywhere — `fontFace[*].src` is `file:./...`, no `fonts.googleapis.com` / `fonts.gstatic.com` / `<link rel=preconnect>` to font CDNs / `@import url('https://fonts...')`. `bin/check.py check_no_remote_fonts` exits clean.
