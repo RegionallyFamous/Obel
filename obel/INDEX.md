@@ -9,7 +9,7 @@ Read this file at the start of any LLM session to discover the project's structu
 ## At a glance
 
 - 24 templates, 8 parts
-- 11 starter patterns
+- 12 starter patterns
 - 4 style variations
 - 157 block style entries in `theme.json` (85 core, 72 woocommerce)
 
@@ -39,6 +39,7 @@ Read this file at the start of any LLM session to discover the project's structu
 |   |-- featured-products.php
 |   |-- footer-columns.php
 |   |-- hero-image.php
+|   |-- hero-split.php
 |   |-- hero-text.php
 |   |-- newsletter.php
 |   |-- testimonials.php
@@ -291,6 +292,14 @@ Read this file at the start of any LLM session to discover the project's structu
 - **Categories:** obel, featured
 - **Keywords:** hero, banner, header, cover
 - **Description:** Full-width cover image with headline, subhead, and primary CTA. Replace the placeholder image.
+
+### `patterns/hero-split.php`
+
+- **Slug:** `obel/hero-split`
+- **Title:** Hero — split (text + image)
+- **Categories:** obel, featured
+- **Keywords:** hero, split, columns, landing
+- **Description:** Editorial split hero — headline / subhead / dual CTA on the left,
 
 ### `patterns/hero-text.php`
 
