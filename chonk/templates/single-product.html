@@ -54,7 +54,37 @@
 		</div>
 		<!-- /wp:columns -->
 
-		<!-- wp:woocommerce/product-details {"align":"wide"} /-->
+		<!-- wp:group {"align":"wide","layout":{"type":"constrained"},"style":{"spacing":{"blockGap":"var:preset|spacing|md","margin":{"top":"var:preset|spacing|3-xl"}}}} -->
+		<div class="wp-block-group alignwide" style="margin-top:var(--wp--preset--spacing--3-xl)">
+			<!-- wp:heading {"level":2,"style":{"typography":{"fontSize":"var(--wp--preset--font-size--2-xl)"},"spacing":{"margin":{"bottom":"var:preset|spacing|md"}}}} -->
+			<h2 class="wp-block-heading" style="margin-bottom:var(--wp--preset--spacing--md);font-size:var(--wp--preset--font-size--2-xl)">Description</h2>
+			<!-- /wp:heading -->
+
+			<!-- wp:woocommerce/product-description /-->
+
+			<!-- wp:details {"summary":"Reviews"} -->
+			<details class="wp-block-details"><summary>Reviews</summary>
+				<!-- wp:woocommerce/product-reviews /-->
+			</details>
+			<!-- /wp:details -->
+
+			<!-- wp:details {"summary":"Shipping and returns"} -->
+			<details class="wp-block-details"><summary>Shipping and returns</summary>
+				<!-- wp:paragraph -->
+				<p>Free standard shipping on orders over $50, ships in 1–2 business days. Express options at checkout. Returns accepted within 30 days on unopened items in original packaging. We pay return shipping if it was our mistake.</p>
+				<!-- /wp:paragraph -->
+			</details>
+			<!-- /wp:details -->
+
+			<!-- wp:details {"summary":"Side effects of use"} -->
+			<details class="wp-block-details"><summary>Side effects of use</summary>
+				<!-- wp:paragraph -->
+				<p>May cause: spontaneous tidying, mild euphoria, the urge to tell strangers about it, and the gradual replacement of all your other things. Discontinue use if symptoms become permanent. (They will.)</p>
+				<!-- /wp:paragraph -->
+			</details>
+			<!-- /wp:details -->
+		</div>
+		<!-- /wp:group -->
 	</div>
 	<!-- /wp:woocommerce/single-product -->
 </main>

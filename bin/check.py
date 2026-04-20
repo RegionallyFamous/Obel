@@ -681,24 +681,12 @@ def check_wc_overrides_styled() -> Result:
     top_css_norm = re.sub(r"\s+", "", top_css or "")
     blocks = styles.get("blocks") or {}
 
-    WC_OVERRIDE_TARGETS = [
-        {
-            "name": "Single-product tabs",
-            "must_target": [
-                ".woocommerce div.product .woocommerce-tabs ul.tabs",
-                "li.active",
-            ],
-            "must_kill_one_of": [
-                "content:none",
-                "border-radius:0",
-                "box-shadow:none",
-                "border:0",
-            ],
-            "inert_block": "woocommerce/product-details",
-            "why": "WC ships rounded 'folder' tabs with grey background and "
-                   "pseudo-element shoulders.",
-        },
-    ]
+    # The single-product tabs target was removed: we no longer render
+    # `wp:woocommerce/product-details` (see `check_no_wc_tabs_block`), so
+    # there is no WC tab markup left on the page to fight. The list is
+    # intentionally empty — adding a future WC-CSS-bleed surface (e.g. cart
+    # form rows, store-notices) is one append away.
+    WC_OVERRIDE_TARGETS: list[dict] = []
 
     for target in WC_OVERRIDE_TARGETS:
         # 1) Reject any leftover block-scoped `css` field for this surface.
@@ -742,7 +730,14 @@ def check_wc_overrides_styled() -> Result:
             continue
 
     if r.passed and not r.skipped:
-        r.details.append(f"{len(WC_OVERRIDE_TARGETS)} WC surface(s) checked")
+        if WC_OVERRIDE_TARGETS:
+            r.details.append(f"{len(WC_OVERRIDE_TARGETS)} WC surface(s) checked")
+        else:
+            r.details.append(
+                "no WC surfaces currently require a top-level styles.css "
+                "override (the tabs surface was retired by "
+                "`check_no_wc_tabs_block`)"
+            )
     return r
 
 
@@ -829,6 +824,76 @@ def _front_page_fingerprint(html: str) -> list[str]:
             depth += 1
 
     return fingerprint
+
+
+def check_no_wc_tabs_block() -> Result:
+    """Fail if `wp:woocommerce/product-details` is rendered anywhere.
+
+    `woocommerce/product-details` is the umbrella tabs block (Description /
+    Additional Information / Reviews) that ships WC's hardcoded rounded
+    "folder" tab markup. It is the single biggest "this is a default
+    WooCommerce store" tell on a PDP and Baymard's research shows that
+    tab-hidden content is ignored by 50%+ of users. We replaced it with a
+    description-always-visible composition + native `core/details`
+    disclosures (see `single-product.html`).
+
+    This check enforces two things:
+
+    1. No template / part / pattern in this theme references the umbrella
+       tabs block (`wp:woocommerce/product-details`). If you need to surface
+       a piece of product info, render the relevant individual WC block
+       directly (`woocommerce/product-description`, `woocommerce/product-
+       reviews`, etc.), wrapped in a `core/details` for collapsible
+       sections.
+
+    2. `styles.blocks["woocommerce/product-details"]` is not set in
+       `theme.json`. The block is no longer rendered, so any styling there
+       is stale config — and historically the surface most likely to drag
+       the tabs back into the build by accident.
+
+    See AGENTS.md rule 6.
+    """
+    r = Result("woocommerce/product-details (tabs block) is not rendered")
+
+    # Part 1: scan templates/parts/patterns for the block delimiter.
+    pattern = re.compile(r"<!--\s*wp:woocommerce/product-details(?:\s|/|-->)")
+    for path in iter_files((".html", ".php")):
+        rel = path.relative_to(ROOT).as_posix()
+        if not (
+            rel.startswith("templates/")
+            or rel.startswith("parts/")
+            or rel.startswith("patterns/")
+        ):
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for lineno, line in enumerate(text.splitlines(), 1):
+            if pattern.search(line):
+                r.fail(
+                    f"{rel}:{lineno}: renders `wp:woocommerce/product-details` "
+                    f"(the WC tabs block). Replace it with `wp:woocommerce/"
+                    f"product-description` for the always-visible description "
+                    f"and one `wp:details` per collapsible section "
+                    f"(`wp:woocommerce/product-reviews` lives inside one)."
+                )
+
+    # Part 2: stale theme.json entry would imply someone is mid-restoration.
+    theme_json = ROOT / "theme.json"
+    if theme_json.exists():
+        try:
+            data = json.loads(theme_json.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            data = {}
+        blocks = ((data.get("styles") or {}).get("blocks") or {})
+        if "woocommerce/product-details" in blocks:
+            r.fail(
+                "theme.json still has `styles.blocks[\"woocommerce/product-"
+                "details\"]`. The block is no longer rendered — delete the "
+                "entry. Style `core/details` instead."
+            )
+
+    if r.passed and not r.skipped:
+        r.details.append("no WC tabs block in templates/parts/patterns and no stale theme.json styling")
+    return r
 
 
 def check_front_page_unique_layout() -> Result:
@@ -921,6 +986,7 @@ def run_checks_for(theme_root: Path, offline: bool) -> int:
         check_no_important(),
         check_no_stray_css(),
         check_block_prefixes(),
+        check_no_wc_tabs_block(),
         check_no_ai_fingerprints(),
         check_no_hardcoded_colors(),
         check_no_hex_in_theme_json(),
