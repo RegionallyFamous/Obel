@@ -59,6 +59,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -259,7 +260,43 @@ def render_index(themes_html: list[str]) -> str:
     return head + "".join(themes_html) + foot
 
 
-def render_theme_card(theme_name: str, theme_slug: str) -> str:
+_STYLE_CSS_DESCRIPTION_RE = re.compile(
+    r"^\s*Description:\s*(.+?)\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def theme_description(theme_dir: Path, theme_name: str) -> str:
+    """Read the one-sentence theme tagline from style.css's `Description:`
+    header (the standard WP source of truth — it's what the Site Editor's
+    theme browser shows too). Falls back to the old generic template if
+    the header is missing OR if it's the historical clone-script
+    boilerplate ("A block-only WooCommerce starter theme. All styling
+    is defined in theme.json…"), which is generic across themes and
+    actively misleading on the landing page."""
+    style_css = theme_dir / "style.css"
+    BOILERPLATE_PREFIX = "A block-only WooCommerce starter theme."
+    try:
+        text = style_css.read_text(encoding="utf-8")
+        # style.css starts with `/* … */`, so confine the search to the
+        # first comment block so we don't pick up `Description:` inside
+        # CSS rules below the header.
+        header_end = text.find("*/")
+        header = text[:header_end] if header_end != -1 else text[:2000]
+        match = _STYLE_CSS_DESCRIPTION_RE.search(header)
+        if match:
+            description = match.group(1).strip()
+            if description and not description.startswith(BOILERPLATE_PREFIX):
+                return description
+    except OSError:
+        pass
+    return (
+        f"A {theme_name} demo storefront with WooCommerce and sample "
+        f"content, ready to click through."
+    )
+
+
+def render_theme_card(theme_dir: Path, theme_name: str, theme_slug: str) -> str:
     # Per-page chips were intentionally removed from the homepage: they
     # used theme-relative paths (`shop/`, `product/…/`) that resolve
     # against the *site root* on demo.regionallyfamous.com (not against
@@ -267,14 +304,11 @@ def render_theme_card(theme_name: str, theme_slug: str) -> str:
     # under docs/<theme>/<slug>/ are still generated and remain useful
     # for sharing a deep link to a specific entry point — they're just
     # not surfaced on the landing page anymore.
-    description = (
-        f'A {html_escape(theme_name)} demo storefront with WooCommerce and '
-        f'sample content, ready to click through.'
-    )
+    description = theme_description(theme_dir, theme_name)
     return (
         f'\t\t\t<article class="theme">\n'
         f'\t\t\t\t<h2>{html_escape(theme_name)}</h2>\n'
-        f'\t\t\t\t<p>{description}</p>\n'
+        f'\t\t\t\t<p>{html_escape(description)}</p>\n'
         f'\t\t\t\t<a class="cta" href="{html_escape(theme_slug + "/")}">Open in Playground →</a>\n'
         f'\t\t\t</article>\n'
     )
@@ -340,7 +374,7 @@ def build(*, dry_run: bool = False) -> int:
             sub = (DOCS_DIR / theme_slug / page_slug) if page_slug else (DOCS_DIR / theme_slug)
             write_file(sub / "index.html", html, dry_run=dry_run, written=written)
 
-        cards.append(render_theme_card(theme_name, theme_slug))
+        cards.append(render_theme_card(theme_dir, theme_name, theme_slug))
         # Sanity check: confirm the blueprint URL we're encoding actually
         # matches what bin/sync-playground.py points at. Mismatches mean
         # the docs/ links would 404 in Playground.
