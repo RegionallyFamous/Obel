@@ -639,26 +639,33 @@ def check_no_duplicate_templates() -> Result:
 
 
 def check_wc_overrides_styled() -> Result:
-    """Fail if any WC block known to ship hardcoded frontend CSS lacks a
-    `styles.blocks.<block>.css` override that nullifies WC's defaults.
+    """Fail if any WC surface known to ship hardcoded frontend CSS lacks a
+    real override in **top-level** `styles.css`.
 
     See AGENTS.md rule 6 (No raw WooCommerce frontend CSS bleeds through).
 
-    Each entry in WC_OVERRIDE_TARGETS lists:
-      - the block name,
-      - one or more substrings that the `css` field MUST contain (these are
-        the WC selectors we are overriding),
-      - one or more substrings that MUST appear at least once across the
-        full css string (these are the "kill" declarations: `content:none`,
-        `border-radius:0`, etc., that prove the WC default has been
-        explicitly suppressed rather than left to leak).
+    WHY top-level `styles.css` and not `styles.blocks.<block>.css`:
+    WP processes block-scoped css through
+    `WP_Theme_JSON::process_blocks_custom_css()`, which wraps every rule in
+    `:root :where(<block-selector>) { ... }`. `:where()` has SPECIFICITY
+    ZERO, so the *entire* block.css string ends up at `(0,0,1)`. WC's
+    plugin CSS sits at `(0,4,3)` (e.g.
+    `.woocommerce div.product .woocommerce-tabs ul.tabs li`) — block-scoped
+    overrides are silently dwarfed. Top-level `styles.css` is emitted
+    verbatim, so we can write the WC selectors with their natural
+    specificity and win the cascade by load order (theme after plugin).
 
-    Without these tells, an inherited theme.json may technically have a
-    `css` field but still not address the surface (e.g. only setting
-    typography/spacing), which is the failure mode that motivated this
-    check.
+    Each entry in WC_OVERRIDE_TARGETS lists:
+      - one or more substrings (collapsed of whitespace) the top-level
+        styles.css MUST contain — the WC selectors we are overriding,
+      - one or more "kill" declarations, at least one of which MUST
+        appear, proving WC's defaults (rounded folder corners, pseudo
+        shoulders, grey backgrounds) are explicitly suppressed,
+      - the block whose `css` field, if present, indicates a stale
+        attempt at a block-scoped override that we now treat as a hard
+        failure (since it does nothing).
     """
-    r = Result("WooCommerce frontend CSS is overridden via theme.json")
+    r = Result("WooCommerce frontend CSS is overridden in styles.css")
     theme_json = ROOT / "theme.json"
     if not theme_json.exists():
         r.fail("theme.json missing")
@@ -669,92 +676,70 @@ def check_wc_overrides_styled() -> Result:
         r.fail(str(exc))
         return r
 
-    blocks = (data.get("styles", {}) or {}).get("blocks", {}) or {}
+    styles = (data.get("styles", {}) or {})
+    top_css = styles.get("css") if isinstance(styles.get("css"), str) else ""
+    top_css_norm = re.sub(r"\s+", "", top_css or "")
+    blocks = styles.get("blocks") or {}
 
     WC_OVERRIDE_TARGETS = [
         {
-            "block": "woocommerce/product-details",
-            "must_target": ["wc-tabs"],
-            "must_kill": ["content: none", "content:none"],
-            "why": "Product tabs ship as rounded WC 'folder' tabs by default",
+            "name": "Single-product tabs",
+            "must_target": [
+                ".woocommerce div.product .woocommerce-tabs ul.tabs",
+                "li.active",
+            ],
+            "must_kill_one_of": [
+                "content:none",
+                "border-radius:0",
+                "box-shadow:none",
+                "border:0",
+            ],
+            "inert_block": "woocommerce/product-details",
+            "why": "WC ships rounded 'folder' tabs with grey background and "
+                   "pseudo-element shoulders.",
         },
     ]
 
     for target in WC_OVERRIDE_TARGETS:
-        block = blocks.get(target["block"])
-        css = ""
-        if isinstance(block, dict):
-            css_field = block.get("css")
-            if isinstance(css_field, str):
-                css = css_field
-        css_norm = re.sub(r"\s+", " ", css)
-
-        if not css:
+        # 1) Reject any leftover block-scoped `css` field for this surface.
+        #    It does nothing (see the docstring) and its presence almost
+        #    always means the author thought they had styled the surface
+        #    but actually hadn't.
+        inert = blocks.get(target["inert_block"]) if target.get("inert_block") else None
+        if isinstance(inert, dict) and isinstance(inert.get("css"), str) and inert["css"].strip():
             r.fail(
-                f"`styles.blocks[\"{target['block']}\"]` has no `css` field. "
-                f"{target['why']} — add a css override that uses project tokens."
+                f"{target['name']}: found "
+                f"`styles.blocks[\"{target['inert_block']}\"].css`, but WP "
+                f"wraps that field in `:root :where(...)` (specificity 0,0,1) "
+                f"so it cannot beat WC's `(0,4,3)` plugin CSS. Move the WC "
+                f"selectors to top-level `styles.css`."
             )
             continue
 
-        if not any(t in css for t in target["must_target"]):
-            r.fail(
-                f"`styles.blocks[\"{target['block']}\"].css` does not target "
-                f"any of {target['must_target']}. WC's default markup will "
-                f"render with WC's default styles."
-            )
-            continue
-
-        if not any(k.replace(" ", "") in css_norm.replace(" ", "")
-                   for k in target["must_kill"]):
-            r.fail(
-                f"`styles.blocks[\"{target['block']}\"].css` does not "
-                f"explicitly kill WC's defaults (expected one of "
-                f"{target['must_kill']} somewhere in the rule body). "
-                f"Without these, WC's `::before`/`::after` shapes leak through."
-            )
-            continue
-
-        # Specificity bump.
-        #
-        # WC's `assets/css/woocommerce.css` selectors look like
-        # `.woocommerce div.product .woocommerce-tabs ul.tabs li` — that's
-        # specificity (0,4,3). The block-prefixed `& .woocommerce-tabs
-        # ul.tabs.wc-tabs li` we get by default is (0,4,2), which means WC
-        # wins on every shared property (background, padding, float, width,
-        # …) and the override only takes effect for properties WC doesn't
-        # set. The fix is to prefix every rule with `html body &` so the
-        # selector becomes `html body .wp-block-…` ((+0,0,2) = (0,4,4)),
-        # mirroring the same trick WC's own `is-style-minimal` rule uses
-        # in `client/blocks/assets/js/blocks/product-details/style.scss`.
-        #
-        # We require the literal substring `html body &` to appear in the
-        # css (and any rule that targets a wc-tabs selector to be
-        # prefixed with it). A heuristic, but a strict one: it forces the
-        # author to make a deliberate decision about specificity.
-        rules_targeting_tabs = re.findall(
-            r"([^{}]*\.wc-tabs[^{}]*)\{", css
-        )
-        bare_rules = [
-            sel.strip() for sel in rules_targeting_tabs
-            if not re.match(r"^\s*html\s+body\s+&", sel.strip())
+        # 2) Required selectors must appear (whitespace-insensitive) in the
+        #    verbatim top-level styles.css.
+        missing = [
+            s for s in target["must_target"]
+            if re.sub(r"\s+", "", s) not in top_css_norm
         ]
-        if "html body &" not in css_norm:
+        if missing:
             r.fail(
-                f"`styles.blocks[\"{target['block']}\"].css` does not use "
-                f"the `html body &` specificity-bump prefix. WC's plugin "
-                f"CSS targets `.woocommerce div.product .woocommerce-tabs "
-                f"ul.tabs li` ((0,4,3)); a bare `& .…` selector is only "
-                f"(0,4,2) and loses on every shared property. Prefix every "
-                f"rule with `html body &` (the same trick WC's own "
-                f"is-style-minimal style uses)."
+                f"{target['name']}: top-level `styles.css` is missing "
+                f"selector(s) {missing}. {target['why']} Add a rule that "
+                f"targets these selectors with theme tokens."
             )
-        elif bare_rules:
-            preview = bare_rules[0][:120]
+            continue
+
+        # 3) At least one "kill" declaration must appear so we know the
+        #    override is doing more than tweaking typography.
+        if not any(k in top_css_norm for k in target["must_kill_one_of"]):
             r.fail(
-                f"`styles.blocks[\"{target['block']}\"].css` has at least "
-                f"one wc-tabs selector without the `html body &` prefix. "
-                f"WC will out-specify it. Offending selector: `{preview}…`"
+                f"{target['name']}: top-level `styles.css` doesn't kill any "
+                f"of WC's defaults (expected one of "
+                f"{target['must_kill_one_of']}). Without an explicit reset, "
+                f"WC's `::before/::after` shapes and rounded corners leak."
             )
+            continue
 
     if r.passed and not r.skipped:
         r.details.append(f"{len(WC_OVERRIDE_TARGETS)} WC surface(s) checked")
