@@ -1294,6 +1294,120 @@ def check_archive_sort_dropdown_styled() -> Result:
     return r
 
 
+def check_cart_checkout_pages_are_wide() -> Result:
+    """Guard against the cart/checkout `contentSize` squeeze regression.
+
+    `templates/page.html` constrains `wp:post-content` to
+    `contentSize:var(--wp--custom--layout--prose)` (~560px) so blog and
+    long-form prose pages get an editorial measure. Without an explicit
+    `align:wide` on the seeded `wp:woocommerce/cart` and
+    `wp:woocommerce/checkout` root blocks, the entire two-column layout
+    inherits the 560px prose container at every viewport width.
+
+    Symptom (caught in production review on 2026-04-20):
+      * Tablet (<782px viewport): the responsive grid stacks to a
+        single column inside the 560px container, so the squeeze is
+        invisible.
+      * Desktop (>=782px viewport): the grid kicks in inside that same
+        560px container -> sidebar takes 300-360px and the form
+        column collapses to ~200-260px. Order-summary item content
+        ("Artisanal Silence (8 oz Jar)") wraps per-letter again,
+        exactly the bug `check_no_squeezed_wc_sidebars` was supposed
+        to prevent. CSS alone could not fix it because the container
+        itself is the wrong width.
+
+    Fix is in `playground/wo-configure.php`: both root blocks carry
+    `{"align":"wide"}` so they opt out of the prose contentSize and
+    use the theme's wideSize (1280px) instead. At 1280px the
+    1fr / minmax(300px,360px) grid breathes correctly: ~880px form,
+    ~360px sidebar.
+
+    This rule asserts the marker is present in the `wo-configure.php`
+    that ships in `theme.json`-adjacent code paths -- specifically the
+    inlined copy in each theme's `playground/blueprint.json` (which is
+    what the live demos actually run).
+    """
+    r = Result("Cart/Checkout root blocks are align:wide")
+    bp_path = ROOT / "playground" / "blueprint.json"
+    if not bp_path.exists():
+        r.skip("no playground/blueprint.json (theme without a Playground blueprint)")
+        return r
+    try:
+        bp = json.loads(bp_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        r.fail(f"playground/blueprint.json: invalid JSON ({exc}).")
+        return r
+
+    # Find the inlined wo-configure.php content. sync-playground.py emits
+    # it as a `writeFile` step at `wp-content/mu-plugins/wo-configure.php`.
+    target_data: str | None = None
+    for step in bp.get("steps", []) or []:
+        if not isinstance(step, dict):
+            continue
+        if step.get("step") != "writeFile":
+            continue
+        path = step.get("path") or ""
+        if "wo-configure.php" not in path:
+            continue
+        data = step.get("data")
+        if isinstance(data, str):
+            target_data = data
+            break
+
+    if target_data is None:
+        # No inlined wo-configure.php means the blueprint either uses a
+        # different content-seeding strategy or hasn't been synced. Either
+        # way this rule cannot validate the cart/checkout block markup.
+        r.skip("no inlined wo-configure.php in blueprint (run bin/sync-playground.py)")
+        return r
+
+    required = [
+        ('wp:woocommerce/cart {"align":"wide"}',
+         "Cart root block (`wp:woocommerce/cart`) is missing "
+         "`{\"align\":\"wide\"}`. Without it the cart inherits "
+         "`contentSize:prose` (~560px) from `templates/page.html` and "
+         "the sidebar collapses on desktop, producing per-letter text "
+         "wrapping in the totals column."),
+        ('wp:woocommerce/checkout {"align":"wide"}',
+         "Checkout root block (`wp:woocommerce/checkout`) is missing "
+         "`{\"align\":\"wide\"}`. Without it the checkout inherits "
+         "`contentSize:prose` (~560px) from `templates/page.html` and "
+         "the order-summary sidebar collapses on desktop, producing "
+         "per-letter wraps of product names like 'Artisanal Silence'."),
+    ]
+    for needle, message in required:
+        if needle not in target_data:
+            r.fail(message)
+
+    # Belt and suspenders: the rendered wrapper div must also carry
+    # `alignwide` so the front-end CSS picks up the wide-width rules.
+    # WordPress derives the class from the block attribute, but our
+    # heredoc writes the wrapper div by hand; if the editor ever
+    # re-saves the page the class will be regenerated correctly, but
+    # the seeded source must already match so first paint is correct.
+    div_required = [
+        ('wp-block-woocommerce-cart alignwide',
+         "Cart wrapper div is missing the `alignwide` class. The wrapper "
+         "must read `<div class=\"wp-block-woocommerce-cart alignwide is-loading\">` "
+         "to match the `align:wide` block attribute on first render."),
+        ('wp-block-woocommerce-checkout alignwide',
+         "Checkout wrapper div is missing the `alignwide` class. The wrapper "
+         "must read `<div class=\"wp-block-woocommerce-checkout alignwide wc-block-checkout is-loading\">` "
+         "to match the `align:wide` block attribute on first render."),
+    ]
+    for needle, message in div_required:
+        if needle not in target_data:
+            r.fail(message)
+
+    if r.passed and not r.skipped:
+        r.details.append(
+            "verified `align:wide` on cart + checkout root blocks AND "
+            "matching `alignwide` class on wrapper divs in inlined "
+            "wo-configure.php"
+        )
+    return r
+
+
 def check_no_squeezed_wc_sidebars() -> Result:
     """Guard against the WC cart/checkout sidebar-squeeze regression.
 
@@ -1592,6 +1706,7 @@ def run_checks_for(theme_root: Path, offline: bool) -> int:
         check_no_duplicate_stock_indicator(),
         check_archive_sort_dropdown_styled(),
         check_no_squeezed_wc_sidebars(),
+        check_cart_checkout_pages_are_wide(),
         check_blueprint_landing_page(),
         check_front_page_unique_layout(),
     ]

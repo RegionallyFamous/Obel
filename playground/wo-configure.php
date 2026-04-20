@@ -799,17 +799,33 @@ if ( ! get_option( '_wo_product_images_seeded' ) ) {
 //     new "promotional" inner blocks to the default cart/checkout templates
 //     do NOT silently appear in our demos.
 //
-// Idempotency: stored under `_wo_cart_checkout_seeded`. Running the
-// blueprint a second time skips this section, so a re-boot does not nuke
-// any post-import edits a developer might have made in the editor.
-if ( ! get_option( '_wo_cart_checkout_seeded' ) ) {
+// Idempotency: stored under `_wo_cart_checkout_seeded_v{N}`. The version
+// suffix lets us force a re-seed when the block markup changes in a way
+// that existing demos must pick up (e.g. adding `align:wide` to escape
+// the 560px prose contentSize from page.html). Bump the integer in BOTH
+// the option name and update_option() call below to trigger a re-seed
+// on next boot. Running the blueprint a second time on the same version
+// skips this section, so re-boots do not nuke post-import editor edits.
+if ( ! get_option( '_wo_cart_checkout_seeded_v2' ) ) {
 	$cart_id     = (int) get_option( 'woocommerce_cart_page_id' );
 	$checkout_id = (int) get_option( 'woocommerce_checkout_page_id' );
 
 	// Cart: filled state (no cross-sells), explicit empty state.
+	// The page.html template constrains `wp:post-content` to
+	// `contentSize:var(--wp--custom--layout--prose)` (~560px). Without
+	// `align:wide` on the root cart/checkout blocks, the entire two-column
+	// layout would render inside a 560px container at every viewport
+	// width. On desktop that collapses the right column to ~300px and
+	// per-letter wraps the totals/order-summary content. `align:wide`
+	// opts the block out of the prose constraint and uses the theme's
+	// wideSize (1280px) instead, which is the only width at which a
+	// 1fr / minmax(300px,360px) grid breathes properly.
+	//
+	// `bin/check.py::check_cart_checkout_pages_are_wide` enforces this on
+	// every run by parsing the actual `post_content` of the WC pages.
 	$cart_blocks = <<<'CART'
-<!-- wp:woocommerce/cart -->
-<div class="wp-block-woocommerce-cart is-loading"><!-- wp:woocommerce/filled-cart-block -->
+<!-- wp:woocommerce/cart {"align":"wide"} -->
+<div class="wp-block-woocommerce-cart alignwide is-loading"><!-- wp:woocommerce/filled-cart-block -->
 <div class="wp-block-woocommerce-filled-cart-block"><!-- wp:woocommerce/cart-items-block -->
 <div class="wp-block-woocommerce-cart-items-block"><!-- wp:woocommerce/cart-line-items-block -->
 <div class="wp-block-woocommerce-cart-line-items-block"></div>
@@ -849,9 +865,13 @@ CART;
 
 	// Checkout: standard fields tree (no order-note duplication, no
 	// promotional banners), single order-summary on the right column.
+	// See note above re: `align:wide`. Without it, the checkout root
+	// block inherits the 560px prose contentSize from page.html and
+	// collapses the order-summary sidebar to ~300px on desktop, where
+	// product names ("Artisanal Silence (8 oz Jar)") wrap per-letter.
 	$checkout_blocks = <<<'CHECKOUT'
-<!-- wp:woocommerce/checkout -->
-<div class="wp-block-woocommerce-checkout wc-block-checkout is-loading"><!-- wp:woocommerce/checkout-fields-block -->
+<!-- wp:woocommerce/checkout {"align":"wide"} -->
+<div class="wp-block-woocommerce-checkout alignwide wc-block-checkout is-loading"><!-- wp:woocommerce/checkout-fields-block -->
 <div class="wp-block-woocommerce-checkout-fields-block"><!-- wp:woocommerce/checkout-express-payment-block -->
 <div class="wp-block-woocommerce-checkout-express-payment-block"></div>
 <!-- /wp:woocommerce/checkout-express-payment-block -->
@@ -934,7 +954,7 @@ CHECKOUT;
 		WP_CLI::warning( 'Checkout page id missing — woocommerce_checkout_page_id option is empty.' );
 	}
 
-	update_option( '_wo_cart_checkout_seeded', '1' );
+	update_option( '_wo_cart_checkout_seeded_v2', '1' );
 	WP_CLI::log( "Cart/Checkout: {$cc_updated} pages reseeded with controlled WC Blocks tree." );
 }
 
