@@ -91,8 +91,8 @@ The short version:
 8. `python3 bin/seed-playground-content.py` — populates the new theme's `playground/content/` (CSV + WXR + category-images map) and `playground/images/` (product / page / post / category artwork) from the canonical W&O source, rewriting every image URL to point at the new theme's own folder.
 9. `python3 bin/sync-playground.py` — auto-discovers the new theme and re-inlines the shared helpers into its blueprint, prepending the per-theme constants and rewriting the importWxr URL.
 10. `python3 bin/check.py <new_name>`
-11. `python3 bin/build-redirects.py` — regenerates `docs/<new_name>/<page>/index.html` so the theme is reachable at `https://regionallyfamous.github.io/fifty/<new_name>/` once the change is pushed and GH Pages picks it up. Re-run any time you add a theme or change the `PAGES` list inside the script. See "GitHub Pages short URLs" below.
-12. Open the new theme's short URL (`https://regionallyfamous.github.io/fifty/<new_name>/`, which redirects to the canonical `playground.wordpress.net/?blueprint-url=…` deeplink) and walk the surface checklist before declaring done. The blueprint AND the short-URL redirector are part of the deliverable — see "WordPress Playground blueprints" and "GitHub Pages short URLs" below.
+11. `python3 bin/build-redirects.py` — regenerates `docs/<new_name>/<page>/index.html` so the theme is reachable at `https://demo.regionallyfamous.com/<new_name>/` once the change is pushed and GH Pages picks it up. Re-run any time you add a theme or change the `PAGES` list inside the script. See "GitHub Pages short URLs" below.
+12. Open the new theme's short URL (`https://demo.regionallyfamous.com/<new_name>/`, which redirects to the canonical `playground.wordpress.net/?blueprint-url=…` deeplink) and walk the surface checklist before declaring done. The blueprint AND the short-URL redirector are part of the deliverable — see "WordPress Playground blueprints" and "GitHub Pages short URLs" below.
 
 ## WordPress Playground blueprints
 
@@ -202,7 +202,7 @@ When cloning a theme via `bin/clone.py`, both halves come along automatically (t
 
 ## GitHub Pages short URLs
 
-**Every theme MUST have a working short URL** at `https://regionallyfamous.github.io/fifty/<theme>/`. The canonical Playground deeplink is ~200 characters before any extra parameters (`?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/<theme>/playground/blueprint.json&url=/shop/`) — unusable in tweets, slide decks, or anywhere a human reads the URL out loud. wp.me is not an option (it only mints links for posts on real wordpress.com / wordpress.org-hosted sites), so we self-host the redirector via GH Pages.
+**Every theme MUST have a working short URL** at `https://demo.regionallyfamous.com/<theme>/`. The canonical Playground deeplink is ~200 characters before any extra parameters (`?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/<theme>/playground/blueprint.json&url=/shop/`) — unusable in tweets, slide decks, or anywhere a human reads the URL out loud. wp.me is not an option (it only mints links for posts on real wordpress.com / wordpress.org-hosted sites), so we self-host the redirector via GH Pages.
 
 The contract:
 
@@ -241,7 +241,7 @@ When you must re-run `bin/build-redirects.py`:
 
 You should **not** edit any file under `docs/` by hand. The whole tree is generated; manual edits are wiped on the next `build-redirects.py` run. If you need a redirector that isn't reachable from `(theme, page)` shape (e.g. a top-level alias), add it to `build-redirects.py` so the next run still produces it.
 
-When you write theme READMEs, prefer the short URL (`https://regionallyfamous.github.io/fifty/<theme>/<page>/`) over the long deeplink. Keep the long deeplink in a "Long-form deeplinks" table for the case where someone runs the repo on a fork before GH Pages is enabled.
+When you write theme READMEs, prefer the short URL (`https://demo.regionallyfamous.com/<theme>/<page>/`) over the long deeplink. Keep the long deeplink in a "Long-form deeplinks" table for the case where someone runs the repo on a fork before GH Pages is enabled.
 
 ## Working on shared tooling
 

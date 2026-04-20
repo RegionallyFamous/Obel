@@ -188,14 +188,14 @@ Default login: `admin` / `password`. To check the customer dashboard, log out an
 
 | Page | Short URL | Long URL (what the short URL redirects to) |
 | --- | --- | --- |
-| Home | [`obel/`](https://regionallyfamous.github.io/fifty/obel/) | [/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/) |
-| Shop | [`obel/shop/`](https://regionallyfamous.github.io/fifty/obel/shop/) | [/shop/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/shop/) |
-| Single product | [`obel/product/bottled-morning/`](https://regionallyfamous.github.io/fifty/obel/product/bottled-morning/) | [/product/bottled-morning/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/product/bottled-morning/) |
-| Cart (pre-filled) | [`obel/cart/`](https://regionallyfamous.github.io/fifty/obel/cart/) | [/cart/?demo=cart](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/cart/?demo=cart) |
-| Checkout | [`obel/checkout/`](https://regionallyfamous.github.io/fifty/obel/checkout/) | [/checkout/?demo=cart](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/checkout/?demo=cart) |
-| My Account | [`obel/my-account/`](https://regionallyfamous.github.io/fifty/obel/my-account/) | [/my-account/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/my-account/) |
-| Journal | [`obel/journal/`](https://regionallyfamous.github.io/fifty/obel/journal/) | [/journal/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/journal/) |
-| 404 | [`obel/404/`](https://regionallyfamous.github.io/fifty/obel/404/) | [/this-route-does-not-exist/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/this-route-does-not-exist/) |
+| Home | [`obel/`](https://demo.regionallyfamous.com/obel/) | [/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/) |
+| Shop | [`obel/shop/`](https://demo.regionallyfamous.com/obel/shop/) | [/shop/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/shop/) |
+| Single product | [`obel/product/bottled-morning/`](https://demo.regionallyfamous.com/obel/product/bottled-morning/) | [/product/bottled-morning/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/product/bottled-morning/) |
+| Cart (pre-filled) | [`obel/cart/`](https://demo.regionallyfamous.com/obel/cart/) | [/cart/?demo=cart](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/cart/?demo=cart) |
+| Checkout | [`obel/checkout/`](https://demo.regionallyfamous.com/obel/checkout/) | [/checkout/?demo=cart](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/checkout/?demo=cart) |
+| My Account | [`obel/my-account/`](https://demo.regionallyfamous.com/obel/my-account/) | [/my-account/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/my-account/) |
+| Journal | [`obel/journal/`](https://demo.regionallyfamous.com/obel/journal/) | [/journal/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/journal/) |
+| 404 | [`obel/404/`](https://demo.regionallyfamous.com/obel/404/) | [/this-route-does-not-exist/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/this-route-does-not-exist/) |
 
 The blueprint lives at [`obel/playground/blueprint.json`](playground/blueprint.json).
 

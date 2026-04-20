@@ -30,9 +30,11 @@ GITHUB_ORG = "RegionallyFamous"
 GITHUB_REPO = "fifty"
 GITHUB_BRANCH = "main"
 
-# GH Pages always lower-cases the user/org segment of the URL regardless of
-# how it's written on GitHub itself.
-GH_PAGES_BASE_URL = f"https://{GITHUB_ORG.lower()}.github.io/{GITHUB_REPO}/"
+# Public host for the redirector site. The CNAME in docs/CNAME points GitHub
+# Pages at this hostname; the underlying fallback (which still works if the
+# DNS / CNAME ever breaks) is https://<org-lowercased>.github.io/<repo>/.
+# Trailing slash is significant — callers concatenate `<theme>/<page>/`.
+GH_PAGES_BASE_URL = "https://demo.regionallyfamous.com/"
 
 # raw.githubusercontent.com base for any file in this repo on the default
 # branch. Trailing slash is significant — callers concatenate a sub-path.
@@ -64,14 +66,15 @@ def playground_deeplink(theme_slug: str, url_path: str = "/") -> str:
 
     These URLs are long and ugly on purpose: every byte after `?blueprint-url=`
     is a fully-qualified raw GitHub URL. Use bin/build-redirects.py to expose
-    short `regionallyfamous.github.io/fifty/<theme>/<page>/` aliases."""
+    short `demo.regionallyfamous.com/<theme>/<page>/` aliases."""
     bp = theme_blueprint_raw_url(theme_slug)
     return f"https://playground.wordpress.net/?blueprint-url={bp}&url={url_path}"
 
 
 def gh_pages_short_url(theme_slug: str, page_slug: str = "") -> str:
-    """Short URL served by GH Pages from the docs/ folder. `page_slug` is
-    a path component without leading/trailing slash ("" = theme root,
+    """Short URL served by GH Pages from the docs/ folder, fronted by the
+    `demo.regionallyfamous.com` custom domain (see docs/CNAME). `page_slug`
+    is a path component without leading/trailing slash ("" = theme root,
     "shop", "product/bottled-morning", etc.)."""
     suffix = f"{page_slug}/" if page_slug else ""
     return f"{GH_PAGES_BASE_URL}{theme_slug}/{suffix}"

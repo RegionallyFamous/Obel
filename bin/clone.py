@@ -167,7 +167,7 @@ def main() -> int:
     print(f"  8. Run `python3 bin/build-redirects.py` to (re)generate the GH")
     print(f"     Pages short URLs for every theme. The new theme will be")
     print(f"     reachable at:")
-    print(f"        https://regionallyfamous.github.io/fifty/{dest.name}/")
+    print(f"        https://demo.regionallyfamous.com/{dest.name}/")
     print(f"     (plus /shop/, /product/bottled-morning/, /cart/, …) as soon")
     print(f"     as you commit + push the new docs/{dest.name}/ folder and")
     print(f"     GH Pages picks up the change. GH Pages must be enabled once")

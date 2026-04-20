@@ -6,9 +6,9 @@ A monorepo of block-only WooCommerce themes. Every theme is one `theme.json` fil
 
 | Theme | Path | Status | Vibe | Try it |
 | --- | --- | --- | --- | --- |
-| **Obel** | [`obel/`](./obel/) | Base / canonical reference | Editorial, soft, restrained | [regionallyfamous.github.io/fifty/obel/](https://regionallyfamous.github.io/fifty/obel/) |
-| **Chonk** | [`chonk/`](./chonk/) | Variant | Neo-brutalist, chunky, high contrast | [regionallyfamous.github.io/fifty/chonk/](https://regionallyfamous.github.io/fifty/chonk/) |
-| **Selvedge** | [`selvedge/`](./selvedge/) | Variant | Workwear, woven, indigo & raw | [regionallyfamous.github.io/fifty/selvedge/](https://regionallyfamous.github.io/fifty/selvedge/) |
+| **Obel** | [`obel/`](./obel/) | Base / canonical reference | Editorial, soft, restrained | [demo.regionallyfamous.com/obel/](https://demo.regionallyfamous.com/obel/) |
+| **Chonk** | [`chonk/`](./chonk/) | Variant | Neo-brutalist, chunky, high contrast | [demo.regionallyfamous.com/chonk/](https://demo.regionallyfamous.com/chonk/) |
+| **Selvedge** | [`selvedge/`](./selvedge/) | Variant | Workwear, woven, indigo & raw | [demo.regionallyfamous.com/selvedge/](https://demo.regionallyfamous.com/selvedge/) |
 
 Obel is the reference theme. Read it first. Every other theme in this repo is a clone of Obel with a different `theme.json` and a few template tweaks.
 
@@ -54,14 +54,14 @@ GitHub Pages serves [`docs/`](./docs/) and forwards every short URL below to the
 
 | Page | Obel | Chonk | Selvedge |
 | --- | --- | --- | --- |
-| Home | [`obel/`](https://regionallyfamous.github.io/fifty/obel/) | [`chonk/`](https://regionallyfamous.github.io/fifty/chonk/) | [`selvedge/`](https://regionallyfamous.github.io/fifty/selvedge/) |
-| Shop | [`obel/shop/`](https://regionallyfamous.github.io/fifty/obel/shop/) | [`chonk/shop/`](https://regionallyfamous.github.io/fifty/chonk/shop/) | [`selvedge/shop/`](https://regionallyfamous.github.io/fifty/selvedge/shop/) |
-| Single product | [`obel/product/bottled-morning/`](https://regionallyfamous.github.io/fifty/obel/product/bottled-morning/) | [`chonk/product/bottled-morning/`](https://regionallyfamous.github.io/fifty/chonk/product/bottled-morning/) | [`selvedge/product/bottled-morning/`](https://regionallyfamous.github.io/fifty/selvedge/product/bottled-morning/) |
-| Cart (pre-filled) | [`obel/cart/`](https://regionallyfamous.github.io/fifty/obel/cart/) | [`chonk/cart/`](https://regionallyfamous.github.io/fifty/chonk/cart/) | [`selvedge/cart/`](https://regionallyfamous.github.io/fifty/selvedge/cart/) |
-| Checkout | [`obel/checkout/`](https://regionallyfamous.github.io/fifty/obel/checkout/) | [`chonk/checkout/`](https://regionallyfamous.github.io/fifty/chonk/checkout/) | [`selvedge/checkout/`](https://regionallyfamous.github.io/fifty/selvedge/checkout/) |
-| My Account | [`obel/my-account/`](https://regionallyfamous.github.io/fifty/obel/my-account/) | [`chonk/my-account/`](https://regionallyfamous.github.io/fifty/chonk/my-account/) | [`selvedge/my-account/`](https://regionallyfamous.github.io/fifty/selvedge/my-account/) |
-| Journal | [`obel/journal/`](https://regionallyfamous.github.io/fifty/obel/journal/) | [`chonk/journal/`](https://regionallyfamous.github.io/fifty/chonk/journal/) | [`selvedge/journal/`](https://regionallyfamous.github.io/fifty/selvedge/journal/) |
-| 404 | [`obel/404/`](https://regionallyfamous.github.io/fifty/obel/404/) | [`chonk/404/`](https://regionallyfamous.github.io/fifty/chonk/404/) | [`selvedge/404/`](https://regionallyfamous.github.io/fifty/selvedge/404/) |
+| Home | [`obel/`](https://demo.regionallyfamous.com/obel/) | [`chonk/`](https://demo.regionallyfamous.com/chonk/) | [`selvedge/`](https://demo.regionallyfamous.com/selvedge/) |
+| Shop | [`obel/shop/`](https://demo.regionallyfamous.com/obel/shop/) | [`chonk/shop/`](https://demo.regionallyfamous.com/chonk/shop/) | [`selvedge/shop/`](https://demo.regionallyfamous.com/selvedge/shop/) |
+| Single product | [`obel/product/bottled-morning/`](https://demo.regionallyfamous.com/obel/product/bottled-morning/) | [`chonk/product/bottled-morning/`](https://demo.regionallyfamous.com/chonk/product/bottled-morning/) | [`selvedge/product/bottled-morning/`](https://demo.regionallyfamous.com/selvedge/product/bottled-morning/) |
+| Cart (pre-filled) | [`obel/cart/`](https://demo.regionallyfamous.com/obel/cart/) | [`chonk/cart/`](https://demo.regionallyfamous.com/chonk/cart/) | [`selvedge/cart/`](https://demo.regionallyfamous.com/selvedge/cart/) |
+| Checkout | [`obel/checkout/`](https://demo.regionallyfamous.com/obel/checkout/) | [`chonk/checkout/`](https://demo.regionallyfamous.com/chonk/checkout/) | [`selvedge/checkout/`](https://demo.regionallyfamous.com/selvedge/checkout/) |
+| My Account | [`obel/my-account/`](https://demo.regionallyfamous.com/obel/my-account/) | [`chonk/my-account/`](https://demo.regionallyfamous.com/chonk/my-account/) | [`selvedge/my-account/`](https://demo.regionallyfamous.com/selvedge/my-account/) |
+| Journal | [`obel/journal/`](https://demo.regionallyfamous.com/obel/journal/) | [`chonk/journal/`](https://demo.regionallyfamous.com/chonk/journal/) | [`selvedge/journal/`](https://demo.regionallyfamous.com/selvedge/journal/) |
+| 404 | [`obel/404/`](https://demo.regionallyfamous.com/obel/404/) | [`chonk/404/`](https://demo.regionallyfamous.com/chonk/404/) | [`selvedge/404/`](https://demo.regionallyfamous.com/selvedge/404/) |
 
 To enable the short URLs once: in this repo's GitHub settings → **Pages** → set Source to "Deploy from a branch", Branch `main`, Folder `/docs`, save. New themes get short URLs automatically — `python3 bin/build-redirects.py` reads each theme's `playground/blueprint.json` and writes `docs/<theme>/<page>/index.html` for every entry in its `PAGES` list. The `bin/clone.py` workflow runs it as the final step when you scaffold a new theme.
 
@@ -136,7 +136,7 @@ The full toolchain:
 | `clone.py` | Scaffolds a new sibling theme from Obel with the names rewritten. |
 | `seed-playground-content.py` | Populates `<theme>/playground/{content,images}/` from the canonical W&O source, rewriting image URLs to point at the new theme. |
 | `sync-playground.py` | Inlines `playground/*.php` into every theme's `playground/blueprint.json` and rewrites the `importWxr` URL to the per-theme `content.xml`. |
-| `build-redirects.py` | Regenerates `docs/<theme>/<page>/index.html` short URLs that GH Pages serves at `regionallyfamous.github.io/fifty/`. |
+| `build-redirects.py` | Regenerates `docs/<theme>/<page>/index.html` short URLs that GH Pages serves at `demo.regionallyfamous.com/`. |
 
 Each script also responds to `--help`.
 
@@ -150,7 +150,7 @@ Each script also responds to `--help`.
 6. Seed the per-theme Playground content + images: `python3 bin/seed-playground-content.py`
 7. Refresh the inlined PHP + `importWxr` URL inside the new blueprint: `python3 bin/sync-playground.py`
 8. Generate the GH Pages short URLs: `python3 bin/build-redirects.py` (writes `docs/mybrand/<page>/index.html`; pushes are picked up by Pages within ~1 minute)
-9. Commit and push so `regionallyfamous.github.io/fifty/mybrand/` resolves.
+9. Commit and push so `demo.regionallyfamous.com/mybrand/` resolves.
 
 ## Working in this repo
 

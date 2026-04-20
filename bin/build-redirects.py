@@ -40,8 +40,11 @@ What this script does:
 
 GitHub Pages setup (one-time, manual):
     Repo settings → Pages → Source: "Deploy from a branch" → Branch: main,
-    Folder: /docs → Save. Visit https://regionallyfamous.github.io/fifty/
-    once Pages reports a successful build.
+    Folder: /docs → Save. Repo settings → Pages → Custom domain →
+    `demo.regionallyfamous.com` (the same value lives in docs/CNAME, which
+    this script preserves across rebuilds). Visit
+    https://demo.regionallyfamous.com/ once Pages reports a successful
+    build (the github.io URL still resolves as a fallback).
 
 Usage:
     python3 bin/build-redirects.py        # rebuild docs/ for every theme

@@ -131,14 +131,14 @@ After cloning a new theme via `bin/clone.py <name>`, you have to:
    ```
    This writes `docs/<name>/<page>/index.html` for every entry in the
    script's `PAGES` list. The new theme becomes reachable at
-   `https://regionallyfamous.github.io/fifty/<name>/` once the change
+   `https://demo.regionallyfamous.com/<name>/` once the change
    is committed and pushed (Pages picks it up within ~1 minute). See
    the root `AGENTS.md` "GitHub Pages short URLs" section for the
    contract; you should never edit anything under `docs/` by hand.
 
 4. Open the new theme's short URL and verify the surface checklist
    (front page, shop, single product, cart, checkout, blog post, 404).
-   `https://regionallyfamous.github.io/fifty/<name>/` redirects to the
+   `https://demo.regionallyfamous.com/<name>/` redirects to the
    canonical Playground deeplink
    `https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/<name>/playground/blueprint.json&url=/`,
    which is what to share when GH Pages is not yet enabled on a fork.
