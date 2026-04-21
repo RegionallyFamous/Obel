@@ -8,7 +8,7 @@ Read this file at the start of any LLM session to discover the project's structu
 
 ## At a glance
 
-- 24 templates, 8 parts
+- 25 templates, 8 parts
 - 13 starter patterns
 - 3 style variations
 - 156 block style entries in `theme.json` (85 core, 71 woocommerce)
@@ -169,6 +169,7 @@ Read this file at the start of any LLM session to discover the project's structu
 |   |-- page-coming-soon.html
 |   |-- page-full-width.html
 |   |-- page-landing.html
+|   |-- page-my-account.html
 |   |-- page-no-title.html
 |   |-- page.html
 |   |-- product-search-results.html
@@ -178,6 +179,9 @@ Read this file at the start of any LLM session to discover the project's structu
 |   |-- singular.html
 |   |-- tag.html
 |   `-- taxonomy.html
+|-- woocommerce/
+|   `-- myaccount/
+|       `-- dashboard.php
 |-- AGENTS.md
 |-- CHANGELOG.md
 |-- contrast-skip.json
@@ -210,6 +214,7 @@ Read this file at the start of any LLM session to discover the project's structu
 | `templates/page-coming-soon.html` | WooCommerce coming-soon / launch placeholder |
 | `templates/page-full-width.html` | Custom template: full-bleed page (no constrained content width) |
 | `templates/page-landing.html` | Custom template: landing page (no header/footer, full-bleed) |
+| `templates/page-my-account.html` | (no description registered) |
 | `templates/page-no-title.html` | Custom template: page without printed title |
 | `templates/page.html` | Default static page |
 | `templates/product-search-results.html` | WooCommerce product search results |

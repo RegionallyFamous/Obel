@@ -385,3 +385,144 @@ add_filter(
 );
 
 // === END wc microcopy ===
+
+// === BEGIN my-account ===
+//
+// Branded WC My Account dashboard.
+//
+// FAIL MODE WE'RE FIXING
+// ----------------------
+// WC's default classic My Account renders a `<nav>` (sidebar links)
+// + `<div class="woocommerce-MyAccount-content">` (welcome paragraph
+// + "From your account dashboard you can…" paragraph with link
+// salad). Without theme intervention WC's frontend.css applies
+// `nav { float:left; width:30% }` and `content { float:right;
+// width:68% }` inside whatever container the page template provides.
+// Our default `page.html` uses a 560px "prose" content size, so 30%
+// of that is ~170px (a thin floating nav) and 68% is ~380px (a
+// cramped text column). The result is a vast empty page with two
+// tiny columns drifting in the middle — not a brand moment, not
+// even usable.
+//
+// FIX
+// ---
+// `templates/page-my-account.html` widens the layout to `wideSize`
+// (1280px), and the CSS block in theme.json (search for
+// `body.woocommerce-account .entry-content>.woocommerce`) replaces
+// WC's float layout with a CSS grid: a fixed-width sidebar for the
+// nav + a fluid main column for the dashboard content. Then the
+// hooks below replace the stock dashboard content with a greeting
+// + 3-card quick-link grid so the dashboard tab actually feels
+// designed instead of "WC defaults painted on a block theme".
+//
+// Hooks used:
+//   * `woocommerce_account_dashboard` — the action that fires inside
+//     `myaccount/dashboard.php`. WC ships a default callback
+//     (`wc_account_dashboard`) that prints the welcome paragraphs;
+//     we remove it and re-add our own at the same priority so the
+//     stock copy disappears and the branded markup paints in its
+//     place.
+//   * `woocommerce_before_account_navigation` / `_after_…` — we
+//     don't add wrappers here because the CSS grid already handles
+//     placement. The hooks are listed for the next person to know
+//     where to inject if the design grows.
+//
+// Per-theme: each theme owns its own `// === BEGIN my-account ===`
+// block in its `functions.php` so the greeting wording, card titles,
+// and callouts stay theme-distinct (Obel = quiet/editorial, Chonk =
+// brutalist all-caps, Selvedge = workwear, Lysholm = aquavit-precise,
+// Aero = sport/technical). Same structural hooks, different voice.
+add_action(
+	'init',
+	static function (): void {
+		if ( ! function_exists( 'wc_get_account_menu_items' ) ) {
+			return;
+		}
+		// `wc_account_dashboard` is the WC core callback that prints
+		// the "Hello %s (not %s? Log out)" + "From your account
+		// dashboard you can…" paragraphs. Remove it once at init so
+		// our replacement is the only thing rendered inside the
+		// dashboard tab.
+		remove_action( 'woocommerce_account_dashboard', 'wc_account_dashboard' );
+		add_action( 'woocommerce_account_dashboard', 'chonk_render_account_dashboard' );
+	},
+	20
+);
+
+if ( ! function_exists( 'chonk_render_account_dashboard' ) ) {
+	/**
+	 * Render the Chonk-branded My Account dashboard tab.
+	 *
+	 * Replaces WC's default 2-paragraph greeting with:
+	 *   1. A display-font, all-caps greeting using the customer's
+	 *      first name (or login name as a fallback).
+	 *   2. A short brutalist lede in the Chonk voice.
+	 *   3. A 3-card quick-link grid linking to Orders, Addresses,
+	 *      and Account details — the surfaces that justify having
+	 *      an account in the first place.
+	 *
+	 * Markup is hand-written (not block markup) because this fires
+	 * inside WC's classic shortcode render where block parsing is
+	 * already past. The class names (`wo-account-*`) match the CSS
+	 * grid + card rules in theme.json's styles.css block and are
+	 * shared verbatim across themes — only the microcopy changes.
+	 */
+	function chonk_render_account_dashboard(): void {
+		$user  = wp_get_current_user();
+		$name  = $user && $user->ID ? trim( $user->first_name ) : '';
+		if ( '' === $name && $user && $user->ID ) {
+			$name = $user->display_name ? $user->display_name : $user->user_login;
+		}
+		if ( '' === $name ) {
+			$name = __( 'friend', 'chonk' );
+		}
+
+		$cards = array(
+			array(
+				'eyebrow' => __( 'LEDGER', 'chonk' ),
+				'title'   => __( 'ORDER LOG', 'chonk' ),
+				'lede'    => __( 'Track shipments. Reorder the hits.', 'chonk' ),
+				'cta'     => __( 'OPEN LEDGER', 'chonk' ),
+				'href'    => wc_get_endpoint_url( 'orders', '', wc_get_page_permalink( 'myaccount' ) ),
+			),
+			array(
+				'eyebrow' => __( 'SHIP-TO', 'chonk' ),
+				'title'   => __( 'WHERE IT GOES', 'chonk' ),
+				'lede'    => __( 'Edit billing and delivery so checkout flies.', 'chonk' ),
+				'cta'     => __( 'EDIT THE MAP', 'chonk' ),
+				'href'    => wc_get_endpoint_url( 'edit-address', '', wc_get_page_permalink( 'myaccount' ) ),
+			),
+			array(
+				'eyebrow' => __( 'IDENTITY', 'chonk' ),
+				'title'   => __( 'THE FILE ON YOU', 'chonk' ),
+				'lede'    => __( 'Name, email, password. Keep them current.', 'chonk' ),
+				'cta'     => __( 'UPDATE FILE', 'chonk' ),
+				'href'    => wc_get_endpoint_url( 'edit-account', '', wc_get_page_permalink( 'myaccount' ) ),
+			),
+		);
+		?>
+<div class="wo-account-dashboard">
+	<header class="wo-account-greeting">
+		<p class="wo-account-greeting__eyebrow"><?php esc_html_e( 'BACK OFFICE', 'chonk' ); ?></p>
+		<h2 class="wo-account-greeting__title"><?php
+			/* translators: %s: customer's first name. */
+			echo esc_html( sprintf( __( 'HEY, %s.', 'chonk' ), $name ) );
+		?></h2>
+		<p class="wo-account-greeting__lede"><?php esc_html_e( 'Receipts, addresses, the basics. Get in, do the thing, get out.', 'chonk' ); ?></p>
+	</header>
+
+	<ul class="wo-account-cards">
+		<?php foreach ( $cards as $card ) : ?>
+			<li class="wo-account-card">
+				<p class="wo-account-card__eyebrow"><?php echo esc_html( $card['eyebrow'] ); ?></p>
+				<h3 class="wo-account-card__title"><?php echo esc_html( $card['title'] ); ?></h3>
+				<p class="wo-account-card__lede"><?php echo esc_html( $card['lede'] ); ?></p>
+				<a class="wo-account-card__cta" href="<?php echo esc_url( $card['href'] ); ?>"><?php echo esc_html( $card['cta'] ); ?> <span aria-hidden="true">&rarr;</span></a>
+			</li>
+		<?php endforeach; ?>
+	</ul>
+</div>
+		<?php
+	}
+}
+// === END my-account ===

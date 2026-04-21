@@ -1270,7 +1270,13 @@ def check_wc_overrides_styled() -> Result:
                 ".woocommerce-MyAccount-content",
             ],
             "must_kill_one_of": [
+                # Either the legacy short-hand reset (kept for back-compat
+                # with themes that haven't migrated to the per-theme
+                # `templates/page-my-account.html` pattern yet) or the
+                # newer body-prefixed, .entry-content-scoped grid that
+                # ships with the branded dashboard refactor.
                 ".woocommerce-account.woocommerce{display:grid;grid-template-columns:220px1fr",
+                "body.woocommerce-account.entry-content>.woocommerce{display:grid",
             ],
             "why": "WC's My Account ships a tab-style sidebar nav and a bordered orders table with WC blue accents. CSS-only restyle to editorial nav + flat tables.",
         },
