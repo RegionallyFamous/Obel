@@ -200,33 +200,74 @@ add_filter(
 			}
 		}
 
-		if ( ! $image_url ) {
-			return $block_content;
-		}
-
 		// Inject `<img class="wp-block-cover__image-background">` as
 		// the first child of `.wp-block-cover` -- exactly where core
 		// puts it when the cover block has a `url` attribute. The
 		// dim-overlay span and inner-container come AFTER the img,
 		// which lets the existing CSS layering paint the dim on top
 		// of the photo and the term-name + count on top of both.
-		$img = sprintf(
-			'<img class="wp-block-cover__image-background selvedge-cat-cover__img" alt="%s" src="%s" loading="lazy" decoding="async" />',
-			esc_attr( $term->name ),
-			esc_url( $image_url )
-		);
+		// Skips silently if there's no image to inject (the cover
+		// then paints its overlay color flat -- the original
+		// behaviour, retained as an explicit fallback).
+		$updated = $block_content;
+		if ( $image_url ) {
+			$img = sprintf(
+				'<img class="wp-block-cover__image-background selvedge-cat-cover__img" alt="" src="%s" loading="lazy" decoding="async" />',
+				esc_url( $image_url )
+			);
+			// Splice the img right after the opening `<div
+			// class="wp-block-cover ...">`. Using a simple regex
+			// against the cover's leading tag is safe here because
+			// the block's render output always starts with that
+			// single <div ...> (see core/cover/render.php).
+			$spliced = preg_replace(
+				'/(<div\s+class="[^"]*wp-block-cover[^"]*"[^>]*>)/',
+				'$1' . $img,
+				$block_content,
+				1
+			);
+			if ( is_string( $spliced ) ) {
+				$updated = $spliced;
+			}
+		}
 
-		// Splice the img right after the opening <div class="wp-block-cover ...">.
-		// Using a simple regex against the cover's leading tag is
-		// safe here because the block's render output always starts
-		// with that single <div ...> (see core/cover/render.php).
-		$updated = preg_replace(
-			'/(<div\s+class="[^"]*wp-block-cover[^"]*"[^>]*>)/',
-			'$1' . $img,
-			$block_content,
-			1
+		// Wrap the entire cover in an `<a>` so the WHOLE tile is
+		// clickable, not just the small term-name heading inside.
+		// `wp:term-name` had `isLink:true` until we removed it from
+		// the front-page.html, exactly because nesting an `<a>` inside
+		// the wrapping `<a>` is invalid HTML5 (the spec disallows
+		// `<a>` descendants of `<a>`); browsers split the inner
+		// anchor and the click target becomes whichever WP rendered
+		// first, which on Chrome is the inner one -- so the giant
+		// image area is dead-clickable. Removing the inner link and
+		// wrapping the whole cover in one outer anchor gives us a
+		// single, large, accessible click target.
+		//
+		// `<a>` wrapping a flow-content `<div>` is valid in HTML5
+		// (the spec was relaxed in 5.0 specifically to enable this
+		// "card" pattern). Modern screen readers announce the wrapped
+		// content normally; we add an explicit `aria-label` so the
+		// accessible name is the term name + count (otherwise screen
+		// readers would read out the visual content "Curiosities 11"
+		// which is also fine, but the explicit label removes ambiguity
+		// when the count format ever changes).
+		$term_link = get_term_link( $term );
+		if ( is_wp_error( $term_link ) || ! $term_link ) {
+			return $updated;
+		}
+		$count       = (int) $term->count;
+		$aria_label  = sprintf(
+			/* translators: 1: category name, 2: number of products */
+			_n( '%1$s, %2$d product', '%1$s, %2$d products', max( 1, $count ), 'selvedge' ),
+			$term->name,
+			$count
 		);
-		return is_string( $updated ) ? $updated : $block_content;
+		return sprintf(
+			'<a class="selvedge-cat-cover__link" href="%s" aria-label="%s">%s</a>',
+			esc_url( $term_link ),
+			esc_attr( $aria_label ),
+			$updated
+		);
 	},
 	10,
 	3
