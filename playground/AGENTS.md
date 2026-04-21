@@ -15,9 +15,9 @@ playground/                          # SHARED — no content lives here
   wo-import.php                      # generic WC catalogue importer (reads URLs from constants)
   wo-configure.php                   # generic WP/WC configurator (reads URLs from constants)
   wo-cart-mu.php                     # mu-plugin: pre-fills cart on ?demo=cart
-  wo-pages-mu.php                    # mu-plugin: branded my-account + archive header (Phase D)
-  wo-payment-icons-mu.php            # mu-plugin: payment-method icons in checkout (Phase C)
-  wo-swatches-mu.php                 # mu-plugin: variation <select> -> swatches (Phase C)
+  wo-pages-mu.php                    # RETIRED stub (was: branded my-account + archive header)
+  wo-payment-icons-mu.php            # RETIRED stub (was: payment-method icons in checkout)
+  wo-swatches-mu.php                 # RETIRED stub (was: variation <select> -> swatches)
 
 <theme>/playground/                  # PER-THEME — content + assets + blueprint
   blueprint.json                     # auto-synced by bin/sync-playground.py
@@ -37,9 +37,9 @@ playground/                          # SHARED — no content lives here
 | `wo-import.php` | `wp eval-file` | yes (constants) | Imports the per-theme `products.csv` into WooCommerce, sideloads images from `WO_CONTENT_BASE_URL`. |
 | `wo-configure.php` | `wp eval-file` | yes (constants) | Sets WP/WC options (permalinks, store address, shipping, payment methods, `show_on_front`, blogname / tagline), seeds 5 sample orders, 12 reviews, the customer account. |
 | `wo-cart-mu.php` | mu-plugin | no | Pre-fills the cart with two products when the URL contains `?demo=cart`. Drives the cart / checkout demo screenshots. |
-| `wo-pages-mu.php` | mu-plugin | no | Wraps the my-account login form in a branded `wo-account-intro` panel (Phase D) and injects the editorial `wo-archive-hero` header on category / tag / shop archives. Tracked by `bin/snap_config.py::INSPECT_SELECTORS["my-account"]` and `["category"]`. |
-| `wo-payment-icons-mu.php` | mu-plugin | no | Renders payment-method icons next to each gateway label in the WC Blocks checkout (Phase C). |
-| `wo-swatches-mu.php` | mu-plugin | no | Replaces variation `<select>` elements on the PDP with colour-swatch / text-pill button groups, keeping the original select visually-hidden so WC's `variation_form` JS continues to drive price + stock + image swap (Phase C). See root `AGENTS.md` rule #11. |
+| `wo-pages-mu.php` | mu-plugin | no | **RETIRED.** The five hooks this once registered (My Account login chrome, empty cart, no-products, archive hero, body class) all painted shopper-facing brand from `playground/`, which violates the boundary. Each is now in per-theme blocks in `<theme>/functions.php` between `// === BEGIN <slug> ===` sentinels. The file remains as a stub HISTORICAL NOTE so blueprint inlining doesn't break and so future regressions can find the rationale. |
+| `wo-payment-icons-mu.php` | mu-plugin | no | **RETIRED.** Same migration: the cart/checkout payment-icons strip now ships in each theme's `// === BEGIN payment-icons ===` block. Stub kept for blueprint inlining. |
+| `wo-swatches-mu.php` | mu-plugin | no | **RETIRED.** Same migration: variation swatches (filter on `woocommerce_dropdown_variation_attribute_options_html` + footer JS shim) now ship in each theme's `// === BEGIN swatches ===` block, with a per-theme color map. Stub kept for blueprint inlining. |
 
 The mu-plugins (`*-mu.php`) ship as `writeFile` steps in every blueprint that drop them into `wp-content/mu-plugins/` — no theme activation needed. The two `wp eval-file` scripts (`wo-import.php`, `wo-configure.php`) are inlined by `bin/sync-playground.py` with the per-theme constants block prepended.
 

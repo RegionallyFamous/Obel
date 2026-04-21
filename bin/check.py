@@ -3887,10 +3887,40 @@ def check_no_brand_filters_in_playground() -> Result:
         "woocommerce_show_page_title",
         "woocommerce_order_button_text",
         "woocommerce_order_button_html",
+        # Page-level brand surfaces migrated out of wo-pages-mu.php and
+        # wo-swatches-mu.php into per-theme `<theme>/functions.php` blocks
+        # (see HISTORICAL NOTE in each gutted mu-plugin). Re-registering
+        # any of these from `playground/` would silently double-paint
+        # in the demo and disappear entirely on a real install.
+        "woocommerce_before_customer_login_form",
+        "woocommerce_after_customer_login_form",
+        "woocommerce_cart_is_empty",
+        "woocommerce_no_products_found",
+        "woocommerce_before_main_content",
+        "woocommerce_dropdown_variation_attribute_options_html",
+        # `body_class` once carried the `theme-<slug>` filter from
+        # `wo-pages-mu.php`. Each theme now hardcodes its own slug in the
+        # `// === BEGIN body-class ===` block; playground has no business
+        # touching frontend body classes.
+        "body_class",
     }
     forbidden_prefix = (
         "render_block_woocommerce/",
         "woocommerce_blocks_",
+    )
+
+    # Marker classes that only ever appear inside theme-shipped paint
+    # callbacks. If they reappear in a `playground/*-mu.php` file (i.e.
+    # at runtime, not seeded into the DB by `wo-configure.php`) the
+    # mu-plugin is shadowing the theme — fail loudly. Comments are
+    # already stripped from the source by the scrubber below so the
+    # HISTORICAL NOTE blocks in the gutted mu-plugins are safe.
+    forbidden_markers = (
+        "wo-empty",
+        "wo-account-",
+        "wo-archive-hero",
+        "wo-swatch",
+        "wo-payment-icons",
     )
 
     register_re = re.compile(
@@ -3929,6 +3959,26 @@ def check_no_brand_filters_in_playground() -> Result:
                 f"the registration with `if ( defined( 'WO_DEMO_ONLY' ) )` "
                 f"if it really is demo-only)."
             )
+
+        # Marker scan: only mu-plugins (files whose name ends in
+        # `-mu.php`) are runtime; `wo-configure.php` and `wo-import.php`
+        # are one-shot install seeders that legitimately HEREDOC brand
+        # block markup into the DB and would false-positive here.
+        if php_path.name.endswith("-mu.php"):
+            for marker in forbidden_markers:
+                idx = scrubbed.find(marker)
+                if idx == -1:
+                    continue
+                line_no = scrubbed.count("\n", 0, idx) + 1
+                failures.append(
+                    f"  playground/{php_path.name}:{line_no}: contains "
+                    f"`{marker}` marker — that class is part of a "
+                    f"per-theme paint callback (see "
+                    f"`<theme>/functions.php` `// === BEGIN <slug> ===` "
+                    f"sentinels). A mu-plugin painting it from "
+                    f"`playground/` would shadow the theme in the demo "
+                    f"and vanish on a real install."
+                )
 
     if failures:
         r.fail(
