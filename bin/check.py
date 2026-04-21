@@ -3091,6 +3091,107 @@ def check_no_default_wc_strings() -> Result:
     return r
 
 
+def check_playground_content_seeded() -> Result:
+    """Fail if a theme ships a playground/blueprint.json without the
+    matching playground/content/ + playground/images/ payload.
+
+    UNSEEDED-PLAYGROUND FAIL MODE
+    -----------------------------
+    Every theme's `playground/blueprint.json` references its own
+    `https://raw.githubusercontent.com/RegionallyFamous/fifty/main/<theme>/playground/content/content.xml`
+    (WXR import) and `.../content/products.csv` (WC seed step), and a
+    fleet of `.../images/*` URLs the WXR + the WC seeder both reach for
+    when sideloading attachments. If those files don't exist in the repo
+    (or the seeded image set is missing) the live demo cascades:
+
+        * raw.githubusercontent.com returns 404 for content.xml
+        * the WXR import step bails
+        * every subsequent `wp eval-file` (wo-import.php, wo-configure.php,
+          wo-cart.php, …) crashes because it tries to read products WC
+          never imported
+        * the user sees an unbroken stream of `PHP.run() failed with
+          exit code 1` in the browser console and a blank page
+
+    The fix is `python3 bin/seed-playground-content.py --theme <slug>`
+    followed by `python3 bin/sync-playground.py`, but the fail mode is
+    invisible from a local checkout (the theme dir looks "complete" — it
+    has a blueprint, templates, theme.json, patterns…). This check is
+    the static gate that makes shipping an unseeded theme impossible.
+
+    See AGENTS.md hard rule "Every Playground blueprint must ship its
+    content payload alongside it".
+    """
+    r = Result("Playground blueprint has its content/ + images/ payload seeded")
+    bp_path = ROOT / "playground" / "blueprint.json"
+    if not bp_path.exists():
+        r.skip("no playground/blueprint.json (theme without a Playground demo)")
+        return r
+
+    content_dir = ROOT / "playground" / "content"
+    images_dir = ROOT / "playground" / "images"
+    content_xml = content_dir / "content.xml"
+    products_csv = content_dir / "products.csv"
+
+    missing: list[str] = []
+    if not content_xml.exists():
+        missing.append("playground/content/content.xml")
+    if not products_csv.exists():
+        missing.append("playground/content/products.csv")
+    if not images_dir.is_dir() or not any(images_dir.iterdir()):
+        missing.append("playground/images/ (empty or missing)")
+
+    if missing:
+        r.fail(
+            "this theme ships a playground/blueprint.json but is "
+            "missing its content payload: "
+            + ", ".join(missing)
+            + ". The live demo will 404 on raw.githubusercontent.com "
+            "and every PHP step in the blueprint will exit 1. Run "
+            "`python3 bin/seed-playground-content.py --theme "
+            f"{ROOT.name}` to copy the canonical wonders-oddities "
+            "CSV/WXR/images into this theme, then "
+            "`python3 bin/sync-playground.py` to refresh the inlined "
+            "mu-plugins, then commit content/ + images/ + the updated "
+            "blueprint together."
+        )
+        return r
+
+    # Bonus: warn if the blueprint references image URLs whose files
+    # don't exist on disk. The CSV/XML rewriter in the seed script
+    # normally keeps these in sync, but a manual edit could drift.
+    try:
+        bp_text = bp_path.read_text(encoding="utf-8")
+    except OSError:
+        bp_text = ""
+    image_url_re = re.compile(
+        r"raw\.githubusercontent\.com/RegionallyFamous/fifty/main/"
+        + re.escape(ROOT.name)
+        + r"/playground/images/([A-Za-z0-9._-]+)"
+    )
+    referenced = set(image_url_re.findall(bp_text))
+    on_disk = {p.name for p in images_dir.iterdir() if p.is_file()}
+    drift = sorted(referenced - on_disk)
+    if drift:
+        # Cap the noise — show the first 5 missing files.
+        head = ", ".join(drift[:5])
+        more = f" (+{len(drift) - 5} more)" if len(drift) > 5 else ""
+        r.fail(
+            f"playground/blueprint.json references {len(drift)} image "
+            f"file(s) that don't exist in playground/images/: {head}{more}. "
+            "The blueprint will 404 on those URLs at boot. Re-run "
+            "`python3 bin/seed-playground-content.py --theme "
+            f"{ROOT.name}` to re-pull the missing assets."
+        )
+        return r
+
+    asset_count = len(on_disk)
+    r.details.append(
+        f"content.xml + products.csv present; "
+        f"{asset_count} image asset(s) on disk"
+    )
+    return r
+
+
 def check_no_unpushed_commits() -> Result:
     """Fail if local HEAD has commits that haven't reached origin yet.
 
@@ -3228,6 +3329,7 @@ def run_checks_for(theme_root: Path, offline: bool) -> int:
         check_pdp_has_image(),
         check_pattern_microcopy_distinct(),
         check_no_default_wc_strings(),
+        check_playground_content_seeded(),
         check_no_unpushed_commits(),
     ]
 

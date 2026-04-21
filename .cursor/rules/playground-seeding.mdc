@@ -1,0 +1,64 @@
+---
+description: Every theme with a playground/blueprint.json must ship its own content/ and images/ payload, or the live demo 404s and cascades into PHP.run() exit 1
+alwaysApply: true
+---
+
+# Playground Content Must Be Seeded
+
+The Playground demo loads each theme from `https://raw.githubusercontent.com/RegionallyFamous/fifty/main/<theme>/playground/...`. The blueprint's WXR import + WC seed steps reach for files that **must already be committed to the repo on `main`**:
+
+```
+<theme>/playground/
+  blueprint.json                     ← references the URLs below
+  content/
+    content.xml                      ← WXR for importWxr step
+    products.csv                     ← (optional, used by wo-import.php)
+  images/
+    wonders-*.png                    ← every URL the WXR + CSV reference
+    product-wo-*.jpg                 ← per-theme product photos (rule 9)
+```
+
+If `content.xml` or `images/` is missing, `raw.githubusercontent.com` returns 404, the WXR step bails, and every subsequent `wp eval-file` (`wo-import.php`, `wo-configure.php`, `wo-cart.php`) crashes with `PHP.run() failed with exit code 1`. The user sees a blank page and a stream of red errors in the browser console.
+
+## When to seed
+
+Whenever ANY of these is true, `bin/seed-playground-content.py` MUST be run before the next push:
+
+- A new theme directory was created (via `bin/clone.py`, by hand, or by the `build-block-theme-variant` skill).
+- A theme's `playground/blueprint.json` was edited to reference a new image URL.
+- `bin/check.py`'s `check_playground_content_seeded` fails for any theme.
+
+## How to seed
+
+```bash
+# Seed (or re-seed) a single theme:
+python3 bin/seed-playground-content.py --theme <slug>
+
+# Refresh the inlined mu-plugins after seeding:
+python3 bin/sync-playground.py
+
+# Commit content/ + images/ + the updated blueprint.json TOGETHER.
+git add <slug>/playground/
+git commit -m "<slug>: seed playground content + images"
+git push
+```
+
+`bin/seed-playground-content.py` is idempotent — re-running it on a theme that already has content is a no-op unless `--force` is passed. There is no reason to skip running it for a new theme.
+
+## What enforcement exists
+
+- **`bin/check.py` — `check_playground_content_seeded`** (hard fail): fails if `playground/blueprint.json` exists without `content/content.xml` + `content/products.csv` + a non-empty `images/` directory, AND fails if the blueprint references image URLs whose files are missing on disk.
+- **`AGENTS.md` — hard rule 13**: codified so future agents reading the rule list see this is non-negotiable.
+- **This rule**: surfaces the requirement at the IDE level so the seed step is impossible to forget when scaffolding a new theme.
+
+## Common failure surface
+
+| Symptom in browser console                              | Root cause                                              |
+|---------------------------------------------------------|---------------------------------------------------------|
+| `404 ... /playground/content/content.xml`               | `seed-playground-content.py` was never run for the theme |
+| `404 ... /playground/images/wonders-<slug>.png`         | Blueprint references an image that wasn't seeded         |
+| Repeated `PHP.run() failed with exit code 1`            | Cascade — the WXR import 404'd, every later step bails  |
+
+## Fix-then-push, in that order
+
+The Playground demo loads from the GitHub raw URL on `main`, so a fix that's only on the local checkout is invisible to anyone visiting the live demo. After seeding: commit AND push. `bin/check.py`'s separate `check_no_unpushed_commits` will fail if you forget.
