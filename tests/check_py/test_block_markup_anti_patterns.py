@@ -1,6 +1,6 @@
 """Tests for `check_block_markup_anti_patterns`.
 
-Three invariants, each surfaced by a regex. Regression risk is high
+Five invariants, each surfaced by a regex. Regression risk is high
 because the regexes are hand-written and intentionally narrow (they
 must NOT flood with false positives on a 2700-block theme).
 """
@@ -143,8 +143,154 @@ def test_button_shadow_on_outer_wrapper_fails(minimal_theme, bind_check_root):
     assert any("box-shadow" in d and "outer" in d for d in result.details)
 
 
+# ---------------------------------------------------------------------------
+# Invariant 4: core/accordion wrapper must declare role="group".
+# ---------------------------------------------------------------------------
+def test_accordion_with_role_group_passes(minimal_theme, bind_check_root):
+    check = bind_check_root(minimal_theme)
+    _write(
+        minimal_theme / "patterns" / "faq.php",
+        """\
+        <?php /** Title: FAQ */ ?>
+        <!-- wp:accordion -->
+        <div role="group" class="wp-block-accordion">
+            <!-- wp:accordion-item -->
+            <div class="wp-block-accordion-item"></div>
+            <!-- /wp:accordion-item -->
+        </div>
+        <!-- /wp:accordion -->
+        """,
+    )
+    assert check.check_block_markup_anti_patterns().passed
+
+
+def test_accordion_missing_role_group_fails(minimal_theme, bind_check_root):
+    check = bind_check_root(minimal_theme)
+    _write(
+        minimal_theme / "patterns" / "faq.php",
+        """\
+        <?php /** Title: FAQ */ ?>
+        <!-- wp:accordion -->
+        <div class="wp-block-accordion">
+            <!-- wp:accordion-item -->
+            <div class="wp-block-accordion-item"></div>
+            <!-- /wp:accordion-item -->
+        </div>
+        <!-- /wp:accordion -->
+        """,
+    )
+    result = check.check_block_markup_anti_patterns()
+    assert not result.passed
+    assert any('role="group"' in d for d in result.details)
+
+
+def test_accordion_item_without_role_group_passes(minimal_theme, bind_check_root):
+    """Only the outer .wp-block-accordion wrapper needs role=group; child
+    .wp-block-accordion-item / -panel / -heading must NOT trip the rule."""
+    check = bind_check_root(minimal_theme)
+    _write(
+        minimal_theme / "patterns" / "faq.php",
+        """\
+        <?php /** Title: FAQ */ ?>
+        <!-- wp:accordion -->
+        <div role="group" class="wp-block-accordion">
+            <!-- wp:accordion-item -->
+            <div class="wp-block-accordion-item">
+                <!-- wp:accordion-heading -->
+                <h3 class="wp-block-accordion-heading"></h3>
+                <!-- /wp:accordion-heading -->
+            </div>
+            <!-- /wp:accordion-item -->
+        </div>
+        <!-- /wp:accordion -->
+        """,
+    )
+    assert check.check_block_markup_anti_patterns().passed
+
+
+# ---------------------------------------------------------------------------
+# Invariant 5: <button> tags must declare an explicit type=.
+# ---------------------------------------------------------------------------
+def test_button_with_explicit_type_button_passes(minimal_theme, bind_check_root):
+    check = bind_check_root(minimal_theme)
+    _write(
+        minimal_theme / "patterns" / "faq.php",
+        """\
+        <?php /** Title: FAQ */ ?>
+        <!-- wp:html -->
+        <button type="button" class="toggle">More</button>
+        <!-- /wp:html -->
+        """,
+    )
+    assert check.check_block_markup_anti_patterns().passed
+
+
+def test_button_with_explicit_type_submit_passes(minimal_theme, bind_check_root):
+    check = bind_check_root(minimal_theme)
+    _write(
+        minimal_theme / "patterns" / "form.php",
+        """\
+        <?php /** Title: Form */ ?>
+        <!-- wp:html -->
+        <form><button type="submit">Send</button></form>
+        <!-- /wp:html -->
+        """,
+    )
+    assert check.check_block_markup_anti_patterns().passed
+
+
+def test_button_without_type_fails(minimal_theme, bind_check_root):
+    check = bind_check_root(minimal_theme)
+    _write(
+        minimal_theme / "patterns" / "faq.php",
+        """\
+        <?php /** Title: FAQ */ ?>
+        <!-- wp:html -->
+        <button class="toggle">More</button>
+        <!-- /wp:html -->
+        """,
+    )
+    result = check.check_block_markup_anti_patterns()
+    assert not result.passed
+    assert any("type=" in d for d in result.details)
+
+
+def test_bare_button_without_attrs_fails(minimal_theme, bind_check_root):
+    """`<button>` with zero attributes is the worst offender -- defaults
+    to type=submit and would post any surrounding form on click."""
+    check = bind_check_root(minimal_theme)
+    _write(
+        minimal_theme / "patterns" / "faq.php",
+        """\
+        <?php /** Title: FAQ */ ?>
+        <!-- wp:html -->
+        <button>Click</button>
+        <!-- /wp:html -->
+        """,
+    )
+    result = check.check_block_markup_anti_patterns()
+    assert not result.passed
+    assert any("type=" in d for d in result.details)
+
+
+def test_button_with_type_late_in_attribute_list_passes(minimal_theme, bind_check_root):
+    """`type=` doesn't have to be the first attribute -- any position
+    counts as long as it's present before the closing >."""
+    check = bind_check_root(minimal_theme)
+    _write(
+        minimal_theme / "patterns" / "faq.php",
+        """\
+        <?php /** Title: FAQ */ ?>
+        <!-- wp:html -->
+        <button class="toggle" data-foo="bar" type="button">More</button>
+        <!-- /wp:html -->
+        """,
+    )
+    assert check.check_block_markup_anti_patterns().passed
+
+
 def test_passes_with_completely_empty_theme(minimal_theme, bind_check_root):
     check = bind_check_root(minimal_theme)
     # The minimal_theme fixture already writes a plain index.html + header +
-    # footer that don't trip any of the three invariants.
+    # footer that don't trip any of the five invariants.
     assert check.check_block_markup_anti_patterns().passed

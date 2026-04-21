@@ -757,8 +757,23 @@ def check_block_markup_anti_patterns() -> Result:
       3. core/button: `box-shadow` belongs on the inner `<a class=
          "wp-block-button__link wp-element-button">`, NEVER on the outer
          `<div class="wp-block-button">`. Save() places it on the link.
+      4. core/accordion: the wrapper `<div class="wp-block-accordion">`
+         MUST carry `role="group"`. Save() emits it; the editor silently
+         rewrites the markup on first load if it's missing, which means
+         the next edit-and-save round-trip will produce a noisy diff.
+         Caught by `@wordpress/block-library` 9.44+; we lint it here so
+         contributors don't need to wait for the Node validator.
+      5. <button> in patterns/templates/parts MUST declare an explicit
+         `type=` attribute. Without it, the HTML default is `submit`,
+         which inside any `<form>` (cart, checkout, mini-cart) silently
+         submits the form on click. Belt-and-braces against the editor
+         silently injecting `type="button"` on save() and the next
+         round-trip looking like a "fix" in CI.
     """
-    r = Result("Block markup matches save() output (group classes, button shadow, paragraph classes)")
+    r = Result(
+        "Block markup matches save() output "
+        "(group classes, button shadow, paragraph classes, accordion role, button type)"
+    )
 
     skip_dirs = {"templates/", "parts/", "patterns/"}
     files: list[Path] = []
@@ -798,6 +813,26 @@ def check_block_markup_anti_patterns() -> Result:
         re.MULTILINE,
     )
 
+    # --- Invariant 4: core/accordion wrapper requires role="group".
+    # Match `<!-- wp:accordion ... -->` followed by the next block-element
+    # opener whose class list contains `wp-block-accordion` (but NOT one of
+    # the child variants like `wp-block-accordion-item`). Allow attribute
+    # noise before the class= so themes can add anchor IDs etc.
+    accordion_open_re = re.compile(
+        r'<!--\s*wp:accordion(?:\s+\{[^}]*\})?\s*-->\s*\n\s*'
+        r'(<(?:div|section)\s+[^>]*class="[^"]*\bwp-block-accordion(?!-)[^"]*"[^>]*>)'
+    )
+
+    # --- Invariant 5: <button> tags must declare an explicit `type=`.
+    # Lookahead: any opening `<button` not immediately followed (within the
+    # tag) by a `type=` attribute. We anchor on `<button` followed by either
+    # whitespace+attrs or `>`; the `(?![^>]*\stype=)` ensures no `type=`
+    # appears before the closing `>`. Self-closing variants are not used in
+    # block markup, so we don't bother matching them.
+    button_no_type_re = re.compile(
+        r'<button(?![^>]*\stype=)(?:\s[^>]*)?>'
+    )
+
     for path in files:
         rel = path.relative_to(ROOT).as_posix()
         text = path.read_text(encoding="utf-8", errors="replace")
@@ -835,6 +870,30 @@ def check_block_markup_anti_patterns() -> Result:
                 f"{rel}:{lineno}: core/button has `box-shadow` on the outer "
                 f"`.wp-block-button` div. Move it to the inner `a.wp-block-button__link` -- "
                 f"that's where save() places it."
+            )
+
+        # Invariant 4: accordion wrapper must declare role="group".
+        for m in accordion_open_re.finditer(text):
+            tag = m.group(1)
+            if re.search(r'\brole\s*=\s*"group"', tag):
+                continue
+            lineno = text.count("\n", 0, m.start(1)) + 1
+            r.fail(
+                f"{rel}:{lineno}: core/accordion wrapper is missing `role=\"group\"`. "
+                f"Save() emits it; without it the editor will silently rewrite the "
+                f"markup on first load and the next round-trip will look like a regression."
+            )
+
+        # Invariant 5: any <button> in pattern/template/part markup must
+        # carry an explicit `type=` attribute. Default-`submit` buttons
+        # inside the cart, mini-cart, and checkout forms detonate on click.
+        for m in button_no_type_re.finditer(text):
+            lineno = text.count("\n", 0, m.start()) + 1
+            r.fail(
+                f"{rel}:{lineno}: <button> is missing an explicit `type=` attribute. "
+                f"Add `type=\"button\"` (or `type=\"submit\"` if it really is a form "
+                f"submit) -- the HTML default is `submit`, which silently posts any "
+                f"surrounding <form> on click."
             )
 
     if r.passed:
