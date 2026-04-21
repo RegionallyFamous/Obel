@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# Pre-commit gate: run `bin/check.py --all --offline` against every theme
+# in the monorepo. Blocks the commit if any check fails.
+#
+# Why this exists
+# ---------------
+# We've shipped two regressions where a checked-in CSS chunk drifted
+# past `check_no_important` because nothing automated ran the gate
+# before the commit landed. The full check suite is fast (~3s × 5
+# themes ≈ 15s on this machine) so running it on every commit is a
+# trade we're happy to make.
+#
+# How to bypass (don't, unless you know exactly why)
+# --------------------------------------------------
+#   git commit --no-verify
+# That bypass is caught by the .githooks/pre-push backstop and by
+# the GitHub Actions workflow at .github/workflows/check.yml. Both
+# run the same gate, so a --no-verify commit still can't reach main.
+#
+# Activation
+# ----------
+# This hook only fires if `git config core.hooksPath` points at
+# .githooks/ in the repo root. Run `python3 bin/install-hooks.py`
+# once after cloning to set that.
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+# Skip when there are no staged changes (e.g. `git commit --amend
+# --no-edit` with nothing else queued).
+if git diff --cached --quiet; then
+  exit 0
+fi
+
+echo "▸ pre-commit: bin/check.py --all --offline (catches !important leaks, hex drift, microcopy collisions, layout duplication, …)"
+# FIFTY_SKIP_UNPUSHED_CHECK=1 silences the `check_no_unpushed_commits`
+# check inside this hook only. That check is designed to catch "agent
+# committed a fix but never pushed it" in CI / standalone runs, but
+# inside pre-commit it deadlocks the loop: any prior unpushed commit
+# (or this very commit, on `git commit --amend`) would block every
+# new commit until the user manually pushes. CI keeps the env var
+# unset and gets the full check, so the safety net is preserved
+# where it actually matters.
+if ! FIFTY_SKIP_UNPUSHED_CHECK=1 python3 bin/check.py --all --offline; then
+  echo
+  echo "✘ pre-commit blocked: bin/check.py reported failures above."
+  echo "  Fix the failures and re-stage, or pass --no-verify if you"
+  echo "  know why (the pre-push hook + CI will still run the same"
+  echo "  gate, so don't expect --no-verify to land your commit on main)."
+  exit 1
+fi
+
+echo "✓ pre-commit: all themes pass."

@@ -3369,6 +3369,18 @@ def check_no_unpushed_commits() -> Result:
     self-contained.
     """
     r = Result("No unpushed commits on current branch (push before claiming a fix is live)")
+    # Pre-push hook escape hatch: when this script is invoked FROM the
+    # `.githooks/pre-push` hook, the to-be-pushed commits are by
+    # definition not yet on the remote (that's the whole point of the
+    # hook), so this check would deadlock the push it's supposed to
+    # protect. The hook sets FIFTY_SKIP_UNPUSHED_CHECK=1 around its
+    # `bin/check.py` invocation so this single check skips itself
+    # while every other check still runs. Any other caller (CI, local
+    # `bin/check.py`, pre-commit) leaves the env var unset and gets
+    # the full check.
+    if os.environ.get("FIFTY_SKIP_UNPUSHED_CHECK") == "1":
+        r.skip("FIFTY_SKIP_UNPUSHED_CHECK=1 (set by .githooks/pre-commit + pre-push to avoid in-flight-commit deadlock)")
+        return r
     if not shutil.which("git"):
         r.skip("git not available on PATH")
         return r

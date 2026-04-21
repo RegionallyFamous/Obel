@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Pre-push gate: same `bin/check.py --all --offline` run as pre-commit,
+# plus a drift check that re-runs `bin/append-wc-overrides.py` against
+# tmp copies of every theme.json and fails if the output would differ
+# from what's checked in.
+#
+# Why this exists
+# ---------------
+# This is the backstop for commits made with `git commit --no-verify`
+# (which skips the pre-commit hook). It also catches the second-most
+# common regression mode: someone edits `bin/append-wc-overrides.py`
+# but forgets to re-run it, so the script's source and the actual
+# theme.json bytes drift apart.
+#
+# Why two layers (commit + push)
+# ------------------------------
+# Pre-commit gives the fast inner-loop signal during local work
+# (you find out before the commit lands in your local history).
+# Pre-push gives the "did anything sneak through?" backstop right
+# before the changes leave the workstation. Server-side CI is the
+# third and authoritative layer.
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+echo "▸ pre-push: bin/check.py --all --offline"
+# FIFTY_SKIP_UNPUSHED_CHECK=1 tells `bin/check.py` to skip its
+# `check_no_unpushed_commits` check ONLY in this hook context. That
+# check correctly fails for any commit that hasn't reached origin
+# yet, but inside pre-push the commit can't reach origin until the
+# hook returns 0, so leaving it on would deadlock every push. CI and
+# pre-commit and local invocations leave the env var unset and get
+# the full check.
+if ! FIFTY_SKIP_UNPUSHED_CHECK=1 python3 bin/check.py --all --offline; then
+  echo
+  echo "✘ pre-push blocked: bin/check.py reported failures above."
+  echo "  Fix locally, commit, then re-push. Don't bypass — CI runs"
+  echo "  the same gate and will turn the PR red."
+  exit 1
+fi
+
+echo "▸ pre-push: append-wc-overrides.py drift check"
+# Stash any working-tree edits so the drift check sees committed bytes.
+# We compare what re-running the script WOULD do against what's
+# actually checked in. The script is sentinel-based, so a clean run
+# is a no-op (every chunk's `skip` line). Any '+' line means the
+# checked-in theme.json is missing a chunk the script would inject.
+DRIFT_OUTPUT="$(python3 bin/append-wc-overrides.py 2>&1)"
+if echo "$DRIFT_OUTPUT" | grep -qE '^\+|FAIL'; then
+  echo
+  echo "✘ pre-push blocked: bin/append-wc-overrides.py is out of sync"
+  echo "  with the committed theme.json files. Run:"
+  echo "      python3 bin/append-wc-overrides.py"
+  echo "  then commit the resulting theme.json changes."
+  echo
+  echo "  Drift detail:"
+  echo "$DRIFT_OUTPUT" | grep -E '^\+|FAIL' | sed 's/^/    /'
+  # Restore the theme.json files the script just touched, since the
+  # drift check shouldn't itself leave behind a dirty working tree
+  # if there was actually drift to fix (we want the committer to do
+  # that explicitly).
+  git checkout -- '*/theme.json' 2>/dev/null || true
+  exit 1
+fi
+
+echo "✓ pre-push: all gates green."

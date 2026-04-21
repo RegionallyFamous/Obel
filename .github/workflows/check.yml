@@ -1,0 +1,59 @@
+name: check
+
+# Authoritative server-side gate for the regression-prevention stack.
+#
+# Runs `bin/check.py --all --offline` on every PR + every push to main.
+# This is the layer that can't be bypassed by `git commit --no-verify`
+# or by skipping the local hooks. If this turns red, the change does
+# not belong on main.
+#
+# The same gate runs locally in three places:
+#   1. .githooks/pre-commit  — fast inner-loop check on every commit
+#   2. .githooks/pre-push    — backstop for --no-verify commits
+#   3. this workflow         — server-side, authoritative
+#
+# All three layers stack rather than duplicate: each one closes a
+# different bypass mode. See AGENTS.md hard rule
+# "Never commit without `bin/check.py --all --offline` passing".
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    name: bin/check.py --all --offline
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Need full history because some checks compare against the
+          # rest of the monorepo (pairwise heading distinctness, front-page
+          # fingerprint diversity, etc).
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run all-themes static gate
+        run: python3 bin/check.py --all --offline
+
+      - name: Verify bin/append-wc-overrides.py is in sync with theme.json
+        run: |
+          # The script is sentinel-based: a clean re-run is a no-op
+          # (every chunk reports `skip <sentinel>`). Any '+' line means
+          # the script's source has drifted past what's checked in.
+          out="$(python3 bin/append-wc-overrides.py)"
+          echo "$out"
+          if echo "$out" | grep -qE '^\+|FAIL'; then
+            echo
+            echo "::error::bin/append-wc-overrides.py source has drifted"
+            echo "         from the committed theme.json files. Run the"
+            echo "         script locally and commit the diff."
+            exit 1
+          fi
