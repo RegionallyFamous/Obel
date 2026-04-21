@@ -395,6 +395,70 @@ CSS_PHASE_B = f"""{SENTINEL_OPEN_PHASE_B}
 {SENTINEL_CLOSE_PHASE_B}"""
 
 
+# ---------------------------------------------------------------------------
+# Phase C: Premium PDP, archive, mini-cart, order-summary, payment icons.
+# ---------------------------------------------------------------------------
+# Single CSS chunk that delivers the visual half of Phase C across every
+# theme. Each block below is grouped by feature area so future tweaks can
+# find the relevant rules without re-reading the whole chunk.
+#
+#   1. Swatches             — replaces native variation <select> with a
+#                             button group of color/size pills. Hidden
+#                             select still drives WC's variation_form JS.
+#   2. Sticky PDP gallery   — pins the featured image at desktop while
+#                             the summary column scrolls. No-op on mobile.
+#   3. Hover-reveal ATC     — shop archive cards keep ATC hidden until
+#                             hover/keyboard focus. Always visible at
+#                             touch breakpoint (no hover state).
+#   4. Mini-cart drawer     — branded header, card line items, sticky
+#                             footer with proper spacing for totals + CTA.
+#   5. Order-summary brand  — 64x64 rounded thumbs, tabular-nums totals,
+#                             logo-mark heading, accepted-payments strip.
+#   6. Quantity selector    — drops the spinner-default look in favor of
+#                             a typography-driven [-  3  +] tri-cell.
+#   7. Payment-icons strip  — styles the .wo-payment-icons container that
+#                             wo-payment-icons-mu.php injects below the
+#                             Place Order button on cart + checkout.
+SENTINEL_OPEN_PHASE_C = "/* wc-tells-phase-c-premium */"
+SENTINEL_CLOSE_PHASE_C = "/* /wc-tells-phase-c-premium */"
+CSS_PHASE_C = f"""{SENTINEL_OPEN_PHASE_C}
+.wo-swatch-wrap{{display:flex;flex-direction:column;gap:var(--wp--preset--spacing--xs);}}
+.wo-swatch-select{{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}}
+.wo-swatch-group{{display:flex;flex-wrap:wrap;gap:var(--wp--preset--spacing--xs);align-items:center;}}
+.wo-swatch{{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:0 var(--wp--preset--spacing--sm);border:1px solid var(--wp--preset--color--border);background:transparent;color:var(--wp--preset--color--contrast);font-family:var(--wp--preset--font-family--sans);font-size:var(--wp--preset--font-size--sm);font-weight:var(--wp--custom--font-weight--regular);letter-spacing:var(--wp--custom--letter-spacing--wide);text-transform:uppercase;cursor:pointer;transition:border-color 160ms ease,color 160ms ease,background 160ms ease;border-radius:var(--wp--custom--radius--sm,4px);}}
+.wo-swatch:hover{{border-color:var(--wp--preset--color--contrast);}}
+.wo-swatch:focus-visible{{outline:2px solid var(--wp--preset--color--accent);outline-offset:2px;}}
+.wo-swatch.is-selected{{border-color:var(--wp--preset--color--contrast);background:var(--wp--preset--color--contrast);color:var(--wp--preset--color--base);}}
+.wo-swatch--color{{width:40px;min-width:40px;padding:0;border-radius:50%;}}
+.wo-swatch--color .wo-swatch__dot{{display:block;width:28px;height:28px;border-radius:50%;background:var(--wo-swatch-color,#ccc);box-shadow:inset 0 0 0 1px rgba(0,0,0,0.08);}}
+.wo-swatch--color.is-selected{{background:transparent;color:inherit;outline:2px solid var(--wp--preset--color--contrast);outline-offset:2px;}}
+table.variations td.label{{font-family:var(--wp--preset--font-family--sans);font-size:var(--wp--preset--font-size--xs);letter-spacing:var(--wp--custom--letter-spacing--wider);text-transform:uppercase;color:var(--wp--preset--color--secondary);padding-right:var(--wp--preset--spacing--md);vertical-align:middle;}}
+.reset_variations{{font-family:var(--wp--preset--font-family--sans);font-size:var(--wp--preset--font-size--xs);letter-spacing:var(--wp--custom--letter-spacing--wider);text-transform:uppercase;color:var(--wp--preset--color--secondary);}}
+@media (min-width:1024px){{.single-product .wp-block-woocommerce-single-product>.wp-block-columns>.wp-block-column:first-child .wp-block-post-featured-image,.single-product .wp-block-columns>.wp-block-column:first-child .wp-block-post-featured-image{{position:sticky;top:var(--wp--preset--spacing--xl,24px);align-self:flex-start;}}}}
+.wp-block-product-template .wp-block-product .wp-block-button.wc-block-components-product-button,.wp-block-product-template .wp-block-product .wp-block-add-to-cart-button{{opacity:0;transform:translateY(4px);transition:opacity 200ms ease,transform 200ms ease;}}
+.wp-block-product-template .wp-block-product:hover .wp-block-button.wc-block-components-product-button,.wp-block-product-template .wp-block-product:focus-within .wp-block-button.wc-block-components-product-button,.wp-block-product-template .wp-block-product:hover .wp-block-add-to-cart-button,.wp-block-product-template .wp-block-product:focus-within .wp-block-add-to-cart-button{{opacity:1;transform:translateY(0);}}
+@media (hover:none){{.wp-block-product-template .wp-block-product .wp-block-button.wc-block-components-product-button,.wp-block-product-template .wp-block-product .wp-block-add-to-cart-button{{opacity:1;transform:none;}}}}
+.wc-block-mini-cart__drawer .wc-block-components-drawer__content,.wc-block-mini-cart__drawer{{background:var(--wp--preset--color--base);}}
+.wc-block-mini-cart__drawer .wc-block-mini-cart__title{{font-family:var(--wp--preset--font-family--display,var(--wp--preset--font-family--serif));font-size:var(--wp--preset--font-size--lg);letter-spacing:var(--wp--custom--letter-spacing--tight);padding:var(--wp--preset--spacing--md) var(--wp--preset--spacing--lg);border-bottom:1px solid var(--wp--preset--color--border);margin:0;}}
+.wc-block-mini-cart__drawer .wc-block-mini-cart__items{{padding:var(--wp--preset--spacing--md) var(--wp--preset--spacing--lg);}}
+.wc-block-mini-cart__drawer .wc-block-mini-cart__footer{{position:sticky;bottom:0;background:var(--wp--preset--color--base);padding:var(--wp--preset--spacing--md) var(--wp--preset--spacing--lg);border-top:1px solid var(--wp--preset--color--border);box-shadow:0 -8px 24px rgba(0,0,0,0.04);}}
+.wc-block-mini-cart__drawer .wc-block-cart-item__image img,.wc-block-cart-items img{{width:64px!important;height:64px!important;object-fit:cover;border-radius:var(--wp--custom--radius--sm,4px);background:var(--wp--preset--color--subtle);}}
+.wc-block-components-totals-item__value,.wc-block-components-formatted-money-amount,.woocommerce-Price-amount,.amount{{font-variant-numeric:tabular-nums;}}
+.wc-block-components-order-summary__button-text,.wc-block-cart-item__product-name,.wc-block-components-product-name{{font-family:var(--wp--preset--font-family--sans);font-size:var(--wp--preset--font-size--sm);font-weight:var(--wp--custom--font-weight--regular);}}
+.wc-block-components-totals-item--total .wc-block-components-totals-item__label,.wc-block-components-totals-footer-item .wc-block-components-totals-item__label{{font-family:var(--wp--preset--font-family--display,var(--wp--preset--font-family--serif));font-size:var(--wp--preset--font-size--md);letter-spacing:var(--wp--custom--letter-spacing--tight);text-transform:none;}}
+.wp-block-woocommerce-checkout-totals-block::before,.wp-block-woocommerce-cart-totals-block::before{{content:"Order summary";display:block;font-family:var(--wp--preset--font-family--display,var(--wp--preset--font-family--serif));font-size:var(--wp--preset--font-size--lg);letter-spacing:var(--wp--custom--letter-spacing--tight);margin:0 0 var(--wp--preset--spacing--md);padding-bottom:var(--wp--preset--spacing--sm);border-bottom:1px solid var(--wp--preset--color--border);}}
+.quantity input[type="number"].qty{{width:64px;height:44px;padding:0 var(--wp--preset--spacing--xs);text-align:center;font-family:var(--wp--preset--font-family--sans);font-variant-numeric:tabular-nums;font-size:var(--wp--preset--font-size--md);border:1px solid var(--wp--preset--color--border);background:transparent;-moz-appearance:textfield;}}
+.quantity input[type="number"].qty::-webkit-outer-spin-button,.quantity input[type="number"].qty::-webkit-inner-spin-button{{-webkit-appearance:none;margin:0;}}
+.quantity{{display:inline-flex;align-items:center;gap:0;border:1px solid var(--wp--preset--color--border);border-radius:var(--wp--custom--radius--sm,4px);overflow:hidden;}}
+.quantity input[type="number"].qty{{border:none;}}
+.wc-block-components-quantity-selector{{font-variant-numeric:tabular-nums;}}
+.wo-payment-icons{{display:flex;flex-wrap:wrap;align-items:center;gap:var(--wp--preset--spacing--sm);justify-content:flex-start;margin:var(--wp--preset--spacing--md) 0 0;padding:var(--wp--preset--spacing--md) 0 0;border-top:1px solid var(--wp--preset--color--border);}}
+.wo-payment-icons__label{{font-family:var(--wp--preset--font-family--sans);font-size:var(--wp--preset--font-size--xs);letter-spacing:var(--wp--custom--letter-spacing--wider);text-transform:uppercase;color:var(--wp--preset--color--secondary);margin-right:var(--wp--preset--spacing--xs);}}
+.wo-payment-icons__list{{display:inline-flex;flex-wrap:wrap;gap:var(--wp--preset--spacing--xs);align-items:center;}}
+.wo-payment-icons__icon{{display:inline-flex;align-items:center;justify-content:center;height:24px;width:38px;border:1px solid var(--wp--preset--color--border);border-radius:3px;background:var(--wp--preset--color--base);color:var(--wp--preset--color--secondary);font-family:var(--wp--preset--font-family--sans);font-size:9px;font-weight:var(--wp--custom--font-weight--bold,700);letter-spacing:0.04em;text-transform:uppercase;}}
+{SENTINEL_CLOSE_PHASE_C}"""
+
+
 # Each entry: (sentinel_open, sentinel_close, raw_css, anchor_after).
 # `anchor_after` is the marker the chunk is spliced in after — for the
 # first chunk that's the canonical archive-page marker; for follow-ups
@@ -442,6 +506,12 @@ CHUNKS: list[tuple[str, str, str, str]] = [
         SENTINEL_CLOSE_PHASE_B,
         CSS_PHASE_B,
         SENTINEL_CLOSE_PHASE_A,
+    ),
+    (
+        SENTINEL_OPEN_PHASE_C,
+        SENTINEL_CLOSE_PHASE_C,
+        CSS_PHASE_C,
+        SENTINEL_CLOSE_PHASE_B,
     ),
 ]
 
@@ -492,12 +562,58 @@ def append_for(theme: str) -> str:
 
 
 def main(argv: list[str]) -> int:
-    targets = argv[1:] or THEMES
+    import argparse
+    import subprocess
+
+    parser = argparse.ArgumentParser(
+        description="Append WC override CSS chunks to each theme's "
+                    "theme.json. Idempotent."
+    )
+    parser.add_argument(
+        "themes", nargs="*",
+        help=f"Theme slugs to update. Default: {', '.join(THEMES)}.",
+    )
+    parser.add_argument(
+        "--snap",
+        action="store_true",
+        help=(
+            "After appending, run `bin/snap.py check --changed` so the "
+            "tiered gate validates that the new CSS rules didn't "
+            "regress any cell. This script ALWAYS changes rendered "
+            "output, so --snap is the recommended follow-up."
+        ),
+    )
+    args = parser.parse_args(argv[1:])
+
+    targets = args.themes or THEMES
+    appended_any = False
     for t in targets:
         if t not in THEMES:
             print(f"unknown theme: {t}", file=sys.stderr)
             return 2
-        print(append_for(t))
+        result = append_for(t)
+        print(result)
+        # If anything other than 'skip' notes appeared, we mutated the
+        # theme.json -- worth running snap.
+        if "+" in result or "FAIL" in result:
+            appended_any = True
+
+    if appended_any:
+        print(
+            "\n>> Recommended: python3 bin/snap.py check --changed\n"
+            "   (CSS rules just changed; re-shoot the affected themes\n"
+            "   and run the tiered gate.)"
+        )
+
+    if args.snap and appended_any:
+        snap_path = Path(__file__).resolve().parent / "snap.py"
+        cmd = [sys.executable, str(snap_path), "check", "--changed"]
+        print(f"\n>> {' '.join(cmd[1:])}")
+        rc = subprocess.call(
+            cmd, cwd=str(Path(__file__).resolve().parent.parent)
+        )
+        if rc != 0:
+            return rc
     return 0
 
 

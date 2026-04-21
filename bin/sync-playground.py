@@ -82,6 +82,20 @@ MAPPINGS: dict[str, Path] = {
     # playground/wo-microcopy-mu.php for the full string map.
     "/wordpress/wp-content/mu-plugins/wo-microcopy-mu.php":
         MONOREPO_ROOT / "playground" / "wo-microcopy-mu.php",
+    # Variation-swatches mu-plugin. Replaces WC's default variation
+    # `<select>` with a button-group of color/size swatches by filtering
+    # `woocommerce_dropdown_variation_attribute_options_html`. The
+    # underlying select is kept hidden in the DOM so WC's variation_form
+    # JS continues to drive price/stock/image swap. See
+    # playground/wo-swatches-mu.php for filter wiring + footer JS shim.
+    "/wordpress/wp-content/mu-plugins/wo-swatches-mu.php":
+        MONOREPO_ROOT / "playground" / "wo-swatches-mu.php",
+    # Accepted-payments strip. Injects a "We accept: Visa MC Amex Apple
+    # Pay G Pay" wordmark row after the Place Order button on the cart
+    # and checkout. Cart/checkout-only via wp_footer + DOM idempotency
+    # check; observes the body so it re-injects if WC Blocks re-renders.
+    "/wordpress/wp-content/mu-plugins/wo-payment-icons-mu.php":
+        MONOREPO_ROOT / "playground" / "wo-payment-icons-mu.php",
 }
 
 # Targets that should receive the WO_* constants block at the top.
@@ -220,6 +234,22 @@ def sync(theme_dir: Path) -> list[str]:
 
 
 def main() -> int:
+    import argparse
+    import subprocess
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--snap",
+        action="store_true",
+        help=(
+            "After sync finishes, run `bin/snap.py check --changed` "
+            "(tiered gate). Recommended whenever this script reports "
+            "any updated blueprint, since the playground content has "
+            "just changed and may have surfaced regressions."
+        ),
+    )
+    args = parser.parse_args()
+
     # Verify all source files exist before touching any blueprint.
     missing = [p for p in MAPPINGS.values() if not p.exists()]
     if missing:
@@ -242,6 +272,22 @@ def main() -> int:
 
     if not any_changed:
         print(f"already in sync ({len(themes)} themes checked)")
+    if any_changed:
+        print(
+            "\n>> Recommended: python3 bin/snap.py check --changed\n"
+            "   (the blueprints just changed; re-shoot the affected\n"
+            "   themes and run the tiered gate.)"
+        )
+
+    if args.snap and any_changed:
+        snap_path = Path(__file__).resolve().parent / "snap.py"
+        cmd = [sys.executable, str(snap_path), "check", "--changed"]
+        print(f"\n>> {' '.join(cmd[1:])}")
+        rc = subprocess.call(
+            cmd, cwd=str(Path(__file__).resolve().parent.parent)
+        )
+        if rc != 0:
+            return rc
     return 0
 
 
