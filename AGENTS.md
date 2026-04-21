@@ -69,9 +69,12 @@ python3 bin/build-index.py --all
 
 ## Seeing what you built (visual snapshots)
 
-You cannot load `playground.wordpress.net` from the in-app browser, and asking the user to ship screenshots back over chat is a broken loop. Use `bin/snap.py` instead. It boots the theme's WordPress Playground locally via `@wp-playground/cli` (same blueprint the live demos use, with the local theme dir mounted on top of the GitHub-installed copy so unsynced edits show up), captures Playwright PNGs **plus diagnostic artifacts** for every (route × viewport) cell, and runs a JS heuristics pass that flags broken images, mid-word wraps, raw i18n tokens, PHP debug output, visible WC notices, and more. You can read the PNGs directly with the `Read` tool; the rest feeds the `report` subcommand below.
+You cannot load `playground.wordpress.net` from the in-app browser, and asking the user to ship screenshots back over chat is a broken loop. Use `bin/snap.py` instead. It boots the theme's WordPress Playground locally via `@wp-playground/cli` (same blueprint the live demos use, with the local theme dir mounted on top of the GitHub-installed copy so unsynced edits show up), captures Playwright PNGs **plus diagnostic artifacts** for every (route × viewport) cell, runs a JS heuristics pass (broken images, mid-word wraps, raw i18n tokens, PHP debug output, visible WC notices, web-font load state, tap-target sizes, ellipsis truncation, empty landmarks, placeholder images, responsive-image mismatches), and runs an axe-core a11y audit. Findings are bucketed into a tiered gate (`pass | warn | fail`) so the build can fail loudly when something genuinely broke.
 
 ```bash
+# First time? Verify deps are ready before booting Playground.
+python3 bin/snap.py doctor
+
 # Just the page you're working on (fastest)
 python3 bin/snap.py shoot chonk --routes checkout-filled --viewports desktop
 # -> tmp/snaps/chonk/desktop/checkout-filled.png  (Read this)
@@ -79,10 +82,11 @@ python3 bin/snap.py shoot chonk --routes checkout-filled --viewports desktop
 # Full sweep for a theme
 python3 bin/snap.py shoot chonk
 
-# Whole monorepo (~10 routes × 4 viewports × 4 themes ≈ 160 PNGs)
-python3 bin/snap.py shoot --all
+# Smart sweep — only re-shoot themes whose files changed in git
+python3 bin/snap.py shoot --changed
+# -> falls back to all themes if bin/* changed (framework-wide)
 
-# Same, but boot two themes in parallel (~400MB RAM/worker, ~2x faster)
+# Whole monorepo (~10 routes × 4 viewports × 4 themes ≈ 160 PNGs)
 python3 bin/snap.py shoot --all --concurrency 2
 
 # Boot a single theme and leave it running so you can drive it interactively
@@ -93,9 +97,10 @@ python3 bin/snap.py serve chonk
 # Aggregate the latest captures' findings into reviewable markdown
 # (per-theme review.md + cross-theme rollup, sorted worst-first).
 python3 bin/snap.py report
-# -> tmp/snaps/<theme>/review.md   (per-theme, with inspector measurements)
-# -> tmp/snaps/review.md           (cross-theme rollup table)
-# -> tmp/snaps/review.json         (machine-readable summary)
+# -> tmp/snaps/<theme>/review.md   (per-theme, with GATE badge + inspector measurements)
+# -> tmp/snaps/<theme>/review.json (machine-readable summary, includes gate)
+# -> tmp/snaps/review.md           (cross-theme rollup table + parity drift)
+# -> tmp/snaps/review.json         (machine-readable summary, includes overall gate)
 
 # Did anything change vs the committed reference set?
 python3 bin/snap.py diff --all
@@ -109,20 +114,38 @@ Per-cell artifacts (all under `tmp/snaps/<theme>/<viewport>/<route>.*`):
 |---|---|
 | `*.png` | The screenshot. `Read` directly. |
 | `*.html` | Final rendered DOM after JS settled. Useful for `Grep`-ing class names without re-shooting. |
-| `*.findings.json` | DOM-heuristic findings, captured console messages, page errors, network failures (>=400), and computed widths/displays/grid-template-columns for `INSPECT_SELECTORS`. The `report` subcommand reads these. |
+| `*.findings.json` | DOM-heuristic + axe + budget findings, captured console messages, page errors, network failures (>=400 split into 4xx/5xx), and computed widths/displays/grid-template-columns for `INSPECT_SELECTORS`. The `report` subcommand reads these. |
+| `*.a11y.json` | Raw axe-core report (violations only) for that cell. |
+| `<route>.<flow>.png` etc. | Interactive cells produced by `INTERACTIONS` (e.g. `home.menu-open.png`, `cart-filled.line-remove.png`). |
+
+### The tiered gate
+
+Every cell's findings are classified into one of three buckets:
+
+- **fail** (build-blocking, exit 1): heuristic `error`, uncaught JS (after noise filter), HTTP 5xx, axe critical/serious.
+- **warn** (loud banner, exit 0): heuristic `warn`/`info`, HTTP 4xx, console errors, axe moderate/minor, parity drift, perf-budget exceedances, interaction-failed.
+- **pass**: nothing flagged.
+
+The verdict appears as a `STATUS: PASS | WARN | FAIL` line at the end of every `report` and `check` run. It also lives at the top of each per-theme `review.md` as a `**GATE: …**` badge so triage starts with the verdict, not the table.
+
+### Recommended loops
 
 When you make ANY change that could affect rendered output (template, theme.json, CSS, pattern, blueprint), the loop is:
 
 1. Make the change.
 2. `python3 bin/snap.py shoot <theme> --routes <route> --viewports <viewport>` for the affected cell(s).
 3. `Read` the PNG to verify.
-4. `python3 bin/snap.py report` and skim the per-theme `review.md` (or the rollup) for any errors / warns / unexpected console + network noise.
-5. If wider impact possible: `python3 bin/snap.py shoot --all --concurrency 2 && python3 bin/snap.py diff --all && python3 bin/snap.py report`.
+4. `python3 bin/snap.py report` and read the `STATUS:` line; drill into per-theme `review.md` if anything is non-pass.
+5. If wider impact possible: `python3 bin/snap.py check --changed` (smart, fast) or `python3 bin/snap.py check` (full sweep before a release).
 6. If diffs are intentional: `python3 bin/snap.py baseline --all` and commit the updated baselines alongside the change.
 
-A clean inner loop looks like `0 errors / 0 warnings / 0 net 4xx-5xx / 0 uncaught JS` across every (theme, viewport, route) cell in the rollup. **Treat any non-zero count as a regression to investigate before moving on** — those columns are why the framework exists.
+`bin/check.py --visual` is the single pre-commit gate. It runs `shoot + diff + report --strict`, returns 0 on `pass`/`warn` and 1 on `fail`. The default scope is `--visual-scope=changed` (only the themes whose files moved); pass `--visual-scope=all` for the full pre-release sweep, or `--visual-scope=quick` for a single-theme/quick-routes smoke test.
 
-`bin/check.py --visual` runs the full shoot + diff as part of the check suite. It is OPT-IN because a sweep adds 2-5 minutes; the standard `--quick` checks stay fast for the inner loop. Use `--visual` before any commit that touches rendered output.
+Other build-pipeline scripts grew matching `--snap` flags so the gate runs inline after a mutation:
+
+- `python3 bin/clone.py <name> --snap` — auto-baseline a freshly-cloned theme.
+- `python3 bin/sync-playground.py --snap` — re-shoot affected themes after blueprint sync.
+- `python3 bin/append-wc-overrides.py --snap` — re-shoot after appending WC override CSS.
 
 ### Configuration
 
@@ -131,9 +154,10 @@ A clean inner loop looks like `0 errors / 0 warnings / 0 net 4xx-5xx / 0 uncaugh
 - **`ROUTES`** — every (slug, URL path) the framework visits. Add a route here and it appears in every theme's review.
 - **`VIEWPORTS`** — Playwright viewport sizes (mobile / tablet / desktop / wide). Same idea.
 - **`INSPECT_SELECTORS`** — per-route map of CSS selectors whose computed width, height, display, and grid-template-columns get captured into `*.findings.json` and rendered into the per-theme `review.md` "Inspector measurements" tables. This is how the cart/checkout sidebar regression got diagnosed without re-shooting — add an entry here when you find yourself running ad-hoc Playwright probes to measure layout issues, so the next regression is visible immediately.
+- **`INTERACTIONS`** — per-route list of scripted flows (`menu-open`, `qty-increment`, `swatch-pick`, `line-remove`, `field-focus`). Each flow renders an extra `<route>.<flow>.png` cell so the post-interaction state is reviewable side-by-side with the static one.
+- **`KNOWN_NOISE_SUBSTRINGS`** — substring filter for pre-confirmed-harmless console / page errors. **Add to it only after investigation confirms upstream noise** — never to silence a real theme bug.
+- **`BUDGETS`** — soft thresholds for `console_warning_count`, `page_weight_kb`, `image_count`, `request_count`. Exceedances become findings at the configured severity. Set `max: None` to disable a budget.
 - **`QUICK_*`** — subsets used when `shoot` is invoked with `--quick`.
-
-`bin/snap.py` also has a module-level `KNOWN_NOISE_SUBSTRINGS` tuple for filtering pre-confirmed-harmless console / page errors out of the report (currently just the headless-Chromium `wp-emoji-loader appendChild` quirk). **Add to it only after investigation confirms upstream noise** — never to silence a real theme bug.
 
 ## Agent skills
 

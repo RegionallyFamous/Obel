@@ -130,7 +130,7 @@ The full toolchain:
 
 | Script | What it does |
 | --- | --- |
-| `check.py` | Runs every project check (JSON, PHP, blocks, tokens, AI fingerprints, …). Use this before every commit. |
+| `check.py` | Runs every project check (JSON, PHP, blocks, tokens, AI fingerprints, …). Use this before every commit. Pass `--visual` to also run the snap-gated visual regression sweep. |
 | `build-index.py` | Regenerates a theme's `INDEX.md` (token map, template list, block style list). |
 | `validate-theme-json.py` | Validates a theme's `theme.json` block names against the live Gutenberg + WooCommerce sources. |
 | `list-templates.py` | Prints every template the theme could ship and the URL it serves. |
@@ -139,15 +139,18 @@ The full toolchain:
 | `seed-playground-content.py` | Populates `<theme>/playground/{content,images}/` from the canonical W&O source, rewriting image URLs to point at the new theme. |
 | `sync-playground.py` | Inlines `playground/*.php` into every theme's `playground/blueprint.json` and rewrites the `importWxr` URL to the per-theme `content.xml`. |
 | `build-redirects.py` | Regenerates `docs/<theme>/<page>/index.html` short URLs that GH Pages serves at `demo.regionallyfamous.com/`. |
-| `snap.py` | Visual-snapshot framework. Boots WordPress Playground locally for a theme, captures Playwright screenshots across every (route × viewport) defined in `bin/snap_config.py`, and diffs against committed baselines under `tests/visual-baseline/`. See `## Visual snapshots` below. |
+| `snap.py` | Visual-snapshot framework. Boots WordPress Playground locally for a theme, captures Playwright screenshots + DOM heuristics + axe-core a11y + INSPECT measurements + scripted interactive flows across every (route × viewport) defined in `bin/snap_config.py`, diffs against committed baselines under `tests/visual-baseline/`, and emits a tiered `pass / warn / fail` gate. Subcommands: `doctor`, `shoot`, `serve`, `diff`, `baseline`, `report`, `check`. See `## Visual snapshots` below. |
 
 Each script also responds to `--help`.
 
 ## Visual snapshots
 
-`bin/snap.py` lets the agent (and you) see what every theme actually looks like without uploading screenshots over chat. It boots each theme's WordPress Playground locally via `@wp-playground/cli`, drives Playwright Chromium across `bin/snap_config.py::ROUTES × VIEWPORTS`, captures a screenshot **plus diagnostic artifacts** for every cell (rendered HTML, console messages, page errors, network failures, DOM-heuristic findings, computed dimensions for `INSPECT_SELECTORS`), and (optionally) diffs each capture against a committed baseline.
+`bin/snap.py` lets the agent (and you) see what every theme actually looks like without uploading screenshots over chat. It boots each theme's WordPress Playground locally via `@wp-playground/cli`, drives Playwright Chromium across `bin/snap_config.py::ROUTES × VIEWPORTS`, captures a screenshot **plus diagnostic artifacts** for every cell (rendered HTML, console messages, page errors, network failures, DOM-heuristic findings, axe-core a11y violations, computed dimensions for `INSPECT_SELECTORS`, optional interactive states from `INTERACTIONS`), and runs a **tiered gate** that classifies the result as `pass | warn | fail`. `bin/check.py --visual` is the recommended pre-commit gate.
 
 ```bash
+# First time? Verify all deps are ready before booting Playground.
+python3 bin/snap.py doctor
+
 # Capture one theme at every route/viewport
 python3 bin/snap.py shoot chonk
 
@@ -157,10 +160,11 @@ python3 bin/snap.py shoot chonk --routes checkout-filled --viewports desktop
 # Quick subset (snap_config.QUICK_*) -- fastest "did anything explode" sweep
 python3 bin/snap.py shoot chonk --quick
 
-# Capture every theme
-python3 bin/snap.py shoot --all
+# Smart sweep -- only re-shoot themes whose files moved in git
+python3 bin/snap.py shoot --changed
+# (framework changes under bin/* fall back to all themes)
 
-# Same, in parallel (~400MB RAM/worker, ~2x faster on 4-theme sweeps)
+# Capture every theme in parallel (~400MB RAM/worker, ~2x faster)
 python3 bin/snap.py shoot --all --concurrency 2
 
 # Boot a single theme and leave it running for interactive poking via the
@@ -168,11 +172,13 @@ python3 bin/snap.py shoot --all --concurrency 2
 python3 bin/snap.py serve chonk          # admin auto-login is enabled
                                           # for /wp-admin/ access
 
-# Aggregate findings into reviewable markdown
-python3 bin/snap.py report
-# -> tmp/snaps/<theme>/review.md   per-theme triage list + inspector measurements
-# -> tmp/snaps/review.md           cross-theme rollup (errors / warns / net 4xx-5xx / uncaught JS)
-# -> tmp/snaps/review.json         machine-readable summary
+# Aggregate findings into reviewable markdown + the tiered gate verdict
+python3 bin/snap.py report --open
+# -> tmp/snaps/<theme>/review.md   per-theme triage with **GATE: …** badge
+# -> tmp/snaps/<theme>/review.json per-theme JSON (gate + counts + routes)
+# -> tmp/snaps/review.md           cross-theme rollup + parity drift
+# -> tmp/snaps/review.json         overall gate + per-theme gates
+# Final line: STATUS: PASS | WARN | FAIL
 
 # Visual regression: compare current snaps to committed baselines
 python3 bin/snap.py diff --all
@@ -181,35 +187,68 @@ python3 bin/snap.py diff chonk --threshold 0.5
 # Promote latest snaps -> committed baselines (after reviewing diffs)
 python3 bin/snap.py baseline --all
 python3 bin/snap.py baseline chonk --route home --viewport desktop
+
+# The single pre-commit gate: shoot + diff + report --strict, scoped to
+# the themes that actually changed by default (--visual-scope=changed).
+python3 bin/check.py --visual
+# Full sweep before a release:
+python3 bin/check.py --visual --visual-scope=all
+# Smoke test for one theme + the QUICK_* subset:
+python3 bin/check.py chonk --visual --visual-scope=quick
 ```
 
 Per-cell artifacts:
 
 ```
-tmp/snaps/<theme>/<viewport>/<route>.png             # screenshot (Read directly)
-tmp/snaps/<theme>/<viewport>/<route>.html            # final rendered DOM
-tmp/snaps/<theme>/<viewport>/<route>.findings.json   # heuristics + console + page errors + 4xx/5xx + measurements
-tmp/snaps/<theme>/review.md                          # generated by `snap.py report`
-tmp/snaps/review.md                                  # cross-theme rollup
-tmp/diffs/<theme>/<viewport>/<route>.png             # per-pixel diff overlay
-tests/visual-baseline/<theme>/<viewport>/<route>.png # committed reference
+tmp/snaps/<theme>/<viewport>/<route>.png                 # screenshot (Read directly)
+tmp/snaps/<theme>/<viewport>/<route>.html                # final rendered DOM
+tmp/snaps/<theme>/<viewport>/<route>.findings.json       # heuristics + axe + console + 4xx/5xx + INSPECT
+tmp/snaps/<theme>/<viewport>/<route>.a11y.json           # raw axe-core violations report
+tmp/snaps/<theme>/<viewport>/<route>.<flow>.png          # interactive cells (e.g. cart-filled.line-remove.png)
+tmp/snaps/<theme>/review.md                              # per-theme review with GATE badge
+tmp/snaps/<theme>/review.json                            # per-theme machine-readable summary
+tmp/snaps/review.md                                      # cross-theme rollup + parity drift
+tmp/snaps/review.json                                    # overall gate + per-theme gates
+tmp/diffs/<theme>/<viewport>/<route>.png                 # per-pixel diff overlay
+tests/visual-baseline/<theme>/<viewport>/<route>.png     # committed reference
 ```
 
-The `tmp/` tree is `.gitignored`; the `tests/visual-baseline/` PNGs are committed.
+The `tmp/` tree is `.gitignored`; the `tests/visual-baseline/` PNGs are committed. `bin/vendor/axe.min.js` is also gitignored — the framework downloads it from a version-pinned CDN URL on first run.
 
-A clean inner loop is `0 errors / 0 warnings / 0 net 4xx-5xx / 0 uncaught JS` for every cell in the rollup. Treat any non-zero count as a regression to investigate. To extend the framework's coverage:
+### The tiered gate
 
-- **Add a route or viewport** → edit `bin/snap_config.py::ROUTES` / `VIEWPORTS`, re-baseline.
-- **Measure a new layout selector** → add it to `bin/snap_config.py::INSPECT_SELECTORS` for the relevant route; computed `width × height`, `display`, and `grid-template-columns` will appear in every per-theme `review.md`.
-- **Silence pre-confirmed upstream noise** → append the substring to `bin/snap.py::KNOWN_NOISE_SUBSTRINGS`. Only do this after investigation confirms it isn't a theme bug; the current entry filters the harmless `wp-emoji-loader appendChild` page-error from headless Chromium.
+Every cell's findings are classified into one of three buckets:
 
-Visual diffs run as part of `bin/check.py --visual` (opt-in, ~2-5 min on top of the static checks). See `tests/visual-baseline/README.md` for the re-baselining workflow.
+- **fail** (build-blocking, exit 1): heuristic `error`, uncaught JS (after noise filter), HTTP 5xx, axe critical/serious.
+- **warn** (loud banner, exit 0): heuristic `warn`/`info`, HTTP 4xx, console errors, axe moderate/minor, parity drift, perf-budget exceedances, interaction-failed.
+- **pass**: nothing flagged.
+
+`bin/check.py --visual` returns 0 for `pass`/`warn` and 1 for `fail`. Use it as your pre-commit gate.
+
+### Build-pipeline integration
+
+Other build scripts grew matching `--snap` flags so the gate runs inline after a mutation:
+
+- `python3 bin/clone.py <name> --snap` — auto-baseline a freshly-cloned theme.
+- `python3 bin/sync-playground.py --snap` — re-shoot affected themes after blueprint sync.
+- `python3 bin/append-wc-overrides.py --snap` — re-shoot after appending WC override CSS.
+
+### Configuration
+
+`bin/snap_config.py` is the single config file:
+
+- **Add a route or viewport** → edit `ROUTES` / `VIEWPORTS`, re-baseline.
+- **Measure a new layout selector** → add it to `INSPECT_SELECTORS` for the relevant route.
+- **Add an interactive flow** → append an `Interaction` entry to `INTERACTIONS` for the route. Each flow renders an extra `<route>.<flow>.png` cell.
+- **Silence pre-confirmed upstream noise** → append the substring to `KNOWN_NOISE_SUBSTRINGS`. Only do this after investigation confirms it isn't a theme bug.
+- **Tune budgets** → bump `BUDGETS` thresholds (`console_warning_count` is the only one currently active; `page_weight_kb`, `image_count`, `request_count` are wired up but disabled by default).
 
 First-time setup (one-off):
 
 ```bash
-python3 -m pip install --user playwright
+python3 -m pip install --user playwright Pillow
 playwright install chromium      # ~90 MB Chromium download
+python3 bin/snap.py doctor       # verifies everything is wired up
 ```
 
 `@wp-playground/cli` is fetched on demand by `npx --yes`; no global install required. First boot takes ~2 minutes (WordPress download, plugin install, content seeding); subsequent boots are ~30 seconds when the playground cache is warm.

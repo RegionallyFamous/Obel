@@ -1849,11 +1849,34 @@ def main() -> int:
         help=(
             "After all static checks pass, also run the visual-snapshot "
             "framework (`bin/snap.py check`) which boots Playground for "
-            "every theme, captures Playwright screenshots across "
-            "snap_config.ROUTES x VIEWPORTS, and diffs against the "
-            "committed baselines under `tests/visual-baseline/`. "
-            "OPT-IN because a full sweep adds 2-5 minutes to the cycle. "
-            "See bin/snap.py for re-baselining workflow."
+            "the affected themes, captures Playwright screenshots across "
+            "snap_config.ROUTES x VIEWPORTS, diffs against the "
+            "committed baselines under `tests/visual-baseline/`, and "
+            "applies the tiered heuristic gate (`bin/snap.py report "
+            "--strict`). Default scope is `--visual-scope=changed` "
+            "(only re-shoots themes touched by git diff); pass "
+            "`--visual-scope=all` for the full sweep before a release."
+        ),
+    )
+    parser.add_argument(
+        "--visual-scope",
+        choices=["changed", "all", "quick"],
+        default="changed",
+        help=(
+            "How wide a visual sweep to run when --visual is passed. "
+            "'changed' (default) -> only themes touched by uncommitted "
+            "+ <visual-base>..HEAD git diff (framework changes fall back "
+            "to all). 'all' -> every theme, every route, every viewport "
+            "(2-5 min). 'quick' -> the snap_config.QUICK_* subset for a "
+            "single theme; falls back to obel if no theme is selected."
+        ),
+    )
+    parser.add_argument(
+        "--visual-base",
+        default=None,
+        help=(
+            "Git base ref for --visual-scope=changed (e.g. main, HEAD~1). "
+            "Default: only consider uncommitted changes."
         ),
     )
     parser.add_argument(
@@ -1889,13 +1912,28 @@ def main() -> int:
     # Late-import so contributors who never run --visual don't pay for
     # importing Playwright/Pillow on every check.
     print(f"\n{'=' * 60}")
-    print("Running visual snapshot diff (`bin/snap.py check`)...\n")
-    snap_cmd = [
-        sys.executable,
-        str(Path(__file__).resolve().parent / "snap.py"),
-        "check",
-        f"--threshold={args.visual_threshold}",
-    ]
+    snap_path = str(Path(__file__).resolve().parent / "snap.py")
+    if args.visual_scope == "quick":
+        # `quick` shoots the snap_config.QUICK_* subset for one theme
+        # (default obel) -- the absolute fastest way to verify a CSS
+        # tweak didn't blow up the inner loop. Falls through to a
+        # plain `shoot --quick` (no diff/report); use `--visual-scope
+        # =changed` for the gated path.
+        target_theme = args.theme if not args.all else "obel"
+        print(f"Running quick visual smoke "
+              f"(`bin/snap.py shoot {target_theme} --quick`)...\n")
+        snap_cmd = [sys.executable, snap_path, "shoot", target_theme, "--quick"]
+    else:
+        print(f"Running visual snapshot diff "
+              f"(`bin/snap.py check --scope={args.visual_scope}`)...\n")
+        snap_cmd = [
+            sys.executable, snap_path, "check",
+            f"--threshold={args.visual_threshold}",
+        ]
+        if args.visual_scope == "changed":
+            snap_cmd.append("--changed")
+            if args.visual_base:
+                snap_cmd.extend(["--changed-base", args.visual_base])
     snap_rc = subprocess.call(snap_cmd, cwd=str(Path(__file__).resolve().parent.parent))
     return snap_rc
 

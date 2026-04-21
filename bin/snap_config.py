@@ -141,6 +141,48 @@ THEME_ORDER: list[str] = ["obel", "chonk", "selvedge", "lysholm"]
 
 
 # ---------------------------------------------------------------------------
+# Known harmless noise from WordPress core / Playground that we never
+# want to count as a real page issue.
+#
+# Each entry is a substring matched (case-sensitive) against captured
+# page_error / console.text payloads. Add to this list when investigation
+# confirms the message is upstream noise — never to silence a real theme
+# bug. The snap framework reads this at import time; no restart needed
+# beyond the next `bin/snap.py shoot`.
+# ---------------------------------------------------------------------------
+KNOWN_NOISE_SUBSTRINGS: tuple[str, ...] = (
+    # wp-emoji-loader appends a hidden <canvas> to <head> while the
+    # head is briefly null in headless Chromium during early DOM setup.
+    # Harmless; emoji rendering still works.
+    "Cannot read properties of null (reading 'appendChild')",
+)
+
+
+# ---------------------------------------------------------------------------
+# Tier-policy budgets. Each `(metric, threshold)` pair is enforced at
+# shoot/report time; exceedances become findings using the listed
+# severity. Designed to be overridable per-theme later (Phase 10+).
+#
+#   page_weight_kb        Total transferred bytes for the route, in KB.
+#   image_count           Number of <img> elements rendered above the fold.
+#   request_count         HTTP requests fired by the page.
+#   console_warning_count Non-noise warnings on the route.
+#
+# Threshold None disables that budget. Values are intentionally
+# generous: budgets exist to flag REGRESSIONS (a route that suddenly
+# triples its image count), not to police hand-tuned routes.
+# ---------------------------------------------------------------------------
+BUDGETS: dict[str, dict] = {
+    "console_warning_count": {"max": 10, "severity": "info"},
+    # The metrics below are wired up but disabled by default; bump
+    # `max` from None to a real number when we have data.
+    "page_weight_kb": {"max": None, "severity": "warn"},
+    "image_count": {"max": None, "severity": "info"},
+    "request_count": {"max": None, "severity": "info"},
+}
+
+
+# ---------------------------------------------------------------------------
 # Inspector selectors -- per-route CSS selectors whose computed dimensions
 # get captured in `*.findings.json` and surfaced in the review.md report.
 #
@@ -151,6 +193,111 @@ THEME_ORDER: list[str] = ["obel", "chonk", "selvedge", "lysholm"]
 # without re-shooting. Use it as the "hard data" companion to the visual
 # pixel diff.
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Interactive states (Phase 3) -- per-route scripted flows that produce
+# additional cells.
+#
+# Each interaction renders `<route>.<flow>.png` (and a matching
+# `<route>.<flow>.findings.json`) alongside the static capture, so a
+# single route can yield multiple snaps without duplicating the route
+# table. The dispatcher in bin/snap.py walks the steps in order; if any
+# step times out it logs a finding (severity warn, kind
+# `interaction-failed`) and the rest of the flow is skipped.
+#
+# Step shapes:
+#   {"action": "click",  "selector": "<css>",            "timeout_ms": 4000}
+#   {"action": "hover",  "selector": "<css>",            "timeout_ms": 2000}
+#   {"action": "focus",  "selector": "<css>"}
+#   {"action": "fill",   "selector": "<css>", "text": "Hello"}
+#   {"action": "press",  "key":      "Tab"}
+#   {"action": "wait",   "ms":       400}
+#
+# `viewports` (optional) restricts the flow to a subset of viewport
+# names so e.g. the mobile menu only runs on `mobile`. Default is all.
+# ---------------------------------------------------------------------------
+class Interaction(NamedTuple):
+    name: str  # filename suffix; <route>.<name>.png
+    description: str
+    steps: list[dict]
+    viewports: tuple[str, ...] = ()  # () = all viewports
+
+
+INTERACTIONS: dict[str, list[Interaction]] = {
+    "home": [
+        Interaction(
+            name="menu-open",
+            description="Open the mobile hamburger menu and verify the overlay nav.",
+            viewports=("mobile",),
+            steps=[
+                # Core navigation block uses an aria-label "Open menu"
+                # button on mobile; click it then wait for the overlay
+                # transition to settle.
+                {"action": "click",
+                 "selector": "button.wp-block-navigation__responsive-container-open",
+                 "timeout_ms": 4000},
+                {"action": "wait", "ms": 500},
+            ],
+        ),
+    ],
+    "product-simple": [
+        Interaction(
+            name="qty-increment",
+            description="Increment quantity using the +1 button on the add-to-cart form.",
+            steps=[
+                {"action": "click",
+                 "selector": ".wp-block-add-to-cart-form button.plus, "
+                             ".quantity .plus, "
+                             "input.qty + button",
+                 "timeout_ms": 3000},
+                {"action": "wait", "ms": 200},
+            ],
+        ),
+    ],
+    "product-variable": [
+        Interaction(
+            name="swatch-pick",
+            description="Select a non-default attribute and verify variation image swap.",
+            steps=[
+                # Generic variation selector: any radio swatch or the
+                # second <option> in the first attribute <select>.
+                {"action": "click",
+                 "selector": "table.variations select option:nth-child(3), "
+                             ".wc-block-components-product-add-to-cart-attribute-picker__option:not([aria-checked='true'])",
+                 "timeout_ms": 3000},
+                {"action": "wait", "ms": 600},
+            ],
+        ),
+    ],
+    "cart-filled": [
+        Interaction(
+            name="line-remove",
+            description="Remove the first line item; cart should re-flow without breaking.",
+            steps=[
+                {"action": "click",
+                 "selector": ".wc-block-cart-item__remove-link, "
+                             ".product-remove a, "
+                             ".wc-block-cart-items__row:first-child .wc-block-cart-item__remove-link",
+                 "timeout_ms": 4000},
+                {"action": "wait", "ms": 800},
+            ],
+        ),
+    ],
+    "checkout-filled": [
+        Interaction(
+            name="field-focus",
+            description="Focus the first checkout text input; verify focus-ring + label state.",
+            steps=[
+                {"action": "focus",
+                 "selector": "#email, "
+                             "input[autocomplete='email'], "
+                             ".wc-block-components-text-input input"},
+                {"action": "wait", "ms": 200},
+            ],
+        ),
+    ],
+}
+
+
 INSPECT_SELECTORS: dict[str, list[str]] = {
     # Cart layout: sidebar must be >= 300px on desktop (>=782px viewport).
     "cart-filled": [

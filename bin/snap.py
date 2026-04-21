@@ -104,12 +104,16 @@ from typing import Iterable
 # file from the repo root (the most common invocation).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from snap_config import (  # noqa: E402
+    BUDGETS,
     INSPECT_SELECTORS,
+    INTERACTIONS,
+    KNOWN_NOISE_SUBSTRINGS,
     QUICK_ROUTES,
     QUICK_VIEWPORTS,
     ROUTES,
     THEME_ORDER,
     VIEWPORTS,
+    Interaction,
     Route,
     Viewport,
 )
@@ -142,6 +146,65 @@ RESET = "\033[0m" if _C else ""
 # ---------------------------------------------------------------------------
 # Theme + blueprint discovery
 # ---------------------------------------------------------------------------
+def _changed_themes(base: str | None = None) -> list[str] | None:
+    """Return the subset of themes affected by uncommitted + base..HEAD
+    git changes.
+
+    Returns:
+      None             -> framework changed (bin/, snap_config.py); the
+                          caller should fall back to "all themes".
+      []               -> nothing relevant changed; nothing to shoot.
+      ["obel", ...]    -> only those themes need a reshoot.
+
+    Path mapping (theme dir IS the git root):
+      <theme>/**                       -> theme is affected
+      tests/visual-baseline/<theme>/** -> theme is affected
+      bin/**, snap_config.py           -> framework; all themes
+      anything else                    -> no theme affected
+    """
+    known = set(discover_themes())
+    paths: set[str] = set()
+    try:
+        # Uncommitted (staged + unstaged + untracked tracked files).
+        for cmd in (
+            ["git", "diff", "--name-only", "HEAD"],
+            ["git", "ls-files", "--others", "--exclude-standard"],
+        ):
+            r = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True,
+                               text=True, check=False)
+            if r.returncode == 0:
+                paths.update(p for p in r.stdout.splitlines() if p)
+        if base:
+            r = subprocess.run(
+                ["git", "diff", "--name-only", f"{base}...HEAD"],
+                cwd=REPO_ROOT, capture_output=True, text=True, check=False,
+            )
+            if r.returncode == 0:
+                paths.update(p for p in r.stdout.splitlines() if p)
+    except FileNotFoundError:
+        # git not installed -- can't be smart, fall back to "all".
+        return None
+
+    if not paths:
+        return []
+
+    affected: set[str] = set()
+    for p in paths:
+        parts = p.split("/")
+        head = parts[0]
+        if head in known:
+            affected.add(head)
+            continue
+        if head == "tests" and len(parts) >= 3 and parts[1] == "visual-baseline":
+            if parts[2] in known:
+                affected.add(parts[2])
+            continue
+        # Framework-level changes invalidate every theme's snaps.
+        if head == "bin" or head in ("snap_config.py",):
+            return None
+    return sorted(affected)
+
+
 def discover_themes() -> list[str]:
     """Return theme slugs (folder names) that have a theme.json + blueprint.
 
@@ -503,6 +566,7 @@ _HEURISTICS_JS = r"""
     const out = {findings: [], selectors: []};
     const vw = window.innerWidth;
     const vh = window.innerHeight;
+    const isMobile = vw < 600;
     out.dom = {width: vw, height: vh,
                scrollWidth: document.documentElement.scrollWidth,
                scrollHeight: document.documentElement.scrollHeight};
@@ -510,6 +574,19 @@ _HEURISTICS_JS = r"""
     const push = (sev, kind, msg, extra) => out.findings.push(
         Object.assign({severity: sev, kind, message: msg}, extra || {})
     );
+
+    // Visibility helper used by several detectors. "Visible-ish" means
+    // it has size, isn't hidden by display/visibility, and is in (or
+    // near) the viewport vertically. The 4000px below-fold tolerance
+    // catches images that lazy-load below the fold but ARE present.
+    const isVisible = (el) => {
+        const r = el.getBoundingClientRect();
+        if (r.width < 1 || r.height < 1) return false;
+        if (r.bottom < 0 || r.top > vh + 4000) return false;
+        const cs = window.getComputedStyle(el);
+        return cs.visibility !== 'hidden' && cs.display !== 'none'
+            && cs.opacity !== '0';
+    };
 
     // Horizontal page overflow -- the body is wider than the viewport.
     // Anything > 1px is treated as accidental (browsers report 0 or 1
@@ -552,25 +629,66 @@ _HEURISTICS_JS = r"""
              "Page body contains a raw __() i18n token (string never translated).");
     }
 
-    // Images: missing alt + broken (loaded but 0x0) + suspiciously huge.
+    // Images: missing alt + broken + oversized + responsive mismatch +
+    // SVG placeholder leakage (a real product image was expected but a
+    // grey placeholder shipped instead, which is the silent class of
+    // "demo looks empty" bug).
     document.querySelectorAll('img').forEach((img) => {
         const r = img.getBoundingClientRect();
         const visible = r.width > 0 && r.height > 0 && r.bottom >= 0 && r.top <= vh + 4000;
         if (!visible) return;
+        const src = img.currentSrc || img.src || '';
         if (img.complete && img.naturalWidth === 0) {
             push("error", "broken-image",
-                 `Image failed to load: ${img.currentSrc || img.src}`,
-                 {src: img.currentSrc || img.src});
+                 `Image failed to load: ${src}`, {src});
+            return;  // no further size checks for a broken image
         }
         if (!img.hasAttribute('alt')) {
             push("warn", "img-missing-alt",
-                 `Image has no alt attribute: ${img.currentSrc || img.src}`,
-                 {src: img.currentSrc || img.src});
+                 `Image has no alt attribute: ${src}`, {src});
         }
         if (img.naturalWidth > 4000) {
             push("info", "img-oversized",
                  `Image is ${img.naturalWidth}px wide natively (consider a smaller variant).`,
-                 {src: img.currentSrc || img.src, natural_width: img.naturalWidth});
+                 {src, natural_width: img.naturalWidth});
+        }
+        // Responsive mismatch: pick obvious over-/under-served
+        // variants. We use 2x as the over-serve ceiling (DPR=2 is the
+        // common ceiling for retina display) and 0.6x as the
+        // under-serve floor (anything noticeably soft on the chosen
+        // viewport).
+        const renderedW = Math.round(r.width);
+        if (renderedW >= 32 && img.naturalWidth > 0) {
+            if (img.naturalWidth > renderedW * 3) {
+                push("info", "responsive-image-overserved",
+                     `Served ${img.naturalWidth}px wide for a ${renderedW}px slot (>3x; wasted bytes).`,
+                     {src, natural_width: img.naturalWidth, rendered_width: renderedW});
+            } else if (img.naturalWidth > 0
+                       && img.naturalWidth < renderedW * 0.75) {
+                push("warn", "responsive-image-blurry",
+                     `Served ${img.naturalWidth}px wide for a ${renderedW}px slot (<0.75x; will look soft).`,
+                     {src, natural_width: img.naturalWidth, rendered_width: renderedW});
+            }
+        }
+        // Placeholder-image: a grey/SVG placeholder ended up where a
+        // real product image was expected. WC sometimes does this when
+        // the post-thumbnail meta is missing.
+        const looksPlaceholder = (
+            src.startsWith('data:image/svg+xml')
+            || /placeholder|woocommerce-placeholder/i.test(src)
+        );
+        // Inside any product-image surface (gallery, card, summary).
+        const inProductSurface = !!img.closest(
+            '.wp-block-post-featured-image, '
+            + '.woocommerce-product-gallery, '
+            + '.wc-block-components-product-image, '
+            + '.wp-block-woocommerce-product-image, '
+            + '.wc-block-grid__product-image'
+        );
+        if (looksPlaceholder && inProductSurface) {
+            push("warn", "placeholder-image",
+                 `Placeholder image rendered where a product image was expected: ${src.slice(0, 120)}`,
+                 {src});
         }
     });
 
@@ -606,6 +724,82 @@ _HEURISTICS_JS = r"""
                      {selector: side, element_width: Math.round(r.width), token_width: Math.round(probeWidth)});
             }
         });
+    });
+
+    // Web-font load state. If the document.fonts API hasn't reached
+    // 'loaded' by the time we screenshot, the page snapped while a
+    // FOUT was still in progress -- the captured PNG is unstable and
+    // pixel diffs will trip on the next run when the font finally
+    // swaps. Most theme work uses self-hosted fonts so this should
+    // virtually always be 'loaded'; flag it when not.
+    try {
+        if (document.fonts && document.fonts.status
+                && document.fonts.status !== 'loaded') {
+            push("warn", "font-not-loaded",
+                 `document.fonts.status is "${document.fonts.status}" at screenshot time (FOUT risk).`,
+                 {status: document.fonts.status});
+        }
+    } catch (e) { /* fonts API not available -- skip */ }
+
+    // Tap-target sizing. WCAG 2.5.5 calls for a 44x44 minimum hit
+    // area; we use 32x32 as the practical floor (the bar most modern
+    // theme.json typography passes naturally). Mobile-only because
+    // mouse pointers don't have the same fat-finger problem.
+    if (isMobile) {
+        const tapEls = document.querySelectorAll(
+            'a[href], button:not(:disabled), [role="button"], '
+            + 'input[type="submit"], input[type="button"], '
+            + 'input[type="reset"], summary'
+        );
+        tapEls.forEach((el) => {
+            if (!isVisible(el)) return;
+            const r = el.getBoundingClientRect();
+            // Some links are inline runs of text (e.g. a footer link
+            // inside a paragraph); the surrounding line gives the real
+            // hit area. Skip elements whose text is wider than the
+            // measured box (i.e. wrapped inline content).
+            const cs = window.getComputedStyle(el);
+            if (cs.display === 'inline' && r.width >= 32) return;
+            if (r.width < 32 || r.height < 32) {
+                const label = (el.innerText || el.getAttribute('aria-label') || '').trim().slice(0, 40);
+                push("warn", "tap-target-too-small",
+                     `Mobile tap target ${Math.round(r.width)}x${Math.round(r.height)}px (<32px) for "${label}".`,
+                     {width: Math.round(r.width), height: Math.round(r.height), label});
+            }
+        });
+    }
+
+    // Text-overflow ellipsis that's actively truncating content. The
+    // user is silently losing information; usually means the
+    // surrounding container is too narrow.
+    document.querySelectorAll('*').forEach((el) => {
+        const cs = window.getComputedStyle(el);
+        if (cs.textOverflow !== 'ellipsis') return;
+        if (cs.overflow !== 'hidden') return;
+        if (!isVisible(el)) return;
+        if (el.scrollWidth > el.clientWidth + 1) {
+            const txt = (el.innerText || '').trim().slice(0, 60);
+            push("info", "text-overflow-truncated",
+                 `Ellipsis is hiding content: "${txt}" (scrollWidth ${el.scrollWidth} > clientWidth ${el.clientWidth}).`,
+                 {scroll_width: el.scrollWidth, client_width: el.clientWidth});
+        }
+    });
+
+    // Empty landmarks. <main>, <nav>, <aside> with no visible text
+    // usually mean a template fell through (block didn't render, query
+    // returned 0 results) without anyone noticing.
+    document.querySelectorAll('main, nav, aside').forEach((el) => {
+        if (!isVisible(el)) return;
+        // Some empty landmarks are deliberate (e.g. a <nav> whose only
+        // visible content is icons) -- check for ANY visible text or
+        // visible img inside before reporting.
+        const text = (el.innerText || '').trim();
+        const hasIcon = el.querySelector('img, svg, [role="img"]');
+        if (text.length === 0 && !hasIcon) {
+            push("info", "empty-landmark",
+                 `<${el.tagName.toLowerCase()}> landmark has no visible text or media.`,
+                 {tag: el.tagName.toLowerCase()});
+        }
     });
 
     // Captured measurements for the user-supplied INSPECT_SELECTORS.
@@ -652,21 +846,104 @@ _HEURISTICS_JS = r"""
 """
 
 
-# Known harmless noise from WordPress core / Playground that we never
-# want to count as a real page issue. Each entry is a substring matched
-# against the captured page_error / console.text payload (case-sensitive).
-# Add to this list when investigation confirms the message is upstream
-# noise — never to silence a real theme bug.
-KNOWN_NOISE_SUBSTRINGS: tuple[str, ...] = (
-    # wp-emoji-loader appends a hidden <canvas> to <head> while the
-    # head is briefly null in headless Chromium during early DOM setup.
-    # Harmless; emoji rendering still works.
-    "Cannot read properties of null (reading 'appendChild')",
-)
-
-
 def _is_known_noise(text: str) -> bool:
+    """KNOWN_NOISE_SUBSTRINGS is sourced from snap_config.py so adding a
+    noise filter is a one-line config edit — no snap.py change needed."""
     return any(s in text for s in KNOWN_NOISE_SUBSTRINGS)
+
+
+# ---------------------------------------------------------------------------
+# axe-core a11y vendor + injector
+# ---------------------------------------------------------------------------
+AXE_VERSION = "4.10.0"
+AXE_VENDOR_PATH = REPO_ROOT / "bin" / "vendor" / "axe.min.js"
+AXE_DOWNLOAD_URL = (
+    f"https://cdn.jsdelivr.net/npm/axe-core@{AXE_VERSION}/axe.min.js"
+)
+# Mapping from axe `impact` to our internal severity. Critical/serious
+# block the build via the tiered gate; moderate/minor surface in the
+# review without failing it. axe sometimes emits null impact for the
+# experimental rules -- we treat those as info to avoid noise.
+_AXE_IMPACT_TO_SEVERITY: dict[str, str] = {
+    "critical": "error",
+    "serious": "error",
+    "moderate": "warn",
+    "minor": "info",
+}
+
+
+def _ensure_axe_vendored() -> str | None:
+    """Return axe-core source as a string, downloading once if needed.
+
+    Returns None if the download failed AND no vendored copy exists
+    (offline contributors get a one-line note rather than a build
+    failure). Subsequent shoots reuse the vendored file.
+    """
+    if AXE_VENDOR_PATH.exists():
+        return AXE_VENDOR_PATH.read_text(encoding="utf-8")
+    AXE_VENDOR_PATH.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with urllib.request.urlopen(AXE_DOWNLOAD_URL, timeout=30) as resp:
+            data = resp.read().decode("utf-8")
+    except Exception as e:
+        print(f"  {YELLOW}warn:{RESET} could not download axe-core "
+              f"({e}); a11y checks skipped.")
+        return None
+    AXE_VENDOR_PATH.write_text(data, encoding="utf-8")
+    print(f"  {DIM}vendored axe-core {AXE_VERSION} to "
+          f"{AXE_VENDOR_PATH.relative_to(REPO_ROOT)}{RESET}")
+    return data
+
+
+def _run_axe(page, axe_source: str) -> dict:
+    """Inject axe-core into the page and return the violations report.
+
+    Errors are swallowed and returned as a one-key dict so a single
+    shaky page doesn't kill the whole shoot.
+    """
+    try:
+        page.evaluate(axe_source)
+        # `resultTypes: ['violations']` skips the (much larger)
+        # passes/incomplete/inapplicable arrays so the artifact stays
+        # under ~50KB even for image-heavy pages.
+        result = page.evaluate(
+            "() => axe.run(document, {resultTypes: ['violations']})"
+        )
+    except Exception as e:
+        return {"error": f"axe injection/run failed: {e}", "violations": []}
+    return result if isinstance(result, dict) else {"violations": []}
+
+
+def _axe_to_findings(axe_result: dict) -> list[dict]:
+    """Translate an axe report's violations into our finding format."""
+    out: list[dict] = []
+    for v in axe_result.get("violations", []) or []:
+        impact = (v.get("impact") or "minor").lower()
+        sev = _AXE_IMPACT_TO_SEVERITY.get(impact, "info")
+        rule = v.get("id", "unknown")
+        nodes = v.get("nodes", []) or []
+        # axe can flag dozens of nodes for the same rule (e.g.
+        # color-contrast on a list of links). Collapse to a single
+        # finding per rule with the count + first 3 selectors so the
+        # review stays scannable.
+        first_selectors = []
+        for n in nodes[:3]:
+            target = n.get("target", [])
+            if target:
+                first_selectors.append(" > ".join(map(str, target[0:1])))
+        out.append({
+            "severity": sev,
+            "kind": f"a11y-{rule}",
+            "message": (
+                f"{v.get('help', rule)} ({len(nodes)} node(s))"
+                + (f" — first: {first_selectors[0]}" if first_selectors else "")
+            ),
+            "axe_help_url": v.get("helpUrl", ""),
+            "axe_impact": impact,
+            "axe_node_count": len(nodes),
+            "axe_first_selectors": first_selectors,
+        })
+    return out
 
 
 def _attach_diagnostics(page) -> dict:
@@ -721,6 +998,176 @@ def _attach_diagnostics(page) -> dict:
     return bag
 
 
+# ---------------------------------------------------------------------------
+# Interactive flow dispatcher (Phase 3)
+# ---------------------------------------------------------------------------
+def _run_interaction(page, flow: Interaction) -> str | None:
+    """Run a declarative interaction. Return None on success, or an
+    error string. Each step swallows its own selector misses (the
+    selectors in snap_config use commas to allow theme-specific
+    fallbacks; we only fail the flow if every alternative is missing).
+    """
+    for i, step in enumerate(flow.steps):
+        action = step.get("action")
+        try:
+            if action == "wait":
+                page.wait_for_timeout(int(step.get("ms", 100)))
+            elif action == "press":
+                page.keyboard.press(step["key"])
+            elif action == "click":
+                el = page.locator(step["selector"]).first
+                el.wait_for(state="visible",
+                            timeout=int(step.get("timeout_ms", 3000)))
+                el.click(timeout=int(step.get("timeout_ms", 3000)))
+            elif action == "hover":
+                el = page.locator(step["selector"]).first
+                el.wait_for(state="visible",
+                            timeout=int(step.get("timeout_ms", 2000)))
+                el.hover(timeout=int(step.get("timeout_ms", 2000)))
+            elif action == "focus":
+                el = page.locator(step["selector"]).first
+                el.wait_for(state="visible",
+                            timeout=int(step.get("timeout_ms", 2000)))
+                el.focus(timeout=int(step.get("timeout_ms", 2000)))
+            elif action == "fill":
+                el = page.locator(step["selector"]).first
+                el.wait_for(state="visible",
+                            timeout=int(step.get("timeout_ms", 2000)))
+                el.fill(step.get("text", ""),
+                        timeout=int(step.get("timeout_ms", 2000)))
+            else:
+                return f"step {i}: unknown action {action!r}"
+        except Exception as e:
+            return f"step {i} ({action} {step.get('selector', '')!r}): {e}"
+    return None
+
+
+def _capture_cell(
+    *,
+    page,
+    bag: dict,
+    axe_source: str | None,
+    theme: str,
+    vp: Viewport,
+    slug: str,
+    inspect: list[str],
+    url: str,
+    out_dir: Path,
+    nav_error: str | None,
+    extra_findings: list[dict] | None = None,
+) -> dict:
+    """Run heuristics + axe + console budget + screenshot for one cell.
+
+    Returns the manifest-shaped dict for the caller to append. The
+    cell's `<slug>.png`, `<slug>.html`, `<slug>.findings.json`, and
+    optional `<slug>.a11y.json` are written under `out_dir`.
+    `extra_findings` lets the interactive caller inject e.g. an
+    `interaction-failed` finding so it shows up in the same review row.
+    """
+    out_path = out_dir / f"{slug}.png"
+    html_path = out_dir / f"{slug}.html"
+    findings_path = out_dir / f"{slug}.findings.json"
+    a11y_path = out_dir / f"{slug}.a11y.json"
+
+    findings: dict = {}
+    try:
+        findings = page.evaluate(
+            _HEURISTICS_JS, {"inspectSelectors": inspect}
+        )
+    except Exception as e:
+        findings = {"findings": [
+            {"severity": "warn", "kind": "heuristics-failed",
+             "message": f"Heuristics evaluation failed: {e}"},
+        ], "selectors": []}
+    try:
+        html_path.write_text(page.content(), encoding="utf-8")
+    except Exception as e:
+        print(f"    {YELLOW}warn:{RESET} html capture: {e}")
+
+    axe_findings: list[dict] = []
+    if axe_source is not None:
+        axe_result = _run_axe(page, axe_source)
+        axe_findings = _axe_to_findings(axe_result)
+        try:
+            a11y_path.write_text(
+                json.dumps(axe_result, indent=2), encoding="utf-8"
+            )
+        except Exception as e:
+            print(f"    {YELLOW}warn:{RESET} a11y write: {e}")
+
+    try:
+        page.screenshot(path=str(out_path), full_page=True)
+    except Exception as e:
+        print(f"    {RED}fail:{RESET} screenshot: {e}")
+        return {}
+
+    warn_console = sum(
+        1 for c in bag["console"]
+        if c.get("type") == "warning"
+        and not _is_known_noise(c.get("text", ""))
+    )
+    budget_findings: list[dict] = []
+    cw_budget = BUDGETS.get("console_warning_count", {})
+    cw_max = cw_budget.get("max")
+    if cw_max is not None and warn_console > cw_max:
+        budget_findings.append({
+            "severity": cw_budget.get("severity", "info"),
+            "kind": "console-warn-budget",
+            "message": (
+                f"{warn_console} console warnings on this cell "
+                f"(>{cw_max}). Consider triaging."
+            ),
+            "count": warn_console, "max": cw_max,
+        })
+
+    base_findings = list(findings.get("findings", []))
+    findings["findings"] = (
+        base_findings + axe_findings + budget_findings + (extra_findings or [])
+    )
+
+    findings_payload = {
+        **findings,
+        "theme": theme,
+        "viewport": vp.name,
+        "route": slug,
+        "url": url,
+        "navigation_error": nav_error,
+        "console": list(bag["console"]),
+        "page_errors": list(bag["page_errors"]),
+        "network_failures": list(bag["network_failures"]),
+        "a11y_path": (
+            str(a11y_path.relative_to(REPO_ROOT))
+            if axe_source is not None and a11y_path.exists() else None
+        ),
+    }
+    findings_path.write_text(
+        json.dumps(findings_payload, indent=2), encoding="utf-8"
+    )
+
+    finds = findings.get("findings", [])
+    err_count = sum(1 for f in finds if f.get("severity") == "error")
+    warn_count = sum(1 for f in finds if f.get("severity") == "warn")
+    if err_count or warn_count:
+        col = RED if err_count else YELLOW
+        print(f"    {col}flags:{RESET} {err_count} error / "
+              f"{warn_count} warn ({slug})")
+
+    return {
+        "viewport": vp.name,
+        "route": slug,
+        "path": str(out_path.relative_to(REPO_ROOT)),
+        "size_bytes": out_path.stat().st_size,
+        "findings_path": str(findings_path.relative_to(REPO_ROOT)),
+        "html_path": str(html_path.relative_to(REPO_ROOT)),
+        "a11y_path": (
+            str(a11y_path.relative_to(REPO_ROOT))
+            if axe_source is not None and a11y_path.exists() else None
+        ),
+        "error_count": err_count,
+        "warn_count": warn_count,
+    }
+
+
 def shoot_theme(
     theme: str,
     server_url: str,
@@ -758,6 +1205,10 @@ def shoot_theme(
 
     manifest: dict = {"theme": theme, "shots": []}
     out_root.mkdir(parents=True, exist_ok=True)
+    # Vendor axe-core once per process. Returned source is None when
+    # the contributor is offline AND has no vendored copy; that case
+    # disables a11y checks gracefully instead of failing the shoot.
+    axe_source = _ensure_axe_vendored()
 
     with sync_playwright() as p:
         browser = p.chromium.launch()
@@ -788,9 +1239,6 @@ def shoot_theme(
                 vp_dir = out_root / vp.name
                 vp_dir.mkdir(parents=True, exist_ok=True)
                 for route in routes:
-                    out_path = vp_dir / f"{route.slug}.png"
-                    html_path = vp_dir / f"{route.slug}.html"
-                    findings_path = vp_dir / f"{route.slug}.findings.json"
                     url = server_url + route.path
                     print(
                         f"  {DIM}{vp.name:7s}{RESET} "
@@ -814,78 +1262,58 @@ def shoot_theme(
                     # hydration, font swap, WC checkout XHR).
                     page.wait_for_timeout(500)
 
-                    # Capture HTML + run heuristics BEFORE the
-                    # screenshot so any DOM mutations from our
-                    # measurement probe (the temp <span> for word-wrap
-                    # detection) are reverted before the pixel snap.
-                    inspect = INSPECT_SELECTORS.get(route.slug, [])
-                    findings: dict = {}
-                    try:
-                        findings = page.evaluate(
-                            _HEURISTICS_JS,
-                            {"inspectSelectors": inspect},
+                    # Static cell. Heuristics + axe + screenshot of the
+                    # page in its initial-load state.
+                    static_entry = _capture_cell(
+                        page=page, bag=bag, axe_source=axe_source,
+                        theme=theme, vp=vp, slug=route.slug,
+                        inspect=INSPECT_SELECTORS.get(route.slug, []),
+                        url=url, out_dir=vp_dir, nav_error=nav_error,
+                    )
+                    if static_entry:
+                        manifest["shots"].append(static_entry)
+
+                    # Interactive cells (Phase 3). Run any flows
+                    # registered for this route + viewport. Each flow
+                    # produces its own <route>.<flow>.* artifact set
+                    # so reviewers can compare static vs interacted
+                    # state side-by-side.
+                    for flow in INTERACTIONS.get(route.slug, []):
+                        if flow.viewports and vp.name not in flow.viewports:
+                            continue
+                        bag["console"].clear()
+                        bag["page_errors"].clear()
+                        bag["network_failures"].clear()
+                        flow_slug = f"{route.slug}.{flow.name}"
+                        print(f"    {DIM}↳ flow:{RESET} {flow.name} "
+                              f"({flow.description})", flush=True)
+                        flow_err = _run_interaction(page, flow)
+                        # Settle after the interaction to let any XHR /
+                        # transition finish before the screenshot.
+                        page.wait_for_timeout(300)
+                        extra: list[dict] = []
+                        if flow_err:
+                            extra.append({
+                                "severity": "warn",
+                                "kind": "interaction-failed",
+                                "message": (
+                                    f"Interaction `{flow.name}` failed: "
+                                    f"{flow_err}"
+                                ),
+                                "interaction": flow.name,
+                            })
+                            print(f"    {YELLOW}warn:{RESET} flow "
+                                  f"`{flow.name}`: {flow_err}")
+                        flow_entry = _capture_cell(
+                            page=page, bag=bag, axe_source=axe_source,
+                            theme=theme, vp=vp, slug=flow_slug,
+                            inspect=INSPECT_SELECTORS.get(route.slug, []),
+                            url=url, out_dir=vp_dir, nav_error=nav_error,
+                            extra_findings=extra,
                         )
-                    except Exception as e:
-                        findings = {"findings": [
-                            {"severity": "warn", "kind": "heuristics-failed",
-                             "message": f"Heuristics evaluation failed: {e}"},
-                        ], "selectors": []}
-                    try:
-                        html_path.write_text(page.content(), encoding="utf-8")
-                    except Exception as e:
-                        print(f"    {YELLOW}warn:{RESET} html capture: {e}")
-
-                    try:
-                        page.screenshot(path=str(out_path), full_page=True)
-                    except Exception as e:
-                        print(f"    {RED}fail:{RESET} screenshot: {e}")
-                        continue
-
-                    # Spread `findings` first so JS-supplied keys (dom,
-                    # findings, selectors) don't accidentally clobber
-                    # the run-context fields below. Order matters here:
-                    # `viewport` was previously overwritten by the JS
-                    # heuristics' `out.viewport = {...}` dict, which
-                    # broke sort keys downstream.
-                    findings_payload = {
-                        **findings,
-                        "theme": theme,
-                        "viewport": vp.name,
-                        "route": route.slug,
-                        "url": url,
-                        "navigation_error": nav_error,
-                        "console": list(bag["console"]),
-                        "page_errors": list(bag["page_errors"]),
-                        "network_failures": list(bag["network_failures"]),
-                    }
-                    findings_path.write_text(
-                        json.dumps(findings_payload, indent=2),
-                        encoding="utf-8",
-                    )
-
-                    # Emit a one-line summary so the agent watching
-                    # stdout doesn't have to crack open every JSON
-                    # file just to see if a route raised flags.
-                    finds = findings.get("findings", [])
-                    err_count = sum(1 for f in finds if f.get("severity") == "error")
-                    warn_count = sum(1 for f in finds if f.get("severity") == "warn")
-                    if err_count or warn_count:
-                        col = RED if err_count else YELLOW
-                        print(f"    {col}flags:{RESET} "
-                              f"{err_count} error / {warn_count} warn")
-
-                    manifest["shots"].append(
-                        {
-                            "viewport": vp.name,
-                            "route": route.slug,
-                            "path": str(out_path.relative_to(REPO_ROOT)),
-                            "size_bytes": out_path.stat().st_size,
-                            "findings_path": str(findings_path.relative_to(REPO_ROOT)),
-                            "html_path": str(html_path.relative_to(REPO_ROOT)),
-                            "error_count": err_count,
-                            "warn_count": warn_count,
-                        }
-                    )
+                        if flow_entry:
+                            flow_entry["interaction"] = flow.name
+                            manifest["shots"].append(flow_entry)
                 ctx.close()
         finally:
             browser.close()
@@ -1033,8 +1461,25 @@ def cmd_shoot(args: argparse.Namespace) -> int:
     parallel (each on its own port chosen via find_free_port) which
     drops a 4-theme sweep from ~16min to ~4min. The cost is RAM (each
     Playground worker eats ~400MB) and CPU during the screenshot pass.
+
+    `--changed` (Phase 5) restricts the sweep to themes whose files
+    changed since `--changed-base` (default = uncommitted tree). When
+    bin/* changed (framework-wide), the smart filter falls back to
+    --all so we don't ship a stale sweep after a heuristic update.
     """
-    if args.all:
+    if getattr(args, "changed", False):
+        affected = _changed_themes(getattr(args, "changed_base", None))
+        if affected is None:
+            print(f"{DIM}--changed: framework files touched, "
+                  f"falling back to all themes.{RESET}")
+            themes = discover_themes()
+        elif not affected:
+            print(f"{GREEN}--changed: no theme files changed, nothing to shoot.{RESET}")
+            return 0
+        else:
+            themes = affected
+            print(f"{DIM}--changed: shooting only {', '.join(themes)}.{RESET}")
+    elif args.all:
         themes = discover_themes()
     else:
         themes = [args.theme] if args.theme else []
@@ -1145,7 +1590,18 @@ def cmd_baseline(args: argparse.Namespace) -> int:
 def cmd_diff(args: argparse.Namespace) -> int:
     """Compare latest snaps to baselines; print a summary table."""
     threshold = args.threshold
-    themes = discover_themes() if args.all else ([args.theme] if args.theme else [])
+    if getattr(args, "changed", False):
+        affected = _changed_themes(getattr(args, "changed_base", None))
+        if affected is None:
+            themes = discover_themes()
+        elif not affected:
+            print(f"{GREEN}--changed: no theme files changed, "
+                  f"nothing to diff.{RESET}")
+            return 0
+        else:
+            themes = affected
+    else:
+        themes = discover_themes() if args.all else ([args.theme] if args.theme else [])
     if not themes:
         raise SystemExit("Pass a theme name or --all.")
 
@@ -1217,6 +1673,89 @@ def cmd_diff(args: argparse.Namespace) -> int:
 _SEVERITY_RANK = {"error": 0, "warn": 1, "info": 2}
 
 
+# Tier policy (Phase 1). Tiered gate:
+#   * HARD-fail (gate="fail")  -> bin/check.py --visual exits 1
+#       - any heuristic finding with severity "error"
+#       - any uncaught JS error (page_errs, after KNOWN_NOISE_SUBSTRINGS)
+#       - any HTTP 5xx response
+#       - the cell crashed during heuristics evaluation (heuristics-failed
+#         is severity "warn" per JS, but it implies the page broke during
+#         our probe; we don't promote it to fail by itself, just count it)
+#   * SOFT-warn (gate="warn")  -> exit 0 with a loud banner
+#       - any heuristic "warn" or "info"
+#       - HTTP 4xx (still surfaces real bugs, but lots of WC variation
+#         HEAD probes legitimately 404 so we don't block on them)
+#       - any console.error (after noise filter)
+#       - cross-theme parity drift (Phase 4 adds these as "warn"-severity
+#         findings, so the same accounting picks them up)
+#   * pass                     -> green light
+#
+# The classification lives in one place so the per-theme rollup, the
+# cross-theme rollup, and the STATUS line all agree. Bumping a category
+# from soft to hard (e.g. when we trust 4xx-detection enough) is a
+# one-line change here.
+_GATE_RANK = {"pass": 0, "warn": 1, "fail": 2}
+
+
+def _compute_gate(summary: dict) -> str:
+    """Return 'pass' | 'warn' | 'fail' for a per-theme summary dict."""
+    if (summary.get("errors", 0) > 0
+            or summary.get("page_errs", 0) > 0
+            or summary.get("net_5xx", 0) > 0):
+        return "fail"
+    if (summary.get("warns", 0) > 0
+            or summary.get("infos", 0) > 0
+            or summary.get("net_4xx", 0) > 0
+            or summary.get("console_errs", 0) > 0):
+        return "warn"
+    return "pass"
+
+
+def _worst_gate(gates: Iterable[str]) -> str:
+    worst = "pass"
+    for g in gates:
+        if _GATE_RANK.get(g, 0) > _GATE_RANK[worst]:
+            worst = g
+    return worst
+
+
+def _gate_badge(gate: str, summary: dict | None = None) -> str:
+    """Markdown badge line used at the top of every review.md."""
+    summary = summary or {}
+    if gate == "fail":
+        bits = []
+        if summary.get("errors"):
+            bits.append(f"{summary['errors']} error")
+        if summary.get("page_errs"):
+            bits.append(f"{summary['page_errs']} uncaught JS")
+        if summary.get("net_5xx"):
+            bits.append(f"{summary['net_5xx']} HTTP 5xx")
+        return f"**GATE: FAIL** ({', '.join(bits) or 'see findings below'})"
+    if gate == "warn":
+        bits = []
+        if summary.get("warns"):
+            bits.append(f"{summary['warns']} warn")
+        if summary.get("infos"):
+            bits.append(f"{summary['infos']} info")
+        if summary.get("net_4xx"):
+            bits.append(f"{summary['net_4xx']} HTTP 4xx")
+        if summary.get("console_errs"):
+            bits.append(f"{summary['console_errs']} console err")
+        return f"**GATE: WARN** ({', '.join(bits) or 'see findings below'})"
+    return "**GATE: PASS**"
+
+
+def _print_status(gate: str, source: str = "snap") -> None:
+    """Final STATUS line so terminal scrapers + humans both see the verdict."""
+    if gate == "fail":
+        col = RED
+    elif gate == "warn":
+        col = YELLOW
+    else:
+        col = GREEN
+    print(f"\n{col}STATUS: {gate.upper()}{RESET}  ({source})")
+
+
 def _gather_findings(themes: list[str]) -> list[dict]:
     """Walk tmp/snaps/<theme>/<vp>/*.findings.json and return a flat
     list of (theme, viewport, route, payload) tuples for the report.
@@ -1236,6 +1775,100 @@ def _gather_findings(themes: list[str]) -> list[dict]:
                     continue
                 payload["_path"] = str(fp.relative_to(REPO_ROOT))
                 out.append(payload)
+    return out
+
+
+def _cross_theme_parity(per_theme_payloads: dict[str, list[dict]],
+                        drift_pct: float = 25.0) -> list[dict]:
+    """Flag (route, viewport, selector) triples where one theme's
+    measurement drifts >drift_pct% from the median of the others.
+
+    Catches "Selvedge's cart sidebar broke and we didn't notice
+    because we were looking at Obel" -- the static-PNG diff only
+    catches drift vs the SAME theme's baseline; this catches drift
+    BETWEEN themes that should look broadly similar at the same
+    layout level.
+
+    Returns a flat list of finding-shaped dicts (severity, kind,
+    message, theme, viewport, route) so the report can render them
+    inline without a special-case template.
+    """
+    if len(per_theme_payloads) < 3:
+        # Need at least 3 themes for a meaningful median (with 2, any
+        # difference is trivially > median). 4 is the current count.
+        return []
+
+    # Group payloads by (viewport, route, selector) so we can compare
+    # the same cell across themes.
+    by_cell: dict[tuple[str, str], dict[str, dict]] = {}
+    for theme, payloads in per_theme_payloads.items():
+        for p in payloads:
+            key = (p.get("viewport", ""), p.get("route", ""))
+            by_cell.setdefault(key, {})[theme] = p
+
+    out: list[dict] = []
+    for (vp, route), per_theme in by_cell.items():
+        if len(per_theme) < 3:
+            continue
+        # Selector-by-selector width comparison.
+        selectors_seen: set[str] = set()
+        for p in per_theme.values():
+            for s in p.get("selectors", []):
+                selectors_seen.add(s.get("selector", ""))
+        for sel in selectors_seen:
+            widths: dict[str, int] = {}
+            for theme, p in per_theme.items():
+                for s in p.get("selectors", []):
+                    if s.get("selector") != sel:
+                        continue
+                    inst = (s.get("instances") or [{}])[0]
+                    w = inst.get("width") or 0
+                    if w > 0:
+                        widths[theme] = w
+            if len(widths) < 3:
+                continue
+            sorted_w = sorted(widths.values())
+            median = sorted_w[len(sorted_w) // 2]
+            if median == 0:
+                continue
+            for theme, w in widths.items():
+                pct = abs(w - median) / median * 100.0
+                if pct >= drift_pct:
+                    out.append({
+                        "severity": "warn",
+                        "kind": "parity-drift-width",
+                        "message": (
+                            f"`{sel}` is {w}px on {theme} but the "
+                            f"cross-theme median is {median}px "
+                            f"({pct:.0f}% drift)."
+                        ),
+                        "theme": theme, "viewport": vp, "route": route,
+                        "selector": sel,
+                        "this_width": w, "median_width": median,
+                    })
+        # Finding-count parity: a theme that suddenly has 5x more
+        # findings than its peers on the same route is probably
+        # broken in a way the per-theme review missed.
+        counts: dict[str, int] = {
+            theme: len([f for f in p.get("findings", [])
+                        if f.get("severity") in ("error", "warn")])
+            for theme, p in per_theme.items()
+        }
+        cs = sorted(counts.values())
+        median_c = cs[len(cs) // 2]
+        if median_c >= 1:  # only meaningful when most themes have findings
+            for theme, c in counts.items():
+                if c >= median_c * 2 + 2:  # +2 floor avoids "1 vs 3" noise
+                    out.append({
+                        "severity": "warn",
+                        "kind": "parity-drift-findings",
+                        "message": (
+                            f"{c} error/warn findings on {theme} for "
+                            f"`{vp}/{route}` (cross-theme median {median_c})."
+                        ),
+                        "theme": theme, "viewport": vp, "route": route,
+                        "this_count": c, "median_count": median_c,
+                    })
     return out
 
 
@@ -1261,6 +1894,16 @@ def cmd_report(args: argparse.Namespace) -> int:
     """
     if args.theme:
         themes = [args.theme]
+    elif getattr(args, "changed", False):
+        affected = _changed_themes(getattr(args, "changed_base", None))
+        if affected is None:
+            themes = discover_themes()
+        elif not affected:
+            print(f"{GREEN}--changed: no theme files changed, "
+                  f"nothing to report on.{RESET}")
+            return 0
+        else:
+            themes = affected
     elif args.all:
         themes = discover_themes()
     else:
@@ -1275,11 +1918,33 @@ def cmd_report(args: argparse.Namespace) -> int:
 
     rollup: list[dict] = []
     cross_theme_findings: list[tuple[dict, dict]] = []
+    write_md = args.format in ("md", "both")
+    write_json = args.format in ("json", "both")
+
+    # Phase 4: cross-theme parity. Compute once for the whole report
+    # so per-theme rendering can attribute parity findings to the
+    # right theme alongside its own findings.
+    per_theme_payloads: dict[str, list[dict]] = {
+        theme: _gather_findings([theme]) for theme in themes
+    }
+    parity_findings = _cross_theme_parity(per_theme_payloads)
+    parity_by_theme: dict[str, list[dict]] = {}
+    for f in parity_findings:
+        parity_by_theme.setdefault(f["theme"], []).append(f)
 
     for theme in themes:
-        payloads = _gather_findings([theme])
+        payloads = per_theme_payloads.get(theme, [])
         if not payloads:
             continue
+        # Splice parity findings into this theme's per-route payloads
+        # so the existing accounting (route_summary, gate) catches
+        # them automatically.
+        for pf in parity_by_theme.get(theme, []):
+            for p in payloads:
+                if (p.get("viewport") == pf["viewport"]
+                        and p.get("route") == pf["route"]):
+                    p.setdefault("findings", []).append(pf)
+                    break
         # Per-route severity totals.
         route_summary: list[dict] = []
         all_findings: list[tuple[dict, dict]] = []
@@ -1288,7 +1953,14 @@ def cmd_report(args: argparse.Namespace) -> int:
             err = sum(1 for f in finds if f.get("severity") == "error")
             warn = sum(1 for f in finds if f.get("severity") == "warn")
             info = sum(1 for f in finds if f.get("severity") == "info")
-            net_fail = len(p.get("network_failures", []))
+            # Split 4xx vs 5xx so the tier policy can hard-fail on 5xx
+            # alone without also failing on the noisy WC variation HEAD
+            # 404 probes that fire on every product page.
+            net_4xx = sum(1 for nf in p.get("network_failures", [])
+                          if 400 <= nf.get("status", 0) < 500)
+            net_5xx = sum(1 for nf in p.get("network_failures", [])
+                          if nf.get("status", 0) >= 500)
+            net_fail = net_4xx + net_5xx
             page_err = sum(1 for pe in p.get("page_errors", [])
                            if not _is_known_noise(pe))
             console_err = sum(1 for c in p.get("console", [])
@@ -1297,7 +1969,8 @@ def cmd_report(args: argparse.Namespace) -> int:
             route_summary.append({
                 "viewport": p["viewport"], "route": p["route"],
                 "error": err, "warn": warn, "info": info,
-                "net_fail": net_fail, "page_err": page_err,
+                "net_fail": net_fail, "net_4xx": net_4xx, "net_5xx": net_5xx,
+                "page_err": page_err,
                 "console_err": console_err,
                 "url": p.get("url", ""),
             })
@@ -1311,21 +1984,41 @@ def cmd_report(args: argparse.Namespace) -> int:
             pf[1].get("kind", ""),
         ))
 
+        # Per-theme summary used by both the rollup row and the gate
+        # decision. Built once here so the badge at the top of review.md,
+        # the JSON, and the cross-theme rollup all agree.
+        theme_summary = {
+            "theme": theme,
+            "errors": sum(r["error"] for r in route_summary),
+            "warns": sum(r["warn"] for r in route_summary),
+            "infos": sum(r["info"] for r in route_summary),
+            "page_errs": sum(r["page_err"] for r in route_summary),
+            "console_errs": sum(r["console_err"] for r in route_summary),
+            "net_fails": sum(r["net_fail"] for r in route_summary),
+            "net_4xx": sum(r["net_4xx"] for r in route_summary),
+            "net_5xx": sum(r["net_5xx"] for r in route_summary),
+        }
+        gate = _compute_gate(theme_summary)
+        theme_summary["gate"] = gate
+
         # Per-theme markdown.
         lines: list[str] = []
         lines.append(f"# {theme} — visual review\n")
+        # GATE badge is the first thing humans + agents see, so a
+        # "FAIL" never gets buried under tables.
+        lines.append(f"{_gate_badge(gate, theme_summary)}\n")
         lines.append(
             f"_Generated by `bin/snap.py report` from "
             f"`tmp/snaps/{theme}/**/*.findings.json`._\n"
         )
         lines.append("## Per-route summary\n")
-        lines.append("| viewport | route | err | warn | info | net 4xx/5xx | console err | url |")
-        lines.append("|---|---|---:|---:|---:|---:|---:|---|")
+        lines.append("| viewport | route | err | warn | info | 4xx | 5xx | console err | url |")
+        lines.append("|---|---|---:|---:|---:|---:|---:|---:|---|")
         for r in route_summary:
             lines.append(
                 f"| {r['viewport']} | {r['route']} | {r['error']} | "
-                f"{r['warn']} | {r['info']} | {r['net_fail']} | "
-                f"{r['console_err']} | `{r['url']}` |"
+                f"{r['warn']} | {r['info']} | {r['net_4xx']} | "
+                f"{r['net_5xx']} | {r['console_err']} | `{r['url']}` |"
             )
         lines.append("")
 
@@ -1404,65 +2097,271 @@ def cmd_report(args: argparse.Namespace) -> int:
             lines.extend(meas_block)
             lines.append("")
 
-        out_path = SNAPS_DIR / theme / "review.md"
-        out_path.write_text("\n".join(lines), encoding="utf-8")
-        rollup.append({
-            "theme": theme,
-            "errors": sum(r["error"] for r in route_summary),
-            "warns": sum(r["warn"] for r in route_summary),
-            "infos": sum(r["info"] for r in route_summary),
-            "page_errs": sum(r["page_err"] for r in route_summary),
-            "net_fails": sum(r["net_fail"] for r in route_summary),
-            "report_path": str(out_path.relative_to(REPO_ROOT)),
-        })
+        theme_summary["report_path"] = (
+            str((SNAPS_DIR / theme / "review.md").relative_to(REPO_ROOT))
+        )
+        theme_summary["routes"] = route_summary
+
+        if write_md:
+            (SNAPS_DIR / theme / "review.md").write_text(
+                "\n".join(lines), encoding="utf-8"
+            )
+        if write_json:
+            (SNAPS_DIR / theme / "review.json").write_text(
+                json.dumps(theme_summary, indent=2), encoding="utf-8"
+            )
+        rollup.append(theme_summary)
+
+    overall_gate = _worst_gate(r["gate"] for r in rollup) if rollup else "pass"
 
     # Cross-theme rollup.
     rollup_lines = ["# Snap review — all themes\n"]
-    rollup_lines.append("| theme | errors | warns | infos | net 4xx/5xx | uncaught JS | report |")
-    rollup_lines.append("|---|---:|---:|---:|---:|---:|---|")
+    rollup_lines.append(f"{_gate_badge(overall_gate)}\n")
+    rollup_lines.append("| theme | gate | errors | warns | infos | 4xx | 5xx | uncaught JS | console err | report |")
+    rollup_lines.append("|---|---|---:|---:|---:|---:|---:|---:|---:|---|")
     for r in rollup:
         rollup_lines.append(
-            f"| {r['theme']} | {r['errors']} | {r['warns']} | {r['infos']} | "
-            f"{r['net_fails']} | {r['page_errs']} | "
+            f"| {r['theme']} | {r['gate'].upper()} | {r['errors']} | "
+            f"{r['warns']} | {r['infos']} | {r['net_4xx']} | "
+            f"{r['net_5xx']} | {r['page_errs']} | {r['console_errs']} | "
             f"`{r['report_path']}` |"
         )
+    if parity_findings:
+        rollup_lines.append("\n## Cross-theme parity drift\n")
+        rollup_lines.append(
+            "_One theme's measurement diverged > 25% from the cross-theme "
+            "median, OR one theme has > 2x the median error/warn count for "
+            "the same route. Often the first sign of a regression that "
+            "the per-theme baseline diff hasn't caught yet._\n"
+        )
+        for pf in parity_findings:
+            rollup_lines.append(
+                f"- `{pf['theme']}` `{pf['viewport']}/{pf['route']}` "
+                f"`{pf['kind']}`: {pf['message']}"
+            )
+
     SNAPS_DIR.mkdir(parents=True, exist_ok=True)
-    (SNAPS_DIR / "review.md").write_text(
-        "\n".join(rollup_lines) + "\n", encoding="utf-8"
-    )
-    (SNAPS_DIR / "review.json").write_text(
-        json.dumps({"themes": rollup}, indent=2), encoding="utf-8"
-    )
+    if write_md:
+        (SNAPS_DIR / "review.md").write_text(
+            "\n".join(rollup_lines) + "\n", encoding="utf-8"
+        )
+    if write_json:
+        (SNAPS_DIR / "review.json").write_text(
+            json.dumps(
+                {
+                    "gate": overall_gate,
+                    "themes": rollup,
+                    "parity_drift": parity_findings,
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
 
     # Print a terminal summary that mirrors the rollup.
-    print(f"\n{'theme':10s} {'err':>5s} {'warn':>5s} {'info':>5s} "
-          f"{'net4/5xx':>9s} {'js-err':>7s}  report")
-    print("-" * 70)
+    print(f"\n{'theme':10s} {'gate':>5s} {'err':>5s} {'warn':>5s} "
+          f"{'info':>5s} {'4xx':>4s} {'5xx':>4s} {'js-err':>7s}  report")
+    print("-" * 80)
     for r in rollup:
-        col = (RED if r["errors"] or r["page_errs"]
-               else YELLOW if r["warns"] or r["net_fails"]
-               else GREEN)
-        print(f"{r['theme']:10s} {col}{r['errors']:5d}{RESET} "
-              f"{r['warns']:5d} {r['infos']:5d} {r['net_fails']:9d} "
-              f"{r['page_errs']:7d}  {r['report_path']}")
+        gate = r["gate"]
+        col = RED if gate == "fail" else YELLOW if gate == "warn" else GREEN
+        print(f"{r['theme']:10s} {col}{gate.upper():>5s}{RESET} "
+              f"{r['errors']:5d} {r['warns']:5d} {r['infos']:5d} "
+              f"{r['net_4xx']:4d} {r['net_5xx']:4d} {r['page_errs']:7d}  "
+              f"{r['report_path']}")
     print()
     print(f"Cross-theme rollup: tmp/snaps/review.md")
+    if overall_gate == "warn" and getattr(args, "strict", False):
+        # Loud banner so a passing-but-noisy run still gets attention,
+        # even though we don't exit non-zero on warns.
+        print(f"\n{YELLOW}{'!' * 70}{RESET}")
+        print(f"{YELLOW}!!  WARN: snap report has {sum(r['warns'] for r in rollup)} "
+              f"warning(s) and {sum(r['infos'] for r in rollup)} info finding(s). !!{RESET}")
+        print(f"{YELLOW}!!  Build still passes, but please review tmp/snaps/review.md.    !!{RESET}")
+        print(f"{YELLOW}{'!' * 70}{RESET}")
+    _print_status(overall_gate, source="snap.py report")
+
+    if getattr(args, "open", False) and write_md:
+        review_md = SNAPS_DIR / "review.md"
+        if review_md.exists() and sys.platform == "darwin":
+            try:
+                subprocess.run(["open", str(review_md)], check=False)
+            except Exception:
+                pass
+
+    if getattr(args, "strict", False) and overall_gate == "fail":
+        return 1
+    return 0
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    """Verify every dependency the snap pipeline needs.
+
+    Exits 0 with a green tree when ready; 1 with a checklist of fixes
+    on miss. Designed to be the first thing a new contributor (or a
+    fresh CI run) calls before firing off a full sweep.
+
+    Checks:
+      * Python version >= 3.8
+      * Pillow available (used by the diff engine)
+      * Playwright available + Chromium installed
+      * @wp-playground/cli reachable via npx (network OR cache)
+      * axe-core vendored at bin/vendor/axe.min.js
+      * Per-theme baselines exist under tests/visual-baseline/<theme>/
+      * tmp/ writable
+    """
+    checks: list[tuple[str, bool, str]] = []  # (label, ok, hint)
+
+    # Python
+    py_ok = sys.version_info >= (3, 8)
+    checks.append((
+        f"Python {sys.version.split()[0]} >= 3.8",
+        py_ok,
+        "Upgrade Python to 3.8 or newer.",
+    ))
+
+    # Pillow
+    try:
+        import PIL  # noqa: F401
+        checks.append(("Pillow (image diff engine) installed", True, ""))
+    except ImportError:
+        checks.append((
+            "Pillow not installed",
+            False,
+            "pip install --user Pillow",
+        ))
+
+    # Playwright
+    try:
+        from playwright.sync_api import sync_playwright  # noqa: F401
+        checks.append(("Playwright (Python) installed", True, ""))
+        # Chromium binary
+        try:
+            with sync_playwright() as p:
+                br = p.chromium.launch()
+                br.close()
+            checks.append(("Playwright Chromium runnable", True, ""))
+        except Exception as e:
+            checks.append((
+                "Playwright Chromium NOT runnable",
+                False,
+                f"playwright install chromium  (error: {e})",
+            ))
+    except ImportError:
+        checks.append((
+            "Playwright not installed",
+            False,
+            "pip install --user playwright && playwright install chromium",
+        ))
+
+    # npx + @wp-playground/cli
+    try:
+        npx = subprocess.run(
+            ["npx", "--version"], capture_output=True, text=True, check=False,
+            timeout=10,
+        )
+        npx_ok = npx.returncode == 0
+        checks.append((
+            f"npx available ({(npx.stdout or '').strip()})",
+            npx_ok,
+            "Install Node.js (https://nodejs.org). npx ships with npm.",
+        ))
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        checks.append((
+            "npx not found",
+            False,
+            "Install Node.js so npx can fetch @wp-playground/cli.",
+        ))
+
+    # axe-core
+    if AXE_VENDOR_PATH.exists():
+        checks.append((
+            f"axe-core vendored at {AXE_VENDOR_PATH.relative_to(REPO_ROOT)}",
+            True, "",
+        ))
+    else:
+        checks.append((
+            "axe-core NOT vendored (will download on first shoot)",
+            True,  # not fatal -- snap.py downloads lazily
+            "Run `python3 bin/snap.py shoot --quick obel` once with "
+            "network access to vendor it.",
+        ))
+
+    # Baselines per theme
+    for theme in discover_themes():
+        bl = BASELINE_DIR / theme
+        has_any = bl.exists() and any(bl.rglob("*.png"))
+        checks.append((
+            f"baseline present: tests/visual-baseline/{theme}/",
+            has_any,
+            f"Run `python3 bin/snap.py shoot {theme} && "
+            f"python3 bin/snap.py baseline {theme}`.",
+        ))
+
+    # tmp writable
+    try:
+        TMP_DIR.mkdir(parents=True, exist_ok=True)
+        probe = TMP_DIR / ".doctor-probe"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+        checks.append((f"tmp/ writable", True, ""))
+    except Exception as e:
+        checks.append((
+            "tmp/ NOT writable",
+            False,
+            f"Fix permissions on tmp/ ({e}).",
+        ))
+
+    # Render the tree.
+    print(f"\n{DIM}Snap doctor — pre-flight checklist{RESET}")
+    print("-" * 60)
+    failed = 0
+    for label, ok, hint in checks:
+        if ok:
+            print(f"  {GREEN}✓{RESET} {label}")
+        else:
+            failed += 1
+            print(f"  {RED}✗{RESET} {label}")
+            if hint:
+                print(f"      {DIM}fix:{RESET} {hint}")
+    print()
+    if failed:
+        print(f"{RED}doctor: {failed} check(s) failed.{RESET}")
+        return 1
+    print(f"{GREEN}doctor: ready.{RESET}")
     return 0
 
 
 def cmd_check(args: argparse.Namespace) -> int:
-    """shoot --all then diff --all. The single command bin/check.py calls."""
-    args.all = True
+    """shoot then diff then report --strict.
+
+    The single command `bin/check.py --visual` calls. By default
+    operates on every theme; `--changed` restricts to themes touched
+    by uncommitted + base..HEAD diffs (Phase 5). Returns the worst of
+    the three exit codes: shoot crashes (1), pixel-diff regression
+    above threshold (1), or tiered-gate `fail` from report (1). Warns
+    do NOT fail; report prints a loud banner and returns 0.
+    """
     args.theme = None
     args.routes = None
     args.viewports = None
     args.quick = False
     args.concurrency = getattr(args, "concurrency", 1)
+    # `--changed` overrides --all; the shoot/diff/report functions all
+    # honor `args.changed` when set.
+    if not getattr(args, "changed", False):
+        args.all = True
     rc = cmd_shoot(args)
     if rc != 0:
         return rc
     args.theme = None
-    return cmd_diff(args)
+    diff_rc = cmd_diff(args)
+    # Report always runs even when diff failed -- the heuristic data is
+    # the most useful thing the agent has when something just broke.
+    args.format = getattr(args, "format", "both")
+    args.strict = True
+    report_rc = cmd_report(args)
+    return diff_rc or report_rc
 
 
 # ---------------------------------------------------------------------------
@@ -1510,6 +2409,17 @@ def build_parser() -> argparse.ArgumentParser:
                          help="Forwarded to @wp-playground/cli; default "
                          "'normal' so blueprint progress lands in "
                          "tmp/<theme>-server.log for debugging boot hangs.")
+    s_shoot.add_argument(
+        "--changed", action="store_true",
+        help="Smart: only shoot themes touched by uncommitted + "
+        "<changed-base>..HEAD git changes. Framework changes (bin/*) "
+        "fall back to all themes. Empty diff exits 0 immediately.",
+    )
+    s_shoot.add_argument(
+        "--changed-base", default=None,
+        help="Git base ref for --changed (e.g. main, HEAD~1). "
+        "Default: only consider uncommitted changes.",
+    )
     s_shoot.set_defaults(func=cmd_shoot)
 
     s_baseline = sub.add_parser(
@@ -1532,6 +2442,10 @@ def build_parser() -> argparse.ArgumentParser:
     s_diff.add_argument("--channel-tolerance", type=int, default=8,
                         help="Per-channel delta below which pixels are "
                         "treated as unchanged (anti-aliasing noise).")
+    s_diff.add_argument("--changed", action="store_true",
+                        help="Diff only themes touched by git diff (Phase 5).")
+    s_diff.add_argument("--changed-base", default=None,
+                        help="Git base ref for --changed.")
     s_diff.set_defaults(func=cmd_diff)
 
     s_check = sub.add_parser(
@@ -1544,6 +2458,17 @@ def build_parser() -> argparse.ArgumentParser:
     s_check.add_argument("--concurrency", type=int, default=1)
     s_check.add_argument("--verbosity", default="quiet",
                          choices=["quiet", "normal", "debug"])
+    s_check.add_argument(
+        "--changed", action="store_true",
+        help="Restrict shoot/diff/report to themes touched by git diff. "
+        "Bin/* framework changes fall back to all themes.",
+    )
+    s_check.add_argument("--changed-base", default=None,
+                         help="Git base ref for --changed (default: uncommitted).")
+    s_check.add_argument(
+        "--format", choices=["json", "md", "both"], default="both",
+        help="Forwarded to the report stage.",
+    )
     s_check.set_defaults(func=cmd_check)
 
     s_report = sub.add_parser(
@@ -1555,7 +2480,33 @@ def build_parser() -> argparse.ArgumentParser:
                           "theme that has snaps in tmp/snaps/.")
     s_report.add_argument("--all", action="store_true",
                           help="Force reporting on every discovered theme.")
+    s_report.add_argument(
+        "--strict", action="store_true",
+        help="Exit 1 when the tiered gate is FAIL (heuristic errors, "
+        "uncaught JS, or HTTP 5xx). Warns still exit 0 with a loud "
+        "banner. `bin/snap.py check` always passes --strict.",
+    )
+    s_report.add_argument(
+        "--format", choices=["json", "md", "both"], default="both",
+        help="Which artifacts to write: 'md' for review.md only, "
+        "'json' for review.json only, 'both' (default) for both.",
+    )
+    s_report.add_argument("--changed", action="store_true",
+                          help="Report only on themes touched by git diff.")
+    s_report.add_argument("--changed-base", default=None,
+                          help="Git base ref for --changed.")
+    s_report.add_argument(
+        "--open", action="store_true",
+        help="After writing review.md, open it in the default app "
+        "(macOS only; on other platforms this is a no-op).",
+    )
     s_report.set_defaults(func=cmd_report)
+
+    s_doctor = sub.add_parser(
+        "doctor",
+        help="Verify Playwright/Pillow/axe/baselines are ready.",
+    )
+    s_doctor.set_defaults(func=cmd_doctor)
 
     return p
 

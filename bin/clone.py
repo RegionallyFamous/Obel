@@ -36,6 +36,7 @@ from __future__ import annotations
 import argparse
 import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -118,6 +119,19 @@ def main() -> int:
         default=None,
         help="Path to the source theme folder. Defaults to <monorepo>/obel.",
     )
+    parser.add_argument(
+        "--snap",
+        action="store_true",
+        help=(
+            "After the clone + slug-rewrite finish, immediately run "
+            "`bin/snap.py shoot <new-theme>` and `bin/snap.py baseline "
+            "<new-theme>` so the new theme starts with a committed "
+            "baseline. Off by default because the new theme has no "
+            "seeded content yet; pass --snap once you've completed the "
+            "Next Steps below (especially seed-playground-content + "
+            "sync-playground)."
+        ),
+    )
     args = parser.parse_args()
 
     new_lower = slug_validate(args.new_name)
@@ -182,7 +196,29 @@ def main() -> int:
     print(f"     'every theme's homepage layout must be unique'.")
     print(f"  10. Run `python3 bin/check.py {dest.name} --quick` and fix anything")
     print(f"      that fails (especially the front-page uniqueness check).")
-    print(f"  11. Commit and push everything (theme, blueprint, content, images, docs/).")
+    print(f"  11. Run `python3 bin/snap.py shoot {dest.name}` then")
+    print(f"      `python3 bin/snap.py baseline {dest.name}` to seed")
+    print(f"      tests/visual-baseline/{dest.name}/ with reference PNGs.")
+    print(f"      (Or re-run this script with --snap to do steps 11+12 inline.)")
+    print(f"  12. Commit and push everything (theme, blueprint, content, images,")
+    print(f"      docs/, AND the new tests/visual-baseline/{dest.name}/ tree).")
+
+    if args.snap:
+        print(f"\n--snap: shooting {dest.name} and promoting to baseline...")
+        # Run the snap pipeline from the monorepo root (where bin/snap.py
+        # lives). A failure here is non-fatal -- the clone is still
+        # complete and the user can re-run the snap step manually.
+        snap_path = Path(__file__).resolve().parent / "snap.py"
+        snap_cwd = MONOREPO_ROOT
+        for cmd in (
+            [sys.executable, str(snap_path), "shoot", dest.name],
+            [sys.executable, str(snap_path), "baseline", dest.name],
+            [sys.executable, str(snap_path), "report", dest.name],
+        ):
+            print(f"\n>> {' '.join(cmd[1:])}")
+            rc = subprocess.call(cmd, cwd=str(snap_cwd))
+            if rc != 0:
+                print(f"   warn: command exited with {rc}; continuing.")
     return 0
 
 

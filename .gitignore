@@ -5,6 +5,12 @@
 # `tests/visual-baseline/` and is NOT ignored.
 tmp/
 
+# Snap framework: lazily vendored axe-core blob (~540KB).
+# Downloaded on first `bin/snap.py shoot` from a version-pinned CDN URL
+# (see AXE_VERSION in bin/snap.py) and cached locally. Re-downloads if
+# missing; safe to delete.
+bin/vendor/
+
 # macOS
 .DS_Store
 
