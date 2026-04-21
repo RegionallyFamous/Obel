@@ -118,6 +118,17 @@ ROUTES: list[Route] = [
         path="/journal/",
         description="Blog index (posts page) for editorial typography.",
     ),
+    Route(
+        slug="journal-post",
+        path="/caring-for-your-portable-hole/",
+        description=(
+            "Single journal post (`single.html` template) — the only place the "
+            "comments template-part actually paints. Picked the post with 4 "
+            "named commenters (Jamie / Brenda Ash / L. Ortega / Percival "
+            "Aftermath) so the comment-list rendering, identicons, and per-"
+            "comment separator are all visible in one shot."
+        ),
+    ),
 ]
 
 

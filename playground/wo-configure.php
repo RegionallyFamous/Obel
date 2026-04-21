@@ -60,10 +60,48 @@ delete_option( 'rewrite_rules' );
 WP_CLI::log( 'Permalinks: set to /%postname%/ and flushed.' );
 
 // ---------------------------------------------------------------------------
-// 2. Site identity
+// 2. Site identity + commenter avatars
 // ---------------------------------------------------------------------------
 update_option( 'blogdescription', $theme_name . ' demo storefront' );
-WP_CLI::log( 'Tagline: set.' );
+
+// Demo commenters (Jamie, Brenda Ash, L. Ortega, Percival Aftermath, …) ship
+// in the WXR with `comment_author_email` empty — that's why every comment
+// avatar renders as the generic gray "mystery person" silhouette and they
+// all look identical. Two changes fix it:
+//
+//   1. Switch the default avatar from `mystery` to `identicon` so empty/
+//      unknown emails render as a colorful per-hash pixel pattern instead
+//      of the same gray placeholder, and force avatars on (the `comments`
+//      template-part assumes they're enabled).
+//
+//   2. Backfill the empty comment emails with a stable per-author
+//      placeholder (sanitize_title(comment_author) + @example.invalid).
+//      Without this every commenter would still hash to the SAME identicon
+//      (the hash of '') so the gallery would just be one repeating pattern.
+//      `.invalid` is the IETF-reserved TLD (RFC 2606) so these never resolve
+//      to a real mailbox — important because demo content is publicly cloned.
+update_option( 'show_avatars', '1' );
+update_option( 'avatar_default', 'identicon' );
+
+global $wpdb;
+$empty_email_comments = $wpdb->get_results(
+	"SELECT comment_ID, comment_author FROM {$wpdb->comments}
+	  WHERE comment_author_email = '' OR comment_author_email IS NULL"
+);
+$backfilled = 0;
+foreach ( $empty_email_comments as $row ) {
+	$slug = sanitize_title( $row->comment_author );
+	if ( '' === $slug ) {
+		continue; // empty author too — leave blank, will show default identicon
+	}
+	$wpdb->update(
+		$wpdb->comments,
+		array( 'comment_author_email' => $slug . '@example.invalid' ),
+		array( 'comment_ID' => (int) $row->comment_ID )
+	);
+	++$backfilled;
+}
+WP_CLI::log( sprintf( 'Tagline + avatars: set. Backfilled %d empty comment email(s) for stable identicons.', $backfilled ) );
 
 // ---------------------------------------------------------------------------
 // 3. WooCommerce store config
