@@ -513,6 +513,14 @@ CSS_PHASE_D = f"""{SENTINEL_OPEN_PHASE_D}
 .wo-next-steps .wp-block-paragraph,.wo-next-steps p{{font-size:var(--wp--preset--font-size--sm);}}
 .wo-recs .wp-block-product-template,.wo-recs .wp-block-product-collection .wp-block-post-template{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--wp--preset--spacing--lg);}}
 @media (max-width:900px){{.wo-recs .wp-block-product-template,.wo-recs .wp-block-product-collection .wp-block-post-template{{grid-template-columns:repeat(2,minmax(0,1fr));}}}}
+.chonk-footer__wordmark .wp-block-site-title a{{color:var(--wp--preset--color--contrast);text-decoration:none;display:block;}}
+.chonk-footer__wordmark .wp-block-site-title a:hover{{color:var(--wp--preset--color--accent);}}
+.selvedge-footer__newsletter-form{{display:grid;grid-template-columns:1fr auto;gap:0;align-items:stretch;max-width:480px;margin:var(--wp--preset--spacing--md) auto 0;border:1px solid var(--wp--preset--color--border);border-radius:var(--wp--custom--radius--sm,4px);overflow:hidden;background:var(--wp--preset--color--base);}}
+.selvedge-footer__newsletter-label{{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}}
+.selvedge-footer__newsletter-input{{border:0;background:transparent;padding:var(--wp--preset--spacing--sm) var(--wp--preset--spacing--md);font-family:var(--wp--preset--font-family--sans);font-size:var(--wp--preset--font-size--sm);color:var(--wp--preset--color--contrast);min-width:0;}}
+.selvedge-footer__newsletter-input:focus{{outline:none;}}
+.selvedge-footer__newsletter-submit{{border:0;border-left:1px solid var(--wp--preset--color--border);background:var(--wp--preset--color--contrast);color:var(--wp--preset--color--base);font-family:var(--wp--preset--font-family--sans);font-size:var(--wp--preset--font-size--xs);letter-spacing:var(--wp--custom--letter-spacing--wider);text-transform:uppercase;padding:0 var(--wp--preset--spacing--lg);cursor:pointer;transition:background 160ms ease;}}
+.selvedge-footer__newsletter-submit:hover{{background:var(--wp--preset--color--accent);}}
 {SENTINEL_CLOSE_PHASE_D}"""
 
 

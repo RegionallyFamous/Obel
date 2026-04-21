@@ -1,6 +1,30 @@
 <!-- wp:group {"tagName":"footer","align":"full","style":{"spacing":{"padding":{"top":"var:preset|spacing|3-xl","bottom":"var:preset|spacing|xl"},"blockGap":"var:preset|spacing|2-xl"},"border":{"top":{"color":"var:preset|color|border","width":"1px","style":"solid"}}},"backgroundColor":"subtle","layout":{"type":"constrained","contentSize":"var(--wp--style--global--wide-size)"}} -->
 <footer class="wp-block-group alignfull has-subtle-background-color has-background" style="border-top-color:var(--wp--preset--color--border);border-top-style:solid;border-top-width:1px;padding-top:var(--wp--preset--spacing--3-xl);padding-bottom:var(--wp--preset--spacing--xl)">
 
+	<!-- wp:group {"align":"wide","className":"selvedge-footer__newsletter","style":{"spacing":{"padding":{"top":"var:preset|spacing|xl","bottom":"var:preset|spacing|2-xl"},"blockGap":"var:preset|spacing|md"},"border":{"bottom":{"color":"var:preset|color|border","width":"1px","style":"solid"}}},"layout":{"type":"constrained","contentSize":"var(--wp--custom--layout--prose)"}} -->
+	<div class="wp-block-group alignwide selvedge-footer__newsletter" style="border-bottom-color:var(--wp--preset--color--border);border-bottom-style:solid;border-bottom-width:1px;padding-top:var(--wp--preset--spacing--xl);padding-bottom:var(--wp--preset--spacing--2-xl)">
+		<!-- wp:paragraph {"align":"center","fontSize":"xs","textColor":"tertiary","style":{"typography":{"textTransform":"uppercase","letterSpacing":"var(--wp--custom--letter-spacing--widest)"},"spacing":{"margin":{"bottom":"0"}}}} -->
+		<p class="has-text-align-center has-tertiary-color has-text-color has-xs-font-size" style="margin-bottom:0;text-transform:uppercase;letter-spacing:var(--wp--custom--letter-spacing--widest)">The dispatch</p>
+		<!-- /wp:paragraph -->
+
+		<!-- wp:heading {"textAlign":"center","level":2,"content":"Field notes from the workshop.","fontSize":"3xl","style":{"typography":{"fontStyle":"italic","fontWeight":"500","letterSpacing":"var(--wp--custom--letter-spacing--tight)"},"spacing":{"margin":{"top":"0","bottom":"0"}}}} -->
+		<h2 class="wp-block-heading has-text-align-center has-3-xl-font-size" style="margin-top:0;margin-bottom:0;font-style:italic;font-weight:500;letter-spacing:var(--wp--custom--letter-spacing--tight)">Field notes from the workshop.</h2>
+		<!-- /wp:heading -->
+
+		<!-- wp:paragraph {"align":"center","textColor":"secondary","style":{"spacing":{"margin":{"top":"0"}}}} -->
+		<p class="has-text-align-center has-secondary-color has-text-color" style="margin-top:0">One letter a month — new drops, the stories behind them, and never a discount code.</p>
+		<!-- /wp:paragraph -->
+
+		<!-- wp:html -->
+		<form class="selvedge-footer__newsletter-form" action="/?wo-newsletter=1" method="post" novalidate>
+			<label class="selvedge-footer__newsletter-label" for="wo-newsletter-email">Email address</label>
+			<input class="selvedge-footer__newsletter-input" id="wo-newsletter-email" type="email" name="email" placeholder="you@workshop.com" required />
+			<button class="selvedge-footer__newsletter-submit" type="submit">Subscribe</button>
+		</form>
+		<!-- /wp:html -->
+	</div>
+	<!-- /wp:group -->
+
 	<!-- wp:columns {"align":"wide","style":{"spacing":{"blockGap":{"top":"var:preset|spacing|2-xl","left":"var:preset|spacing|2-xl"}}}} -->
 	<div class="wp-block-columns alignwide">
 
