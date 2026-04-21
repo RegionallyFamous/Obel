@@ -1671,6 +1671,186 @@ def check_no_ai_fingerprints() -> Result:
     return r
 
 
+def check_pdp_has_image() -> Result:
+    """Fail if a single-product template has no PDP image block.
+
+    PDP IMAGE FAIL MODE
+    -------------------
+    The single-product template originally rendered the WC image gallery via
+    `wp:woocommerce/product-image-gallery`. The block depends on
+    Flexslider + PhotoSwipe wiring at runtime; on Playground (and on a fresh
+    WC install where the gallery JS hasn't initialised yet) the markup
+    sometimes paints as a single empty cream-coloured box with a
+    magnifying-glass icon overlay — the worst possible "PDP that's broken"
+    tell on the demo.
+
+    Phase A migrates every theme's single-product PDP to render the image
+    via `wp:post-featured-image` instead, which is a server-rendered img
+    tag with no JS dependency. To make sure that swap is locked in we
+    require the template to render AT LEAST ONE of:
+
+        wp:post-featured-image
+        wp:woocommerce/product-image-gallery
+        wp:woocommerce/product-image
+        wp:woocommerce/product-gallery
+
+    If `wp:woocommerce/product-image-gallery` is the only image block, we
+    issue a warning (it's the regression-prone path); the check passes
+    because some themes legitimately need it (e.g. for the lightbox).
+
+    See AGENTS.md hard rule "PDP must always have a product image".
+    """
+    r = Result("PDP single-product template renders a product image block")
+    template_paths = [
+        ROOT / "templates" / "single-product.html",
+        ROOT / "templates" / "single-product-variable.html",
+    ]
+    template_paths = [p for p in template_paths if p.exists()]
+    if not template_paths:
+        r.skip("no single-product template found in this theme")
+        return r
+
+    image_blocks = (
+        "wp:post-featured-image",
+        "wp:woocommerce/product-image-gallery",
+        "wp:woocommerce/product-image",
+        "wp:woocommerce/product-gallery",
+    )
+    for path in template_paths:
+        rel = path.relative_to(ROOT).as_posix()
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if not any(b in text for b in image_blocks):
+            r.fail(
+                f"{rel} renders no product image block. PDPs without an "
+                f"image are the loudest \"this site is broken\" tell on "
+                f"the demo. Add one of: `wp:post-featured-image` "
+                f"(preferred — server-rendered, no JS dependency), "
+                f"`wp:woocommerce/product-image-gallery` (legacy — "
+                f"depends on Flexslider/PhotoSwipe init), "
+                f"`wp:woocommerce/product-image`, or "
+                f"`wp:woocommerce/product-gallery`."
+            )
+            continue
+        # If only the legacy gallery block is present, surface that as a
+        # detail line so a human reviewer can decide whether to swap to
+        # post-featured-image. This is informational, not a fail.
+        if (
+            "wp:woocommerce/product-image-gallery" in text
+            and "wp:post-featured-image" not in text
+            and "wp:woocommerce/product-image" not in text
+            and "wp:woocommerce/product-gallery" not in text
+        ):
+            r.details.append(
+                f"WARNING: {rel} renders ONLY "
+                f"`wp:woocommerce/product-image-gallery`. That block "
+                f"sometimes fails to initialise its Flexslider/PhotoSwipe "
+                f"JS on Playground and paints as an empty cream box with "
+                f"a magnifying-glass icon. Consider swapping to "
+                f"`wp:post-featured-image` (server-rendered, no JS)."
+            )
+    if r.passed and not r.skipped and not r.details:
+        r.details.append(f"{len(template_paths)} template(s) checked")
+    return r
+
+
+def check_no_default_wc_strings() -> Result:
+    """Fail if the wo-microcopy-mu.php inlined into blueprint.json doesn't
+    suppress every default-WC string the demo critique calls out.
+
+    DEFAULT-WC-STRING FAIL MODE
+    ---------------------------
+    Even after Phases A–E reskin every WC surface, three or four strings
+    on the cart, account login, and shop archive are unmistakable
+    "this is a stock WooCommerce install" tells:
+
+        - "Showing 1-16 of 55 results"  (loop result count)
+        - "Default sorting"             (catalog-sorting first option)
+        - "Estimated total"             (cart totals label)
+        - "Proceed to Checkout"         (order-button text)
+        - "Lost your password?"         (account form link)
+
+    We override them all in `playground/wo-microcopy-mu.php`, which is
+    inlined verbatim into each theme's `playground/blueprint.json` by
+    `bin/sync-playground.py`. If a future edit to the mu-plugin or the
+    sync script ever drops one of those overrides, this check fires
+    against the rendered blueprint so the regression is impossible to
+    miss in CI.
+
+    The check is per-theme because the per-theme constants
+    (`WO_THEME_NAME`, `WO_THEME_SLUG`, `WO_CONTENT_BASE_URL`) are
+    prepended to the inlined data; we want to confirm the mu-plugin
+    survived that prepend in every theme's blueprint.
+
+    See AGENTS.md hard rule "No default WC strings on the live demo".
+    """
+    r = Result("Default WC microcopy is overridden in inlined wo-microcopy-mu.php")
+    bp_path = ROOT / "playground" / "blueprint.json"
+    if not bp_path.exists():
+        r.skip("no playground/blueprint.json (theme without a Playground blueprint)")
+        return r
+    try:
+        bp = json.loads(bp_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        r.fail(f"playground/blueprint.json: invalid JSON ({exc}).")
+        return r
+
+    target_data: str | None = None
+    for step in bp.get("steps", []) or []:
+        if not isinstance(step, dict):
+            continue
+        if step.get("step") != "writeFile":
+            continue
+        if "wo-microcopy-mu.php" not in (step.get("path") or ""):
+            continue
+        data = step.get("data")
+        if isinstance(data, str):
+            target_data = data
+            break
+
+    if target_data is None:
+        r.fail(
+            "playground/blueprint.json has no inlined "
+            "wo-microcopy-mu.php writeFile step. The demo will paint "
+            "with WC's default strings (\"Showing 1-16 of 55 results\", "
+            "\"Default sorting\", \"Estimated total\", \"Proceed to "
+            "Checkout\", \"Lost your password?\"). Run "
+            "`python3 bin/sync-playground.py` to inline the mu-plugin."
+        )
+        return r
+
+    # Each entry: a fragment of the override that MUST appear in the
+    # inlined PHP, plus the user-facing default string it displaces.
+    # Fragments are intentionally narrow (the WP filter callback body)
+    # so a future refactor that splits the filter into multiple closures
+    # still works as long as the displaced string still gets replaced.
+    required = [
+        ("woocommerce_blocks_cart_totals_label",
+         "\"Estimated total\" cart totals label"),
+        ("woocommerce_order_button_text",
+         "\"Proceed to Checkout\" / \"Place order\" button text"),
+        ("woocommerce_default_catalog_orderby_options",
+         "\"Default sorting\" catalog-sorting first option"),
+        ("Lost your password?",
+         "\"Lost your password?\" account login link"),
+        ("wo-result-count",
+         "\"Showing 1-16 of 55 results\" loop result count"),
+    ]
+    for needle, label in required:
+        if needle not in target_data:
+            r.fail(
+                f"inlined wo-microcopy-mu.php is missing the override "
+                f"for {label} (looked for `{needle}`). The default "
+                f"string will paint on the live demo."
+            )
+
+    if r.passed and not r.skipped:
+        r.details.append(
+            f"all {len(required)} default-WC microcopy overrides "
+            f"present in inlined mu-plugin"
+        )
+    return r
+
+
 def check_no_unpushed_commits() -> Result:
     """Fail if local HEAD has commits that haven't reached origin yet.
 
@@ -1800,6 +1980,8 @@ def run_checks_for(theme_root: Path, offline: bool) -> int:
         check_cart_checkout_pages_are_wide(),
         check_blueprint_landing_page(),
         check_front_page_unique_layout(),
+        check_pdp_has_image(),
+        check_no_default_wc_strings(),
         check_no_unpushed_commits(),
     ]
 
