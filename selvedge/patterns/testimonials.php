@@ -24,7 +24,7 @@
 				<!-- wp:quote -->
 				<blockquote class="wp-block-quote">
 					<!-- wp:paragraph -->
-					<p><?php esc_html_e( 'Quality is exactly what they advertised. Will be back.', 'selvedge' ); ?></p>
+					<p><?php esc_html_e( 'Stitched like a garment built to outlast me. Already saving for the next one.', 'selvedge' ); ?></p>
 					<!-- /wp:paragraph -->
 					<cite><?php esc_html_e( 'Alex M.', 'selvedge' ); ?></cite>
 				</blockquote>
@@ -41,7 +41,7 @@
 				<!-- wp:quote -->
 				<blockquote class="wp-block-quote">
 					<!-- wp:paragraph -->
-					<p><?php esc_html_e( 'Shipping was fast and the packaging was beautiful.', 'selvedge' ); ?></p>
+					<p><?php esc_html_e( 'Wrapped in waxed paper, tied with twine. Felt like opening a parcel from another century.', 'selvedge' ); ?></p>
 					<!-- /wp:paragraph -->
 					<cite><?php esc_html_e( 'Sam P.', 'selvedge' ); ?></cite>
 				</blockquote>
@@ -58,7 +58,7 @@
 				<!-- wp:quote -->
 				<blockquote class="wp-block-quote">
 					<!-- wp:paragraph -->
-					<p><?php esc_html_e( 'I have had it for a year and it still looks brand new.', 'selvedge' ); ?></p>
+					<p><?php esc_html_e( 'A year of daily wear and the indigo\'s only just starting to fade where it should.', 'selvedge' ); ?></p>
 					<!-- /wp:paragraph -->
 					<cite><?php esc_html_e( 'Jordan K.', 'selvedge' ); ?></cite>
 				</blockquote>

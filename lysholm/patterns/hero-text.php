@@ -16,11 +16,11 @@
 	<!-- /wp:paragraph -->
 
 	<!-- wp:heading {"level":1,"textAlign":"center","fontSize":"4xl"} -->
-	<h1 class="wp-block-heading has-text-align-center has-4-xl-font-size"><?php esc_html_e( 'A clear, confident headline.', 'lysholm' ); ?></h1>
+	<h1 class="wp-block-heading has-text-align-center has-4-xl-font-size"><?php esc_html_e( 'A small new arrival from the studio.', 'lysholm' ); ?></h1>
 	<!-- /wp:heading -->
 
 	<!-- wp:paragraph {"align":"center","fontSize":"md","style":{"spacing":{"margin":{"top":"var:preset|spacing|md","bottom":"var:preset|spacing|lg"}}},"textColor":"secondary"} -->
-	<p class="has-text-align-center has-secondary-color has-text-color has-md-font-size" style="margin-top:var(--wp--preset--spacing--md);margin-bottom:var(--wp--preset--spacing--lg)"><?php esc_html_e( 'Supporting sentence that earns the click.', 'lysholm' ); ?></p>
+	<p class="has-text-align-center has-secondary-color has-text-color has-md-font-size" style="margin-top:var(--wp--preset--spacing--md);margin-bottom:var(--wp--preset--spacing--lg)"><?php esc_html_e( 'Quiet pieces, gently introduced — usually only a handful of each.', 'lysholm' ); ?></p>
 	<!-- /wp:paragraph -->
 
 	<!-- wp:buttons {"layout":{"type":"flex","justifyContent":"center"}} -->

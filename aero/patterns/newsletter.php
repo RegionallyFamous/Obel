@@ -12,18 +12,18 @@
 <!-- wp:group {"align":"full","backgroundColor":"contrast","textColor":"base","style":{"spacing":{"padding":{"top":"var:preset|spacing|2-xl","bottom":"var:preset|spacing|2-xl","left":"var:preset|spacing|lg","right":"var:preset|spacing|lg"}}},"layout":{"type":"constrained","contentSize":"var(--wp--custom--layout--comfortable)"}} -->
 <div class="wp-block-group alignfull has-base-color has-contrast-background-color has-text-color has-background" style="padding-top:var(--wp--preset--spacing--2-xl);padding-right:var(--wp--preset--spacing--lg);padding-bottom:var(--wp--preset--spacing--2-xl);padding-left:var(--wp--preset--spacing--lg)">
 	<!-- wp:heading {"textAlign":"center","level":2,"textColor":"base"} -->
-	<h2 class="wp-block-heading has-text-align-center has-base-color has-text-color"><?php esc_html_e( 'New drops, in your inbox.', 'aero' ); ?></h2>
+	<h2 class="wp-block-heading has-text-align-center has-base-color has-text-color"><?php esc_html_e( 'Get the shimmer dispatch.', 'aero' ); ?></h2>
 	<!-- /wp:heading -->
 
 	<!-- wp:paragraph {"align":"center","textColor":"base","style":{"spacing":{"margin":{"bottom":"var:preset|spacing|md"}}}} -->
-	<p class="has-text-align-center has-base-color has-text-color" style="margin-bottom:var(--wp--preset--spacing--md)"><?php esc_html_e( 'One short email when something new lands. No spam.', 'aero' ); ?></p>
+	<p class="has-text-align-center has-base-color has-text-color" style="margin-bottom:var(--wp--preset--spacing--md)"><?php esc_html_e( 'One soft-future note a month: new drops, studio gossip, the occasional haunted artefact. Unsubscribe whenever the spell breaks.', 'aero' ); ?></p>
 	<!-- /wp:paragraph -->
 
 	<!-- wp:search <?php echo wp_json_encode( array(
 		'label'          => __( 'Email address', 'aero' ),
 		'showLabel'      => false,
 		'placeholder'    => __( 'you@example.com', 'aero' ),
-		'buttonText'     => __( 'Subscribe', 'aero' ),
+		'buttonText'     => __( 'Catch the dispatch ✦', 'aero' ),
 		'buttonPosition' => 'button-inside',
 		'buttonUseIcon'  => false,
 		'align'          => 'center',

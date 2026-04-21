@@ -2881,6 +2881,118 @@ def check_pdp_has_image() -> Result:
     return r
 
 
+# Pattern microcopy strings shorter than this are treated as labels
+# (e.g. "Shop", "Returns", "Privacy", "Read more", "Read the journal")
+# and ignored — they're conventional wayfinding text every store needs
+# and re-using them across themes is normal. Anything longer is body
+# copy or a headline that must be rewritten in the theme's own voice.
+PATTERN_MICROCOPY_MIN_CHARS = 20
+
+# Translatable string call-sites we scan inside patterns/*.php. We
+# deliberately exclude the `esc_attr_*` family because those wrap
+# alt-text / aria-label / title attributes, which describe the same
+# image or icon across themes and SHOULD match by design (an image of
+# a coral-linen-tagged glass bottle is a coral-linen-tagged glass bottle
+# regardless of the theme's voice).
+PATTERN_MICROCOPY_RE = re.compile(
+    r"""(?<![A-Za-z0-9_])(?:esc_html_e|esc_html__|_e|__)\s*\(\s*(['"])(.*?)\1""",
+    re.DOTALL,
+)
+
+
+def _extract_pattern_microcopy(patterns_dir: Path) -> dict[str, set[str]]:
+    """Map basename → set of long user-facing strings inside each pattern.
+
+    We bucket per-file so the failure message can tell you exactly which
+    pattern in the current theme still ships the obel default for the
+    same-named pattern.
+    """
+    out: dict[str, set[str]] = {}
+    if not patterns_dir.is_dir():
+        return out
+    for php in sorted(patterns_dir.glob("*.php")):
+        text = php.read_text(encoding="utf-8", errors="ignore")
+        strings = {
+            m.group(2)
+            for m in PATTERN_MICROCOPY_RE.finditer(text)
+            if len(m.group(2)) >= PATTERN_MICROCOPY_MIN_CHARS
+        }
+        if strings:
+            out[php.name] = strings
+    return out
+
+
+def check_pattern_microcopy_distinct() -> Result:
+    """Fail when patterns ship microcopy that's byte-identical to obel's
+    same-named pattern. (Skipped when running against obel itself.)
+
+    Why this exists
+    ---------------
+    `bin/clone.py` copies obel's patterns into every new theme, rewriting
+    only the slug + textdomain. Without a follow-up pass the new theme
+    inherits obel's placeholder copy — "A short statement of intent.",
+    "Two or three sentences explaining why your brand exists...", "One
+    sentence that expands on the headline.", "What customers say." —
+    and ships them in production. That microcopy is the single biggest
+    "this is a generic obel clone" tell.
+
+    What this check enforces
+    ------------------------
+    For every pattern file in the current theme:
+      - Find the same-named pattern in `obel/patterns/`.
+      - Compare every translatable string ≥ PATTERN_MICROCOPY_MIN_CHARS
+        characters (we ignore short labels like "Shop" / "Returns"
+        because every store needs them).
+      - Fail if any string in the current theme's pattern is identical
+        to a string in obel's pattern.
+
+    The fix is always the same: rewrite the offending string in the
+    theme's own voice. The check fires per-string so you can see exactly
+    which placeholders are still inherited.
+    """
+    r = Result("Pattern microcopy distinct from obel placeholders")
+
+    theme_slug = ROOT.name
+    if theme_slug == "obel":
+        r.skip("running against obel itself; obel IS the source of the placeholders")
+        return r
+
+    obel_patterns = MONOREPO_ROOT / "obel" / "patterns"
+    if not obel_patterns.is_dir():
+        r.skip("obel/patterns/ not found in monorepo (cannot diff)")
+        return r
+
+    obel_strings = _extract_pattern_microcopy(obel_patterns)
+    theme_strings = _extract_pattern_microcopy(ROOT / "patterns")
+    if not theme_strings:
+        r.skip("no patterns/*.php in this theme")
+        return r
+
+    leaks: list[tuple[str, str]] = []
+    for fname, strings in sorted(theme_strings.items()):
+        obel_set = obel_strings.get(fname, set())
+        if not obel_set:
+            continue
+        for s in sorted(strings & obel_set):
+            leaks.append((fname, s))
+
+    if leaks:
+        for fname, s in leaks:
+            short = s if len(s) <= 80 else s[:77] + "..."
+            r.fail(
+                f"patterns/{fname}: ships obel's default microcopy verbatim — "
+                f"\"{short}\" — rewrite in {theme_slug}'s voice"
+            )
+        return r
+
+    files_checked = sum(1 for f in theme_strings if f in obel_strings)
+    r.details.append(
+        f"{files_checked} pattern file(s) checked against obel; "
+        f"all microcopy distinct"
+    )
+    return r
+
+
 def check_no_default_wc_strings() -> Result:
     """Fail if the wo-microcopy-mu.php inlined into blueprint.json doesn't
     suppress every default-WC string the demo critique calls out.
@@ -3114,6 +3226,7 @@ def run_checks_for(theme_root: Path, offline: bool) -> int:
         check_blueprint_landing_page(),
         check_front_page_unique_layout(),
         check_pdp_has_image(),
+        check_pattern_microcopy_distinct(),
         check_no_default_wc_strings(),
         check_no_unpushed_commits(),
     ]

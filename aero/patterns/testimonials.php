@@ -12,7 +12,7 @@
 <!-- wp:group {"align":"full","style":{"spacing":{"padding":{"top":"var:preset|spacing|2-xl","bottom":"var:preset|spacing|2-xl","left":"var:preset|spacing|lg","right":"var:preset|spacing|lg"}}},"layout":{"type":"constrained"}} -->
 <div class="wp-block-group alignfull" style="padding-top:var(--wp--preset--spacing--2-xl);padding-right:var(--wp--preset--spacing--lg);padding-bottom:var(--wp--preset--spacing--2-xl);padding-left:var(--wp--preset--spacing--lg)">
 	<!-- wp:heading {"textAlign":"center"} -->
-	<h2 class="wp-block-heading has-text-align-center"><?php esc_html_e( 'What customers say', 'aero' ); ?></h2>
+	<h2 class="wp-block-heading has-text-align-center"><?php esc_html_e( 'What the shimmer-pilled say', 'aero' ); ?></h2>
 	<!-- /wp:heading -->
 
 	<!-- wp:columns {"align":"wide","style":{"spacing":{"margin":{"top":"var:preset|spacing|xl"}}}} -->
@@ -24,9 +24,9 @@
 				<!-- wp:quote -->
 				<blockquote class="wp-block-quote">
 					<!-- wp:paragraph -->
-					<p><?php esc_html_e( 'Quality is exactly what they advertised. Will be back.', 'aero' ); ?></p>
+					<p><?php esc_html_e( 'Opened the box. Closed the curtains. Watched it shimmer for an embarrassingly long time.', 'aero' ); ?></p>
 					<!-- /wp:paragraph -->
-					<cite><?php esc_html_e( 'Alex M.', 'aero' ); ?></cite>
+					<cite><?php esc_html_e( 'Mira L.', 'aero' ); ?></cite>
 				</blockquote>
 				<!-- /wp:quote -->
 			</div>
@@ -41,9 +41,9 @@
 				<!-- wp:quote -->
 				<blockquote class="wp-block-quote">
 					<!-- wp:paragraph -->
-					<p><?php esc_html_e( 'Shipping was fast and the packaging was beautiful.', 'aero' ); ?></p>
+					<p><?php esc_html_e( 'Came wrapped in tissue paper that I refused to throw away. Even the box was a vibe.', 'aero' ); ?></p>
 					<!-- /wp:paragraph -->
-					<cite><?php esc_html_e( 'Sam P.', 'aero' ); ?></cite>
+					<cite><?php esc_html_e( 'Theo R.', 'aero' ); ?></cite>
 				</blockquote>
 				<!-- /wp:quote -->
 			</div>
@@ -58,9 +58,9 @@
 				<!-- wp:quote -->
 				<blockquote class="wp-block-quote">
 					<!-- wp:paragraph -->
-					<p><?php esc_html_e( 'I have had it for a year and it still looks brand new.', 'aero' ); ?></p>
+					<p><?php esc_html_e( 'A whole year in and it still catches the light like the day it arrived. Slightly haunted, fully obsessed.', 'aero' ); ?></p>
 					<!-- /wp:paragraph -->
-					<cite><?php esc_html_e( 'Jordan K.', 'aero' ); ?></cite>
+					<cite><?php esc_html_e( 'Iris N.', 'aero' ); ?></cite>
 				</blockquote>
 				<!-- /wp:quote -->
 			</div>

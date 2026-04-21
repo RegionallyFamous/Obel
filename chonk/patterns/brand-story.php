@@ -20,11 +20,11 @@
 			<!-- /wp:paragraph -->
 
 			<!-- wp:heading {"level":2} -->
-			<h2 class="wp-block-heading"><?php esc_html_e( 'A short statement of intent.', 'chonk' ); ?></h2>
+			<h2 class="wp-block-heading"><?php esc_html_e( 'WE BUILD STUFF THAT LASTS.', 'chonk' ); ?></h2>
 			<!-- /wp:heading -->
 
 			<!-- wp:paragraph {"textColor":"secondary","fontSize":"md"} -->
-			<p class="has-secondary-color has-text-color has-md-font-size"><?php esc_html_e( 'Two or three sentences explaining why your brand exists, what it makes, and who it makes it for. Keep it concrete.', 'chonk' ); ?></p>
+			<p class="has-secondary-color has-text-color has-md-font-size"><?php esc_html_e( 'Born in a freight elevator, raised on cement floors. We make heavy, chunky, unfussy goods for people who are tired of things that fall apart. Nothing here is dainty.', 'chonk' ); ?></p>
 			<!-- /wp:paragraph -->
 
 			<!-- wp:buttons -->

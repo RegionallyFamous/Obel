@@ -20,13 +20,13 @@
 		<!-- wp:accordion-item -->
 		<div class="wp-block-accordion-item">
 			<!-- wp:accordion-heading -->
-			<h3 class="wp-block-accordion-heading"><button class="wp-block-accordion-heading__toggle"><span class="wp-block-accordion-heading__toggle-title"><?php esc_html_e( 'How long does shipping take?', 'lysholm' ); ?></span><span class="wp-block-accordion-heading__toggle-icon" aria-hidden="true">+</span></button></h3>
+			<h3 class="wp-block-accordion-heading"><button class="wp-block-accordion-heading__toggle"><span class="wp-block-accordion-heading__toggle-title"><?php esc_html_e( 'When does the parcel arrive?', 'lysholm' ); ?></span><span class="wp-block-accordion-heading__toggle-icon" aria-hidden="true">+</span></button></h3>
 			<!-- /wp:accordion-heading -->
 
 			<!-- wp:accordion-panel -->
 			<div role="region" class="wp-block-accordion-panel">
 				<!-- wp:paragraph -->
-				<p><?php esc_html_e( 'Most orders ship within 1-2 business days and arrive within a week.', 'lysholm' ); ?></p>
+				<p><?php esc_html_e( 'Each parcel is wrapped at the studio within a day or two. Most arrive at your door inside the week.', 'lysholm' ); ?></p>
 				<!-- /wp:paragraph -->
 			</div>
 			<!-- /wp:accordion-panel -->
@@ -36,13 +36,13 @@
 		<!-- wp:accordion-item -->
 		<div class="wp-block-accordion-item">
 			<!-- wp:accordion-heading -->
-			<h3 class="wp-block-accordion-heading"><button class="wp-block-accordion-heading__toggle"><span class="wp-block-accordion-heading__toggle-title"><?php esc_html_e( 'What is your return policy?', 'lysholm' ); ?></span><span class="wp-block-accordion-heading__toggle-icon" aria-hidden="true">+</span></button></h3>
+			<h3 class="wp-block-accordion-heading"><button class="wp-block-accordion-heading__toggle"><span class="wp-block-accordion-heading__toggle-title"><?php esc_html_e( 'What if it doesn\'t suit the room?', 'lysholm' ); ?></span><span class="wp-block-accordion-heading__toggle-icon" aria-hidden="true">+</span></button></h3>
 			<!-- /wp:accordion-heading -->
 
 			<!-- wp:accordion-panel -->
 			<div role="region" class="wp-block-accordion-panel">
 				<!-- wp:paragraph -->
-				<p><?php esc_html_e( 'Returns are free within 30 days of delivery.', 'lysholm' ); ?></p>
+				<p><?php esc_html_e( 'Return any unused piece within 30 days, on us. We\'ll see it placed in a home that fits it better.', 'lysholm' ); ?></p>
 				<!-- /wp:paragraph -->
 			</div>
 			<!-- /wp:accordion-panel -->
@@ -52,13 +52,13 @@
 		<!-- wp:accordion-item -->
 		<div class="wp-block-accordion-item">
 			<!-- wp:accordion-heading -->
-			<h3 class="wp-block-accordion-heading"><button class="wp-block-accordion-heading__toggle"><span class="wp-block-accordion-heading__toggle-title"><?php esc_html_e( 'Do you ship internationally?', 'lysholm' ); ?></span><span class="wp-block-accordion-heading__toggle-icon" aria-hidden="true">+</span></button></h3>
+			<h3 class="wp-block-accordion-heading"><button class="wp-block-accordion-heading__toggle"><span class="wp-block-accordion-heading__toggle-title"><?php esc_html_e( 'Do you post past the country?', 'lysholm' ); ?></span><span class="wp-block-accordion-heading__toggle-icon" aria-hidden="true">+</span></button></h3>
 			<!-- /wp:accordion-heading -->
 
 			<!-- wp:accordion-panel -->
 			<div role="region" class="wp-block-accordion-panel">
 				<!-- wp:paragraph -->
-				<p><?php esc_html_e( 'Yes. International shipping rates are calculated at checkout.', 'lysholm' ); ?></p>
+				<p><?php esc_html_e( 'Yes — we post worldwide. Rates are quietly calculated at checkout based on parcel weight and destination.', 'lysholm' ); ?></p>
 				<!-- /wp:paragraph -->
 			</div>
 			<!-- /wp:accordion-panel -->
@@ -68,13 +68,13 @@
 		<!-- wp:accordion-item -->
 		<div class="wp-block-accordion-item">
 			<!-- wp:accordion-heading -->
-			<h3 class="wp-block-accordion-heading"><button class="wp-block-accordion-heading__toggle"><span class="wp-block-accordion-heading__toggle-title"><?php esc_html_e( 'Can I track my order?', 'lysholm' ); ?></span><span class="wp-block-accordion-heading__toggle-icon" aria-hidden="true">+</span></button></h3>
+			<h3 class="wp-block-accordion-heading"><button class="wp-block-accordion-heading__toggle"><span class="wp-block-accordion-heading__toggle-title"><?php esc_html_e( 'Can I follow the parcel home?', 'lysholm' ); ?></span><span class="wp-block-accordion-heading__toggle-icon" aria-hidden="true">+</span></button></h3>
 			<!-- /wp:accordion-heading -->
 
 			<!-- wp:accordion-panel -->
 			<div role="region" class="wp-block-accordion-panel">
 				<!-- wp:paragraph -->
-				<p><?php esc_html_e( 'A tracking link is emailed when the carrier picks up your parcel.', 'lysholm' ); ?></p>
+				<p><?php esc_html_e( 'A tracking link arrives in your inbox the moment the carrier collects the parcel from the studio.', 'lysholm' ); ?></p>
 				<!-- /wp:paragraph -->
 			</div>
 			<!-- /wp:accordion-panel -->
@@ -84,13 +84,13 @@
 		<!-- wp:accordion-item -->
 		<div class="wp-block-accordion-item">
 			<!-- wp:accordion-heading -->
-			<h3 class="wp-block-accordion-heading"><button class="wp-block-accordion-heading__toggle"><span class="wp-block-accordion-heading__toggle-title"><?php esc_html_e( 'How do I contact support?', 'lysholm' ); ?></span><span class="wp-block-accordion-heading__toggle-icon" aria-hidden="true">+</span></button></h3>
+			<h3 class="wp-block-accordion-heading"><button class="wp-block-accordion-heading__toggle"><span class="wp-block-accordion-heading__toggle-title"><?php esc_html_e( 'How do I reach the studio?', 'lysholm' ); ?></span><span class="wp-block-accordion-heading__toggle-icon" aria-hidden="true">+</span></button></h3>
 			<!-- /wp:accordion-heading -->
 
 			<!-- wp:accordion-panel -->
 			<div role="region" class="wp-block-accordion-panel">
 				<!-- wp:paragraph -->
-				<p><?php esc_html_e( 'Email us at help@example.com. We answer within one business day.', 'lysholm' ); ?></p>
+				<p><?php esc_html_e( 'Write to hello@example.com — a maker reads every note and replies within a quiet working day.', 'lysholm' ); ?></p>
 				<!-- /wp:paragraph -->
 			</div>
 			<!-- /wp:accordion-panel -->

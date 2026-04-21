@@ -16,11 +16,11 @@
 	<!-- /wp:paragraph -->
 
 	<!-- wp:heading {"level":1,"textAlign":"center","fontSize":"4xl"} -->
-	<h1 class="wp-block-heading has-text-align-center has-4-xl-font-size"><?php esc_html_e( 'A clear, confident headline.', 'chonk' ); ?></h1>
+	<h1 class="wp-block-heading has-text-align-center has-4-xl-font-size"><?php esc_html_e( 'NEW DROP. CHUNKY AS USUAL.', 'chonk' ); ?></h1>
 	<!-- /wp:heading -->
 
 	<!-- wp:paragraph {"align":"center","fontSize":"md","style":{"spacing":{"margin":{"top":"var:preset|spacing|md","bottom":"var:preset|spacing|lg"}}},"textColor":"secondary"} -->
-	<p class="has-text-align-center has-secondary-color has-text-color has-md-font-size" style="margin-top:var(--wp--preset--spacing--md);margin-bottom:var(--wp--preset--spacing--lg)"><?php esc_html_e( 'Supporting sentence that earns the click.', 'chonk' ); ?></p>
+	<p class="has-text-align-center has-secondary-color has-text-color has-md-font-size" style="margin-top:var(--wp--preset--spacing--md);margin-bottom:var(--wp--preset--spacing--lg)"><?php esc_html_e( 'Fresh batch off the line. Heavy hardware, honest construction, zero subtlety.', 'chonk' ); ?></p>
 	<!-- /wp:paragraph -->
 
 	<!-- wp:buttons {"layout":{"type":"flex","justifyContent":"center"}} -->

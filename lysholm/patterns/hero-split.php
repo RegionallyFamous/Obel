@@ -36,11 +36,11 @@
 		<!-- wp:column {"verticalAlignment":"center","width":"50%"} -->
 		<div class="wp-block-column is-vertically-aligned-center" style="flex-basis:50%">
 			<!-- wp:heading {"level":1,"fontSize":"5xl"} -->
-			<h1 class="wp-block-heading has-5-xl-font-size"><?php esc_html_e( 'Designed for commerce.', 'lysholm' ); ?></h1>
+			<h1 class="wp-block-heading has-5-xl-font-size"><?php esc_html_e( 'Slow goods, gently kept.', 'lysholm' ); ?></h1>
 			<!-- /wp:heading -->
 
 			<!-- wp:paragraph {"fontSize":"md","textColor":"secondary"} -->
-			<p class="has-secondary-color has-text-color has-md-font-size"><?php esc_html_e( 'A block-only WooCommerce theme. Composed entirely of core blocks, styled entirely from one design file.', 'lysholm' ); ?></p>
+			<p class="has-secondary-color has-text-color has-md-font-size"><?php esc_html_e( 'A small Nordic studio of pale ceramics, washed linen, and hand-shaped wood — chosen for the quiet years they earn beside you.', 'lysholm' ); ?></p>
 			<!-- /wp:paragraph -->
 
 			<!-- wp:buttons {"style":{"spacing":{"margin":{"top":"var:preset|spacing|md"}}}} -->

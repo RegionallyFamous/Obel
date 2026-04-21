@@ -14,7 +14,7 @@
 	<!-- wp:group {"align":"wide","layout":{"type":"flex","flexWrap":"wrap","justifyContent":"space-between","verticalAlignment":"center"}} -->
 	<div class="wp-block-group alignwide">
 		<!-- wp:heading {"level":3,"fontSize":"xl","style":{"typography":{"fontStyle":"italic","fontWeight":"700"}}} -->
-		<h3 class="wp-block-heading has-xl-font-size" style="font-style:italic;font-weight:700"><?php esc_html_e( 'Ready to make it yours?', 'selvedge' ); ?></h3>
+		<h3 class="wp-block-heading has-xl-font-size" style="font-style:italic;font-weight:700"><?php esc_html_e( 'Take one home and wear it in.', 'selvedge' ); ?></h3>
 		<!-- /wp:heading -->
 
 		<!-- wp:buttons -->

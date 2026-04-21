@@ -24,7 +24,7 @@
 				<!-- wp:quote -->
 				<blockquote class="wp-block-quote">
 					<!-- wp:paragraph -->
-					<p><?php esc_html_e( 'Quality is exactly what they advertised. Will be back.', 'chonk' ); ?></p>
+					<p><?php esc_html_e( 'Heavier than I expected. In the best way. Already eyeing my next one.', 'chonk' ); ?></p>
 					<!-- /wp:paragraph -->
 					<cite><?php esc_html_e( 'Alex M.', 'chonk' ); ?></cite>
 				</blockquote>
@@ -41,7 +41,7 @@
 				<!-- wp:quote -->
 				<blockquote class="wp-block-quote">
 					<!-- wp:paragraph -->
-					<p><?php esc_html_e( 'Shipping was fast and the packaging was beautiful.', 'chonk' ); ?></p>
+					<p><?php esc_html_e( 'Box arrived in two days, wrapped like a piece of industrial equipment. Solid.', 'chonk' ); ?></p>
 					<!-- /wp:paragraph -->
 					<cite><?php esc_html_e( 'Sam P.', 'chonk' ); ?></cite>
 				</blockquote>
@@ -58,7 +58,7 @@
 				<!-- wp:quote -->
 				<blockquote class="wp-block-quote">
 					<!-- wp:paragraph -->
-					<p><?php esc_html_e( 'I have had it for a year and it still looks brand new.', 'chonk' ); ?></p>
+					<p><?php esc_html_e( 'A year of daily abuse and the thing still looks like the day I unboxed it.', 'chonk' ); ?></p>
 					<!-- /wp:paragraph -->
 					<cite><?php esc_html_e( 'Jordan K.', 'chonk' ); ?></cite>
 				</blockquote>

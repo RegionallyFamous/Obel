@@ -14,11 +14,11 @@
 	<!-- wp:group {"layout":{"type":"flex","orientation":"vertical","justifyContent":"center"}} -->
 	<div class="wp-block-group">
 		<!-- wp:paragraph {"align":"center","fontSize":"xs","style":{"typography":{"letterSpacing":"var:custom|letter-spacing|wider","textTransform":"uppercase"}},"textColor":"tertiary"} -->
-		<p class="has-text-align-center has-tertiary-color has-text-color has-xs-font-size" style="letter-spacing:var(--wp--custom--letter-spacing--wider);text-transform:uppercase"><?php esc_html_e( 'Featured', 'aero' ); ?></p>
+		<p class="has-text-align-center has-tertiary-color has-text-color has-xs-font-size" style="letter-spacing:var(--wp--custom--letter-spacing--wider);text-transform:uppercase">✦ <?php esc_html_e( 'Hand-picked', 'aero' ); ?> ✦</p>
 		<!-- /wp:paragraph -->
 
 		<!-- wp:heading {"textAlign":"center","level":2} -->
-		<h2 class="wp-block-heading has-text-align-center"><?php esc_html_e( 'This season\'s picks', 'aero' ); ?></h2>
+		<h2 class="wp-block-heading has-text-align-center"><?php esc_html_e( 'Glittering this week', 'aero' ); ?></h2>
 		<!-- /wp:heading -->
 	</div>
 	<!-- /wp:group -->

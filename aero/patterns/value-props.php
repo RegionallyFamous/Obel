@@ -16,10 +16,10 @@
 		<!-- wp:column -->
 		<div class="wp-block-column">
 			<!-- wp:heading {"level":3,"fontSize":"lg"} -->
-			<h3 class="wp-block-heading has-lg-font-size"><?php esc_html_e( 'Free shipping', 'aero' ); ?></h3>
+			<h3 class="wp-block-heading has-lg-font-size"><?php esc_html_e( '✦ Holographic shipping', 'aero' ); ?></h3>
 			<!-- /wp:heading -->
 			<!-- wp:paragraph {"textColor":"secondary"} -->
-			<p class="has-secondary-color has-text-color"><?php esc_html_e( 'On every order over $50, anywhere in the country.', 'aero' ); ?></p>
+			<p class="has-secondary-color has-text-color"><?php esc_html_e( 'Free over $50, wrapped in tissue paper, sealed with a holographic sticker.', 'aero' ); ?></p>
 			<!-- /wp:paragraph -->
 		</div>
 		<!-- /wp:column -->
@@ -27,10 +27,10 @@
 		<!-- wp:column -->
 		<div class="wp-block-column">
 			<!-- wp:heading {"level":3,"fontSize":"lg"} -->
-			<h3 class="wp-block-heading has-lg-font-size"><?php esc_html_e( '30-day returns', 'aero' ); ?></h3>
+			<h3 class="wp-block-heading has-lg-font-size"><?php esc_html_e( '✦ 30-day spell check', 'aero' ); ?></h3>
 			<!-- /wp:heading -->
 			<!-- wp:paragraph {"textColor":"secondary"} -->
-			<p class="has-secondary-color has-text-color"><?php esc_html_e( 'Not what you expected? Send it back, no questions asked.', 'aero' ); ?></p>
+			<p class="has-secondary-color has-text-color"><?php esc_html_e( 'Spell broke? Send it back inside 30 days. We’ll find it a better home, no questions.', 'aero' ); ?></p>
 			<!-- /wp:paragraph -->
 		</div>
 		<!-- /wp:column -->
@@ -38,10 +38,10 @@
 		<!-- wp:column -->
 		<div class="wp-block-column">
 			<!-- wp:heading {"level":3,"fontSize":"lg"} -->
-			<h3 class="wp-block-heading has-lg-font-size"><?php esc_html_e( 'Made to last', 'aero' ); ?></h3>
+			<h3 class="wp-block-heading has-lg-font-size"><?php esc_html_e( '✦ Built to outlast trends', 'aero' ); ?></h3>
 			<!-- /wp:heading -->
 			<!-- wp:paragraph {"textColor":"secondary"} -->
-			<p class="has-secondary-color has-text-color"><?php esc_html_e( 'Materials sourced for longevity, not the next replacement cycle.', 'aero' ); ?></p>
+			<p class="has-secondary-color has-text-color"><?php esc_html_e( 'Sourced from small studios who care about decades, not seasons. Shimmer ages well around here.', 'aero' ); ?></p>
 			<!-- /wp:paragraph -->
 		</div>
 		<!-- /wp:column -->

@@ -19,7 +19,7 @@
 			<h3 class="wp-block-heading has-lg-font-size"><?php esc_html_e( 'Free shipping', 'lysholm' ); ?></h3>
 			<!-- /wp:heading -->
 			<!-- wp:paragraph {"textColor":"secondary"} -->
-			<p class="has-secondary-color has-text-color"><?php esc_html_e( 'On every order over $50, anywhere in the country.', 'lysholm' ); ?></p>
+			<p class="has-secondary-color has-text-color"><?php esc_html_e( 'Free shipping over $50, posted from the studio in tissue paper and hemp twine.', 'lysholm' ); ?></p>
 			<!-- /wp:paragraph -->
 		</div>
 		<!-- /wp:column -->
@@ -30,7 +30,7 @@
 			<h3 class="wp-block-heading has-lg-font-size"><?php esc_html_e( '30-day returns', 'lysholm' ); ?></h3>
 			<!-- /wp:heading -->
 			<!-- wp:paragraph {"textColor":"secondary"} -->
-			<p class="has-secondary-color has-text-color"><?php esc_html_e( 'Not what you expected? Send it back, no questions asked.', 'lysholm' ); ?></p>
+			<p class="has-secondary-color has-text-color"><?php esc_html_e( 'If it doesn\'t suit the room, return it unused within 30 days. We\'ll cover the post and place it elsewhere.', 'lysholm' ); ?></p>
 			<!-- /wp:paragraph -->
 		</div>
 		<!-- /wp:column -->
@@ -41,7 +41,7 @@
 			<h3 class="wp-block-heading has-lg-font-size"><?php esc_html_e( 'Made to last', 'lysholm' ); ?></h3>
 			<!-- /wp:heading -->
 			<!-- wp:paragraph {"textColor":"secondary"} -->
-			<p class="has-secondary-color has-text-color"><?php esc_html_e( 'Materials sourced for longevity, not the next replacement cycle.', 'lysholm' ); ?></p>
+			<p class="has-secondary-color has-text-color"><?php esc_html_e( 'Stoneware, washed linen, untreated wood — chosen because they soften and patina with the years rather than tire of them.', 'lysholm' ); ?></p>
 			<!-- /wp:paragraph -->
 		</div>
 		<!-- /wp:column -->

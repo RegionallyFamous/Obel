@@ -14,13 +14,13 @@
 	<!-- wp:group {"align":"wide","layout":{"type":"flex","flexWrap":"wrap","justifyContent":"space-between","verticalAlignment":"center"}} -->
 	<div class="wp-block-group alignwide">
 		<!-- wp:heading {"level":3,"fontSize":"xl"} -->
-		<h3 class="wp-block-heading has-xl-font-size"><?php esc_html_e( 'Ready to make it yours?', 'aero' ); ?></h3>
+		<h3 class="wp-block-heading has-xl-font-size"><?php esc_html_e( 'Take a little shimmer home.', 'aero' ); ?></h3>
 		<!-- /wp:heading -->
 
 		<!-- wp:buttons -->
 		<div class="wp-block-buttons">
 			<!-- wp:button -->
-			<div class="wp-block-button"><a class="wp-block-button__link wp-element-button"><?php esc_html_e( 'Shop the catalog', 'aero' ); ?></a></div>
+			<div class="wp-block-button"><a class="wp-block-button__link wp-element-button"><?php esc_html_e( 'Open the cabinet ✦', 'aero' ); ?></a></div>
 			<!-- /wp:button -->
 		</div>
 		<!-- /wp:buttons -->

@@ -14,7 +14,7 @@
 	<!-- wp:group {"align":"wide","layout":{"type":"flex","flexWrap":"wrap","justifyContent":"space-between","verticalAlignment":"center"}} -->
 	<div class="wp-block-group alignwide">
 		<!-- wp:heading {"level":3,"fontSize":"xl"} -->
-		<h3 class="wp-block-heading has-xl-font-size"><?php esc_html_e( 'Ready to make it yours?', 'chonk' ); ?></h3>
+		<h3 class="wp-block-heading has-xl-font-size"><?php esc_html_e( 'GRAB ONE BEFORE THEY\'RE GONE.', 'chonk' ); ?></h3>
 		<!-- /wp:heading -->
 
 		<!-- wp:buttons -->

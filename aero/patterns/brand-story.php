@@ -16,21 +16,21 @@
 		<figure class="wp-block-media-text__media"></figure>
 		<div class="wp-block-media-text__content">
 			<!-- wp:paragraph {"fontSize":"xs","style":{"typography":{"letterSpacing":"var:custom|letter-spacing|wider","textTransform":"uppercase"}},"textColor":"tertiary"} -->
-			<p class="has-tertiary-color has-text-color has-xs-font-size" style="letter-spacing:var(--wp--custom--letter-spacing--wider);text-transform:uppercase"><?php esc_html_e( 'Our story', 'aero' ); ?></p>
+			<p class="has-tertiary-color has-text-color has-xs-font-size" style="letter-spacing:var(--wp--custom--letter-spacing--wider);text-transform:uppercase">✦ <?php esc_html_e( 'Origin myth', 'aero' ); ?> ✦</p>
 			<!-- /wp:paragraph -->
 
 			<!-- wp:heading {"level":2} -->
-			<h2 class="wp-block-heading"><?php esc_html_e( 'A short statement of intent.', 'aero' ); ?></h2>
+			<h2 class="wp-block-heading"><?php esc_html_e( 'A small studio for soft-future things.', 'aero' ); ?></h2>
 			<!-- /wp:heading -->
 
 			<!-- wp:paragraph {"textColor":"secondary","fontSize":"md"} -->
-			<p class="has-secondary-color has-text-color has-md-font-size"><?php esc_html_e( 'Two or three sentences explaining why your brand exists, what it makes, and who it makes it for. Keep it concrete.', 'aero' ); ?></p>
+			<p class="has-secondary-color has-text-color has-md-font-size"><?php esc_html_e( 'We hunt down the holographic, the slightly haunted, and the absolutely impractical — then box them up like a friend who owes you a favor. Nothing here is mass produced; some of it is barely produced.', 'aero' ); ?></p>
 			<!-- /wp:paragraph -->
 
 			<!-- wp:buttons -->
 			<div class="wp-block-buttons">
 				<!-- wp:button {"className":"is-style-outline"} -->
-				<div class="wp-block-button is-style-outline"><a class="wp-block-button__link wp-element-button"><?php esc_html_e( 'Read more', 'aero' ); ?></a></div>
+				<div class="wp-block-button is-style-outline"><a class="wp-block-button__link wp-element-button"><?php esc_html_e( 'About the studio ✦', 'aero' ); ?></a></div>
 				<!-- /wp:button -->
 			</div>
 			<!-- /wp:buttons -->

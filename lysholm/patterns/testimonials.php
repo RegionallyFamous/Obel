@@ -24,7 +24,7 @@
 				<!-- wp:quote -->
 				<blockquote class="wp-block-quote">
 					<!-- wp:paragraph -->
-					<p><?php esc_html_e( 'Quality is exactly what they advertised. Will be back.', 'lysholm' ); ?></p>
+					<p><?php esc_html_e( 'It\'s settled into the kitchen as if it had always been there. Quietly perfect.', 'lysholm' ); ?></p>
 					<!-- /wp:paragraph -->
 					<cite><?php esc_html_e( 'Alex M.', 'lysholm' ); ?></cite>
 				</blockquote>
@@ -41,7 +41,7 @@
 				<!-- wp:quote -->
 				<blockquote class="wp-block-quote">
 					<!-- wp:paragraph -->
-					<p><?php esc_html_e( 'Shipping was fast and the packaging was beautiful.', 'lysholm' ); ?></p>
+					<p><?php esc_html_e( 'Wrapped in tissue, tied with hemp twine. Opening it felt like a small ceremony.', 'lysholm' ); ?></p>
 					<!-- /wp:paragraph -->
 					<cite><?php esc_html_e( 'Sam P.', 'lysholm' ); ?></cite>
 				</blockquote>
@@ -58,7 +58,7 @@
 				<!-- wp:quote -->
 				<blockquote class="wp-block-quote">
 					<!-- wp:paragraph -->
-					<p><?php esc_html_e( 'I have had it for a year and it still looks brand new.', 'lysholm' ); ?></p>
+					<p><?php esc_html_e( 'A year of daily use and it\'s only grown more beautiful — the patina suits it.', 'lysholm' ); ?></p>
 					<!-- /wp:paragraph -->
 					<cite><?php esc_html_e( 'Jordan K.', 'lysholm' ); ?></cite>
 				</blockquote>

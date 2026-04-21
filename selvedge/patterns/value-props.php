@@ -19,7 +19,7 @@
 			<h3 class="wp-block-heading has-lg-font-size"><?php esc_html_e( 'Free shipping', 'selvedge' ); ?></h3>
 			<!-- /wp:heading -->
 			<!-- wp:paragraph {"textColor":"secondary"} -->
-			<p class="has-secondary-color has-text-color"><?php esc_html_e( 'On every order over $50, anywhere in the country.', 'selvedge' ); ?></p>
+			<p class="has-secondary-color has-text-color"><?php esc_html_e( 'Free shipping over $50, hand-wrapped and posted from the workshop within two days.', 'selvedge' ); ?></p>
 			<!-- /wp:paragraph -->
 		</div>
 		<!-- /wp:column -->
@@ -30,7 +30,7 @@
 			<h3 class="wp-block-heading has-lg-font-size"><?php esc_html_e( '30-day returns', 'selvedge' ); ?></h3>
 			<!-- /wp:heading -->
 			<!-- wp:paragraph {"textColor":"secondary"} -->
-			<p class="has-secondary-color has-text-color"><?php esc_html_e( 'Not what you expected? Send it back, no questions asked.', 'selvedge' ); ?></p>
+			<p class="has-secondary-color has-text-color"><?php esc_html_e( 'If the fit isn\'t right, return it unworn within 30 days. We\'ll cover the postage and find it a new owner.', 'selvedge' ); ?></p>
 			<!-- /wp:paragraph -->
 		</div>
 		<!-- /wp:column -->
@@ -41,7 +41,7 @@
 			<h3 class="wp-block-heading has-lg-font-size"><?php esc_html_e( 'Made to last', 'selvedge' ); ?></h3>
 			<!-- /wp:heading -->
 			<!-- wp:paragraph {"textColor":"secondary"} -->
-			<p class="has-secondary-color has-text-color"><?php esc_html_e( 'Materials sourced for longevity, not the next replacement cycle.', 'selvedge' ); ?></p>
+			<p class="has-secondary-color has-text-color"><?php esc_html_e( 'Selvedge denim, brass hardware, leather aged at the tannery — chosen to outlast a season, then a decade.', 'selvedge' ); ?></p>
 			<!-- /wp:paragraph -->
 		</div>
 		<!-- /wp:column -->

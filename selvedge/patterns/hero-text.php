@@ -16,11 +16,11 @@
 	<!-- /wp:paragraph -->
 
 	<!-- wp:heading {"level":1,"textAlign":"center","fontSize":"4-xl","style":{"typography":{"fontStyle":"italic","fontWeight":"700","lineHeight":"var(--wp--custom--line-height--tighter)"}}} -->
-	<h1 class="wp-block-heading has-text-align-center has-4-xl-font-size" style="font-style:italic;font-weight:700;line-height:var(--wp--custom--line-height--tighter)"><?php esc_html_e( 'A clear, confident headline.', 'selvedge' ); ?></h1>
+	<h1 class="wp-block-heading has-text-align-center has-4-xl-font-size" style="font-style:italic;font-weight:700;line-height:var(--wp--custom--line-height--tighter)"><?php esc_html_e( 'A new run, fresh off the bench.', 'selvedge' ); ?></h1>
 	<!-- /wp:heading -->
 
 	<!-- wp:paragraph {"align":"center","fontSize":"md","style":{"spacing":{"margin":{"top":"var:preset|spacing|md","bottom":"var:preset|spacing|lg"}}},"textColor":"secondary"} -->
-	<p class="has-text-align-center has-secondary-color has-text-color has-md-font-size" style="margin-top:var(--wp--preset--spacing--md);margin-bottom:var(--wp--preset--spacing--lg)"><?php esc_html_e( 'Supporting sentence that earns the click.', 'selvedge' ); ?></p>
+	<p class="has-text-align-center has-secondary-color has-text-color has-md-font-size" style="margin-top:var(--wp--preset--spacing--md);margin-bottom:var(--wp--preset--spacing--lg)"><?php esc_html_e( 'Each piece numbered, signed, and sized to wear in for a decade or two.', 'selvedge' ); ?></p>
 	<!-- /wp:paragraph -->
 
 	<!-- wp:buttons {"layout":{"type":"flex","justifyContent":"center"}} -->

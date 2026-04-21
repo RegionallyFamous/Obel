@@ -14,11 +14,11 @@
 	<!-- wp:group {"layout":{"type":"constrained"}} -->
 	<div class="wp-block-group">
 		<!-- wp:heading {"level":1,"textAlign":"center","textColor":"base","fontSize":"5xl"} -->
-		<h1 class="wp-block-heading has-text-align-center has-base-color has-text-color has-5-xl-font-size"><?php esc_html_e( 'A short, declarative headline.', 'selvedge' ); ?></h1>
+		<h1 class="wp-block-heading has-text-align-center has-base-color has-text-color has-5-xl-font-size"><?php esc_html_e( 'Selvedge, by hand, in small runs.', 'selvedge' ); ?></h1>
 		<!-- /wp:heading -->
 
 		<!-- wp:paragraph {"align":"center","textColor":"base","fontSize":"md","style":{"spacing":{"margin":{"top":"var:preset|spacing|md","bottom":"var:preset|spacing|lg"}},"typography":{"lineHeight":"var(--wp--custom--line-height--normal)"}}} -->
-		<p class="has-text-align-center has-base-color has-text-color has-md-font-size" style="margin-top:var(--wp--preset--spacing--md);margin-bottom:var(--wp--preset--spacing--lg);line-height:var(--wp--custom--line-height--normal)"><?php esc_html_e( 'One sentence that expands on the headline and tells the visitor exactly what they get.', 'selvedge' ); ?></p>
+		<p class="has-text-align-center has-base-color has-text-color has-md-font-size" style="margin-top:var(--wp--preset--spacing--md);margin-bottom:var(--wp--preset--spacing--lg);line-height:var(--wp--custom--line-height--normal)"><?php esc_html_e( 'Heritage workwear cut from raw selvedge denim, hand-finished in a two-person workshop, made to soften with the years.', 'selvedge' ); ?></p>
 		<!-- /wp:paragraph -->
 
 		<!-- wp:buttons {"layout":{"type":"flex","justifyContent":"center"}} -->

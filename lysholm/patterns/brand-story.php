@@ -20,11 +20,11 @@
 			<!-- /wp:paragraph -->
 
 			<!-- wp:heading {"level":2} -->
-			<h2 class="wp-block-heading"><?php esc_html_e( 'A short statement of intent.', 'lysholm' ); ?></h2>
+			<h2 class="wp-block-heading"><?php esc_html_e( 'Quiet objects for an unhurried home.', 'lysholm' ); ?></h2>
 			<!-- /wp:heading -->
 
 			<!-- wp:paragraph {"textColor":"secondary","fontSize":"md"} -->
-			<p class="has-secondary-color has-text-color has-md-font-size"><?php esc_html_e( 'Two or three sentences explaining why your brand exists, what it makes, and who it makes it for. Keep it concrete.', 'lysholm' ); ?></p>
+			<p class="has-secondary-color has-text-color has-md-font-size"><?php esc_html_e( 'We curate slow, considered objects for the room you sit in most — pale ceramics, washed linen, hand-shaped wood. Each piece chosen because it earns its place across decades, not seasons.', 'lysholm' ); ?></p>
 			<!-- /wp:paragraph -->
 
 			<!-- wp:buttons -->

@@ -20,11 +20,11 @@
 			<!-- /wp:paragraph -->
 
 			<!-- wp:heading {"level":2} -->
-			<h2 class="wp-block-heading"><?php esc_html_e( 'A short statement of intent.', 'selvedge' ); ?></h2>
+			<h2 class="wp-block-heading"><?php esc_html_e( 'Made slow, sold honest.', 'selvedge' ); ?></h2>
 			<!-- /wp:heading -->
 
 			<!-- wp:paragraph {"textColor":"secondary","fontSize":"md"} -->
-			<p class="has-secondary-color has-text-color has-md-font-size"><?php esc_html_e( 'Two or three sentences explaining why your brand exists, what it makes, and who it makes it for. Keep it concrete.', 'selvedge' ); ?></p>
+			<p class="has-secondary-color has-text-color has-md-font-size"><?php esc_html_e( 'A small workshop, two pairs of hands, and a stubborn belief that a good garment should outlive its first owner. Cut from selvedge denim, finished by people whose names we know.', 'selvedge' ); ?></p>
 			<!-- /wp:paragraph -->
 
 			<!-- wp:buttons -->

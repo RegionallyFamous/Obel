@@ -14,21 +14,21 @@
 	<!-- wp:group {"layout":{"type":"constrained"}} -->
 	<div class="wp-block-group">
 		<!-- wp:heading {"level":1,"textAlign":"center","textColor":"base","fontSize":"5xl"} -->
-		<h1 class="wp-block-heading has-text-align-center has-base-color has-text-color has-5-xl-font-size"><?php esc_html_e( 'A short, declarative headline.', 'aero' ); ?></h1>
+		<h1 class="wp-block-heading has-text-align-center has-base-color has-text-color has-5-xl-font-size"><?php esc_html_e( 'Holographic, on purpose.', 'aero' ); ?></h1>
 		<!-- /wp:heading -->
 
 		<!-- wp:paragraph {"align":"center","textColor":"base","fontSize":"md","style":{"spacing":{"margin":{"top":"var:preset|spacing|md","bottom":"var:preset|spacing|lg"}},"typography":{"lineHeight":"var(--wp--custom--line-height--normal)"}}} -->
-		<p class="has-text-align-center has-base-color has-text-color has-md-font-size" style="margin-top:var(--wp--preset--spacing--md);margin-bottom:var(--wp--preset--spacing--lg);line-height:var(--wp--custom--line-height--normal)"><?php esc_html_e( 'One sentence that expands on the headline and tells the visitor exactly what they get.', 'aero' ); ?></p>
+		<p class="has-text-align-center has-base-color has-text-color has-md-font-size" style="margin-top:var(--wp--preset--spacing--md);margin-bottom:var(--wp--preset--spacing--lg);line-height:var(--wp--custom--line-height--normal)"><?php esc_html_e( 'A small studio for soft-future objects — the kind that catch the light, the eye, and occasionally the conversation.', 'aero' ); ?></p>
 		<!-- /wp:paragraph -->
 
 		<!-- wp:buttons {"layout":{"type":"flex","justifyContent":"center"}} -->
 		<div class="wp-block-buttons">
 			<!-- wp:button -->
-			<div class="wp-block-button"><a class="wp-block-button__link wp-element-button"><?php esc_html_e( 'Shop the collection', 'aero' ); ?></a></div>
+			<div class="wp-block-button"><a class="wp-block-button__link wp-element-button"><?php esc_html_e( 'Browse the collection ✦', 'aero' ); ?></a></div>
 			<!-- /wp:button -->
 
 			<!-- wp:button {"className":"is-style-outline","textColor":"base"} -->
-			<div class="wp-block-button is-style-outline"><a class="wp-block-button__link has-base-color has-text-color wp-element-button"><?php esc_html_e( 'Learn more', 'aero' ); ?></a></div>
+			<div class="wp-block-button is-style-outline"><a class="wp-block-button__link has-base-color has-text-color wp-element-button"><?php esc_html_e( 'Read the journal', 'aero' ); ?></a></div>
 			<!-- /wp:button -->
 		</div>
 		<!-- /wp:buttons -->

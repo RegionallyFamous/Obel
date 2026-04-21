@@ -20,13 +20,13 @@
 		<!-- wp:accordion-item -->
 		<div class="wp-block-accordion-item">
 			<!-- wp:accordion-heading -->
-			<h3 class="wp-block-accordion-heading"><button class="wp-block-accordion-heading__toggle"><span class="wp-block-accordion-heading__toggle-title"><?php esc_html_e( 'How long does shipping take?', 'chonk' ); ?></span><span class="wp-block-accordion-heading__toggle-icon" aria-hidden="true">+</span></button></h3>
+			<h3 class="wp-block-accordion-heading"><button class="wp-block-accordion-heading__toggle"><span class="wp-block-accordion-heading__toggle-title"><?php esc_html_e( 'WHEN DOES THE BOX HIT MY DOORSTEP?', 'chonk' ); ?></span><span class="wp-block-accordion-heading__toggle-icon" aria-hidden="true">+</span></button></h3>
 			<!-- /wp:accordion-heading -->
 
 			<!-- wp:accordion-panel -->
 			<div role="region" class="wp-block-accordion-panel">
 				<!-- wp:paragraph -->
-				<p><?php esc_html_e( 'Most orders ship within 1-2 business days and arrive within a week.', 'chonk' ); ?></p>
+				<p><?php esc_html_e( 'We pack within 24 hours. Most boxes land on your stoop in under a week.', 'chonk' ); ?></p>
 				<!-- /wp:paragraph -->
 			</div>
 			<!-- /wp:accordion-panel -->
@@ -36,13 +36,13 @@
 		<!-- wp:accordion-item -->
 		<div class="wp-block-accordion-item">
 			<!-- wp:accordion-heading -->
-			<h3 class="wp-block-accordion-heading"><button class="wp-block-accordion-heading__toggle"><span class="wp-block-accordion-heading__toggle-title"><?php esc_html_e( 'What is your return policy?', 'chonk' ); ?></span><span class="wp-block-accordion-heading__toggle-icon" aria-hidden="true">+</span></button></h3>
+			<h3 class="wp-block-accordion-heading"><button class="wp-block-accordion-heading__toggle"><span class="wp-block-accordion-heading__toggle-title"><?php esc_html_e( 'WHAT IF I DON\'T LIKE IT?', 'chonk' ); ?></span><span class="wp-block-accordion-heading__toggle-icon" aria-hidden="true">+</span></button></h3>
 			<!-- /wp:accordion-heading -->
 
 			<!-- wp:accordion-panel -->
 			<div role="region" class="wp-block-accordion-panel">
 				<!-- wp:paragraph -->
-				<p><?php esc_html_e( 'Returns are free within 30 days of delivery.', 'chonk' ); ?></p>
+				<p><?php esc_html_e( 'Send it back inside 30 days, free of charge. We don\'t ask why.', 'chonk' ); ?></p>
 				<!-- /wp:paragraph -->
 			</div>
 			<!-- /wp:accordion-panel -->
@@ -52,13 +52,13 @@
 		<!-- wp:accordion-item -->
 		<div class="wp-block-accordion-item">
 			<!-- wp:accordion-heading -->
-			<h3 class="wp-block-accordion-heading"><button class="wp-block-accordion-heading__toggle"><span class="wp-block-accordion-heading__toggle-title"><?php esc_html_e( 'Do you ship internationally?', 'chonk' ); ?></span><span class="wp-block-accordion-heading__toggle-icon" aria-hidden="true">+</span></button></h3>
+			<h3 class="wp-block-accordion-heading"><button class="wp-block-accordion-heading__toggle"><span class="wp-block-accordion-heading__toggle-title"><?php esc_html_e( 'DO YOU SHIP OUT OF THE COUNTRY?', 'chonk' ); ?></span><span class="wp-block-accordion-heading__toggle-icon" aria-hidden="true">+</span></button></h3>
 			<!-- /wp:accordion-heading -->
 
 			<!-- wp:accordion-panel -->
 			<div role="region" class="wp-block-accordion-panel">
 				<!-- wp:paragraph -->
-				<p><?php esc_html_e( 'Yes. International shipping rates are calculated at checkout.', 'chonk' ); ?></p>
+				<p><?php esc_html_e( 'Yep. Rates calculate at checkout based on weight and where it\'s headed.', 'chonk' ); ?></p>
 				<!-- /wp:paragraph -->
 			</div>
 			<!-- /wp:accordion-panel -->
@@ -68,13 +68,13 @@
 		<!-- wp:accordion-item -->
 		<div class="wp-block-accordion-item">
 			<!-- wp:accordion-heading -->
-			<h3 class="wp-block-accordion-heading"><button class="wp-block-accordion-heading__toggle"><span class="wp-block-accordion-heading__toggle-title"><?php esc_html_e( 'Can I track my order?', 'chonk' ); ?></span><span class="wp-block-accordion-heading__toggle-icon" aria-hidden="true">+</span></button></h3>
+			<h3 class="wp-block-accordion-heading"><button class="wp-block-accordion-heading__toggle"><span class="wp-block-accordion-heading__toggle-title"><?php esc_html_e( 'CAN I WATCH IT TRAVEL?', 'chonk' ); ?></span><span class="wp-block-accordion-heading__toggle-icon" aria-hidden="true">+</span></button></h3>
 			<!-- /wp:accordion-heading -->
 
 			<!-- wp:accordion-panel -->
 			<div role="region" class="wp-block-accordion-panel">
 				<!-- wp:paragraph -->
-				<p><?php esc_html_e( 'A tracking link is emailed when the carrier picks up your parcel.', 'chonk' ); ?></p>
+				<p><?php esc_html_e( 'Tracking link hits your inbox the second the carrier scoops it up.', 'chonk' ); ?></p>
 				<!-- /wp:paragraph -->
 			</div>
 			<!-- /wp:accordion-panel -->
@@ -84,13 +84,13 @@
 		<!-- wp:accordion-item -->
 		<div class="wp-block-accordion-item">
 			<!-- wp:accordion-heading -->
-			<h3 class="wp-block-accordion-heading"><button class="wp-block-accordion-heading__toggle"><span class="wp-block-accordion-heading__toggle-title"><?php esc_html_e( 'How do I contact support?', 'chonk' ); ?></span><span class="wp-block-accordion-heading__toggle-icon" aria-hidden="true">+</span></button></h3>
+			<h3 class="wp-block-accordion-heading"><button class="wp-block-accordion-heading__toggle"><span class="wp-block-accordion-heading__toggle-title"><?php esc_html_e( 'HOW DO I YELL AT A HUMAN?', 'chonk' ); ?></span><span class="wp-block-accordion-heading__toggle-icon" aria-hidden="true">+</span></button></h3>
 			<!-- /wp:accordion-heading -->
 
 			<!-- wp:accordion-panel -->
 			<div role="region" class="wp-block-accordion-panel">
 				<!-- wp:paragraph -->
-				<p><?php esc_html_e( 'Email us at help@example.com. We answer within one business day.', 'chonk' ); ?></p>
+				<p><?php esc_html_e( 'hello@example.com — a real person writes back within a business day, no canned replies.', 'chonk' ); ?></p>
 				<!-- /wp:paragraph -->
 			</div>
 			<!-- /wp:accordion-panel -->

@@ -6,287 +6,49 @@ Most WordPress themes are a CSS pile-up with a `package.json` and a webpack conf
 
 It is also a complete worked example of what an **agent-first** WordPress codebase looks like — every rule that keeps the themes consistent is codified in `bin/check.py` and gated by a Playwright + WordPress Playground visual snapshot framework that runs as part of the build. Cursor and Claude can pick this codebase up cold and ship a new theme in one session, because every architectural decision has a load-bearing comment and every footgun has a guardrail.
 
+## Try it now
+
+Each theme below boots a disposable WordPress + WooCommerce instance entirely in your browser, with the theme installed, 30 sample products, 5 orders, a logged-in customer, on-sale and out-of-stock states — all seeded. ~60-90s cold start. No install, no signup, no card.
+
+| Theme | Vibe | Live demo |
+| --- | --- | --- |
+| **Obel** | Editorial, soft, restrained | [demo.regionallyfamous.com/obel/](https://demo.regionallyfamous.com/obel/) |
+| **Chonk** | Neo-brutalist, chunky, high-contrast | [demo.regionallyfamous.com/chonk/](https://demo.regionallyfamous.com/chonk/) |
+| **Selvedge** | Workwear indigo, woven textures, raw edges | [demo.regionallyfamous.com/selvedge/](https://demo.regionallyfamous.com/selvedge/) |
+| **Lysholm** | Nordic home goods, white-on-white, blonde wood | [demo.regionallyfamous.com/lysholm/](https://demo.regionallyfamous.com/lysholm/) |
+
+Each demo lands you on the designed homepage. From there: shop archive, single product, pre-filled cart, checkout, account dashboard, blog, 404 — every page works. Logged in as `admin` / `password`; sign in as `customer` / `customer` to see the customer dashboard.
+
 ## What's cool about Fifty
 
-- **Four distinct storefronts from one codebase.** [Obel](https://demo.regionallyfamous.com/obel/) (editorial, soft, restrained), [Chonk](https://demo.regionallyfamous.com/chonk/) (neo-brutalist, chunky, high-contrast), [Selvedge](https://demo.regionallyfamous.com/selvedge/) (workwear indigo, woven textures, raw edges), and [Lysholm](https://demo.regionallyfamous.com/lysholm/) (Nordic home goods, white-on-white, blonde wood). Same templates, same patterns, same `bin/check.py` gate — totally different vibes.
+- **Four distinct storefronts from one codebase.** Same templates, same patterns, same `bin/check.py` gate — totally different vibes.
 - **Token-only restyling, for real.** No CSS files in any theme. The look comes entirely from `theme.json` design tokens. Change `--wp--preset--color--accent` and every button, link, focus ring, swatch, hover state, form input, and add-to-cart CTA picks it up. The hard rule is "no `!important` and no raw hex colors outside the palette" — and `bin/check.py` enforces it.
-- **One-click WordPress Playground demos.** Every theme has a short URL like [`demo.regionallyfamous.com/chonk/cart/`](https://demo.regionallyfamous.com/chonk/cart/) that boots a disposable WordPress + WooCommerce instance entirely in your browser, with the theme installed, 30 sample products with images, 5 orders in varied statuses, a logged-in customer, sample reviews, on-sale and out-of-stock states — already seeded. ~60-90s cold start, then everything works: PDPs, cart, checkout, account dashboard. No local install.
-- **Visual regression testing built into every commit.** `bin/snap.py` boots WordPress Playground locally for each theme, drives Playwright Chromium across every `(route × viewport)` the themes care about, and captures screenshot **+** rendered DOM **+** console messages **+** page errors **+** network failures **+** axe-core a11y violations **+** computed dimensions for tracked layout selectors **+** scripted interactive flows (open the menu, change a swatch, increment cart quantity, focus a checkout field). Diffs against committed baselines, emits a tiered `pass / warn / fail` gate. `bin/check.py --visual` is the single pre-commit gate.
-- **Custom DOM heuristics, not just axe.** The snap framework runs ~25 hand-written checks for the bug classes WordPress + WooCommerce themes actually break on: broken/oversized/blurry images, narrow sidebars, missing `alt` attrs, leaked PHP debug output, raw `__()` i18n tokens, visible WC error/info notices, ellipsis truncation actively hiding content, empty `<main>` / `<nav>` / `<aside>` landmarks, **duplicate `view-transition-name` collisions** (the kind that silently abort every browser-native page transition), and more. Each finding includes a remediation hint and a stable `kind` so they're greppable.
-- **Cross-document view transitions, by default.** Every theme opts into [native CSS view transitions](https://developer.chrome.com/docs/web-platform/view-transitions/cross-document): the site title morphs from the header into the PDP hero, post titles morph from archive cards into single-post heroes, header and footer persist across navigation. CSS-only — no JavaScript, no SPA shell. The snap framework's collision detector means duplicate names are caught at build time, not by users.
-- **WooCommerce-native, but the WC default chrome is invisible.** The themes paint over WC's loading skeletons, totals blocks, form inputs, sidebar layout, mini-cart drawer, product gallery, sale flashes, and review stars so the result looks like a custom store, not "yet another WooCommerce site". The override CSS is generated by `bin/append-wc-overrides.py` and tracked through sentinel-bracketed chunks so the next WC release upgrade is mechanical.
-- **WCAG AA, enforced.** `bin/check.py` runs hand-rolled contrast checks against every theme's color palette and gates on the 4.5:1 / 3:1 thresholds, axe-core runs on every snap, and a hover/focus state legibility check catches the "accent color collapsed to invisible against base" footgun separately. No theme ships with a contrast violation.
-- **Agent-first by design.** Every theme has an `AGENTS.md` (per-theme conventions), `INDEX.md` (token map + template list), `CHANGELOG.md`, and `SYSTEM-PROMPT.md`. The repo-root `AGENTS.md` documents every footgun the project has hit, with the regression history and the codified guardrail. Cursor or Claude opening this repo cold has every rule, every check, and every "do not do this" comment within reach.
-
-## Themes in this repo
-
-| Theme | Path | Status | Vibe | Try it |
-| --- | --- | --- | --- | --- |
-| **Obel** | [`obel/`](./obel/) | Base / canonical reference | Editorial, soft, restrained | [demo.regionallyfamous.com/obel/](https://demo.regionallyfamous.com/obel/) |
-| **Chonk** | [`chonk/`](./chonk/) | Variant | Neo-brutalist, chunky, high contrast | [demo.regionallyfamous.com/chonk/](https://demo.regionallyfamous.com/chonk/) |
-| **Selvedge** | [`selvedge/`](./selvedge/) | Variant | Workwear, woven, indigo & raw | [demo.regionallyfamous.com/selvedge/](https://demo.regionallyfamous.com/selvedge/) |
-| **Lysholm** | [`lysholm/`](./lysholm/) | Variant | Nordic home goods, white-on-white, blonde wood | [demo.regionallyfamous.com/lysholm/](https://demo.regionallyfamous.com/lysholm/) |
-
-Obel is the reference theme. Read it first. Every other theme in this repo is a clone of Obel with a different `theme.json` and a few template tweaks.
-
-Each theme ships its own `playground/blueprint.json` so it can be loaded into [WordPress Playground](https://wordpress.org/playground/) with one click. The short URLs above (and in the deeplink tables below) are served by GitHub Pages from [`docs/`](./docs/) and forward to the canonical Playground deeplink — see [Try a theme in WordPress Playground](#try-a-theme-in-wordpress-playground) below for what each blueprint does, how to point one at a feature branch, and how the redirector is generated.
-
-## Layout
-
-```
-fifty/
-├── obel/          # base theme (the reference implementation)
-├── chonk/         # neo-brutalist variant
-├── selvedge/      # workwear / indigo variant
-├── lysholm/       # Nordic home goods variant
-├── bin/           # shared CLI tooling (run from the monorepo root)
-├── playground/    # shared Playground PHP helpers (see playground/AGENTS.md)
-├── docs/          # generated GH Pages site of short URLs (see bin/build-redirects.py)
-├── README.md      # you are here
-├── LICENSE        # GPL-2.0+, applies to every theme
-└── .editorconfig  # shared editor config
-```
-
-Each theme directory is self-contained from WordPress's perspective: it has its own `theme.json`, `style.css`, `templates/`, `parts/`, `patterns/`, and `screenshot.png`. Each theme also has its own `AGENTS.md`, `INDEX.md`, `CHANGELOG.md`, and `SYSTEM-PROMPT.md` capturing theme-specific guidance.
-
-## Try a theme in WordPress Playground
-
-Every theme ships a Playground blueprint at `<theme>/playground/blueprint.json`. Click any link below and a disposable WordPress instance boots in your browser — no local install. Expect 60 to 90 seconds on first boot while the dataset and images download.
-
-Each blueprint:
-
-- Boots WordPress (latest) on PHP 8.3 with the kitchen-sink extension bundle and networking enabled.
-- Logs you in as `admin` (password: `password`).
-- Installs WooCommerce and the WordPress Importer from wordpress.org.
-- Pulls the theme directly from this repo via Playground's `git:directory` resource (only the matching `<theme>/` subfolder is fetched, not the whole monorepo).
-- Imports the Wonders & Oddities product CSV and content XML (30 products with images, 20 posts, 8 pages, menus).
-- Configures the WC store: shipping zones (Flat Rate + Free), payment methods (COD + Bank Transfer), store address, pretty permalinks.
-- Seeds a sample customer account, 5 orders in varied statuses, 2 variable products, a mix of on-sale / out-of-stock / backorder states, and 12 product reviews.
-- Sets `show_on_front=page` to the seeded `home` page and `page_for_posts` to the seeded `journal` page, then lands you at `/` so you see the designed homepage (not WP's "your latest posts" fallback and not `/shop/`).
-
-To inspect the customer dashboard, log out and sign in as `customer` / `customer`.
-
-### Short URLs (recommended)
-
-GitHub Pages serves [`docs/`](./docs/) and forwards every short URL below to the canonical Playground deeplink. Generated by `python3 bin/build-redirects.py` from each theme's `playground/blueprint.json`.
-
-| Page | Obel | Chonk | Selvedge | Lysholm |
-| --- | --- | --- | --- | --- |
-| Home | [`obel/`](https://demo.regionallyfamous.com/obel/) | [`chonk/`](https://demo.regionallyfamous.com/chonk/) | [`selvedge/`](https://demo.regionallyfamous.com/selvedge/) | [`lysholm/`](https://demo.regionallyfamous.com/lysholm/) |
-| Shop | [`obel/shop/`](https://demo.regionallyfamous.com/obel/shop/) | [`chonk/shop/`](https://demo.regionallyfamous.com/chonk/shop/) | [`selvedge/shop/`](https://demo.regionallyfamous.com/selvedge/shop/) | [`lysholm/shop/`](https://demo.regionallyfamous.com/lysholm/shop/) |
-| Single product | [`obel/product/bottled-morning/`](https://demo.regionallyfamous.com/obel/product/bottled-morning/) | [`chonk/product/bottled-morning/`](https://demo.regionallyfamous.com/chonk/product/bottled-morning/) | [`selvedge/product/bottled-morning/`](https://demo.regionallyfamous.com/selvedge/product/bottled-morning/) | [`lysholm/product/bottled-morning/`](https://demo.regionallyfamous.com/lysholm/product/bottled-morning/) |
-| Cart (pre-filled) | [`obel/cart/`](https://demo.regionallyfamous.com/obel/cart/) | [`chonk/cart/`](https://demo.regionallyfamous.com/chonk/cart/) | [`selvedge/cart/`](https://demo.regionallyfamous.com/selvedge/cart/) | [`lysholm/cart/`](https://demo.regionallyfamous.com/lysholm/cart/) |
-| Checkout | [`obel/checkout/`](https://demo.regionallyfamous.com/obel/checkout/) | [`chonk/checkout/`](https://demo.regionallyfamous.com/chonk/checkout/) | [`selvedge/checkout/`](https://demo.regionallyfamous.com/selvedge/checkout/) | [`lysholm/checkout/`](https://demo.regionallyfamous.com/lysholm/checkout/) |
-| My Account | [`obel/my-account/`](https://demo.regionallyfamous.com/obel/my-account/) | [`chonk/my-account/`](https://demo.regionallyfamous.com/chonk/my-account/) | [`selvedge/my-account/`](https://demo.regionallyfamous.com/selvedge/my-account/) | [`lysholm/my-account/`](https://demo.regionallyfamous.com/lysholm/my-account/) |
-| Journal | [`obel/journal/`](https://demo.regionallyfamous.com/obel/journal/) | [`chonk/journal/`](https://demo.regionallyfamous.com/chonk/journal/) | [`selvedge/journal/`](https://demo.regionallyfamous.com/selvedge/journal/) | [`lysholm/journal/`](https://demo.regionallyfamous.com/lysholm/journal/) |
-| 404 | [`obel/404/`](https://demo.regionallyfamous.com/obel/404/) | [`chonk/404/`](https://demo.regionallyfamous.com/chonk/404/) | [`selvedge/404/`](https://demo.regionallyfamous.com/selvedge/404/) | [`lysholm/404/`](https://demo.regionallyfamous.com/lysholm/404/) |
-
-To enable the short URLs once: in this repo's GitHub settings → **Pages** → set Source to "Deploy from a branch", Branch `main`, Folder `/docs`, save. New themes get short URLs automatically — `python3 bin/build-redirects.py` reads each theme's `playground/blueprint.json` and writes `docs/<theme>/<page>/index.html` for every entry in its `PAGES` list. The `bin/clone.py` workflow runs it as the final step when you scaffold a new theme.
-
-### Long-form deeplinks (the URLs the short URLs redirect to)
-
-If you can't or don't want to use the short URLs (e.g. running off a fork before GH Pages is enabled), the canonical Playground deeplinks are still the source of truth:
-
-| Page | Obel | Chonk | Selvedge | Lysholm |
-| --- | --- | --- | --- | --- |
-| Home | [/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/) | [/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/) | [/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/selvedge/playground/blueprint.json&url=/) | [/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/lysholm/playground/blueprint.json&url=/) |
-| Shop | [/shop/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/shop/) | [/shop/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/shop/) | [/shop/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/selvedge/playground/blueprint.json&url=/shop/) | [/shop/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/lysholm/playground/blueprint.json&url=/shop/) |
-| Single product | [/product/bottled-morning/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/product/bottled-morning/) | [/product/bottled-morning/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/product/bottled-morning/) | [/product/bottled-morning/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/selvedge/playground/blueprint.json&url=/product/bottled-morning/) | [/product/bottled-morning/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/lysholm/playground/blueprint.json&url=/product/bottled-morning/) |
-| Cart (pre-filled) | [/cart/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/cart/?demo=cart) | [/cart/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/cart/?demo=cart) | [/cart/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/selvedge/playground/blueprint.json&url=/cart/?demo=cart) | [/cart/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/lysholm/playground/blueprint.json&url=/cart/?demo=cart) |
-| Checkout | [/checkout/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/obel/playground/blueprint.json&url=/checkout/?demo=cart) | [/checkout/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/chonk/playground/blueprint.json&url=/checkout/?demo=cart) | [/checkout/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/selvedge/playground/blueprint.json&url=/checkout/?demo=cart) | [/checkout/](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/RegionallyFamous/fifty/main/lysholm/playground/blueprint.json&url=/checkout/?demo=cart) |
-
-To try an in-flight branch, swap `ref` in the blueprint to your branch name (keep `refType: "branch"`). To pin to a specific commit, set `ref` to the SHA and `refType: "commit"`.
-
-If you want a faster, data-free version (just the theme + WooCommerce, no sample content), copy `<theme>/playground/blueprint.json`, drop the `wordpress-importer` plugin, the two `runPHP` blocks, the `importWxr` step, and the `wp-cli` steps, and serve the trimmed blueprint from any HTTPS URL. Same pattern, ~15 second cold start.
-
-## Loading themes into WordPress
-
-WordPress expects each theme as a top-level directory under `wp-content/themes/`. This repo lives inside `wp-content/themes/fifty/`, so each theme is symlinked back so WordPress's theme scanner finds it:
-
-```
-wp-content/themes/
-├── fifty/             # this monorepo
-│   ├── obel/
-│   └── chonk/
-├── obel  -> fifty/obel
-└── chonk -> fifty/chonk
-```
-
-Activate a theme via WP CLI using the short alias:
-
-```bash
-wp theme activate obel
-wp theme activate chonk
-```
-
-## CLI tooling
-
-All scripts live in `bin/` at the monorepo root. They accept a positional theme name, default to the cwd if it contains a `theme.json`, and most support `--all` to operate on every theme in the repo.
-
-```bash
-# Run the full check suite against one theme
-python3 bin/check.py obel --quick
-python3 bin/check.py chonk --quick
-
-# Run it against every theme
-python3 bin/check.py --all --quick
-
-# Rebuild a theme's INDEX.md
-python3 bin/build-index.py obel
-
-# Inspect tokens
-python3 bin/list-tokens.py --theme obel colors
-cd obel && python3 ../bin/list-tokens.py colors    # cwd-detected
-
-# Clone Obel into a new theme variant (sibling of obel/ inside the monorepo)
-python3 bin/clone.py acme
-```
-
-The full toolchain:
-
-| Script | What it does |
-| --- | --- |
-| `check.py` | Runs every project check (JSON, PHP, blocks, tokens, AI fingerprints, …). Use this before every commit. Pass `--visual` to also run the snap-gated visual regression sweep. |
-| `build-index.py` | Regenerates a theme's `INDEX.md` (token map, template list, block style list). |
-| `validate-theme-json.py` | Validates a theme's `theme.json` block names against the live Gutenberg + WooCommerce sources. |
-| `list-templates.py` | Prints every template the theme could ship and the URL it serves. |
-| `list-tokens.py` | Inspects design tokens defined in `theme.json`. |
-| `clone.py` | Scaffolds a new sibling theme from Obel with the names rewritten. |
-| `seed-playground-content.py` | Populates `<theme>/playground/{content,images}/` from the canonical W&O source, rewriting image URLs to point at the new theme. |
-| `sync-playground.py` | Inlines `playground/*.php` into every theme's `playground/blueprint.json` and rewrites the `importWxr` URL to the per-theme `content.xml`. |
-| `build-redirects.py` | Regenerates `docs/<theme>/<page>/index.html` short URLs that GH Pages serves at `demo.regionallyfamous.com/`. |
-| `snap.py` | Visual-snapshot framework. Boots WordPress Playground locally for a theme, captures Playwright screenshots + DOM heuristics + axe-core a11y + INSPECT measurements + scripted interactive flows across every (route × viewport) defined in `bin/snap_config.py`, diffs against committed baselines under `tests/visual-baseline/`, and emits a tiered `pass / warn / fail` gate. Subcommands: `doctor`, `shoot`, `serve`, `diff`, `baseline`, `report`, `check`. See `## Visual snapshots` below. |
-
-Each script also responds to `--help`.
-
-## Visual snapshots
-
-`bin/snap.py` lets the agent (and you) see what every theme actually looks like without uploading screenshots over chat. It boots each theme's WordPress Playground locally via `@wp-playground/cli`, drives Playwright Chromium across `bin/snap_config.py::ROUTES × VIEWPORTS`, captures a screenshot **plus diagnostic artifacts** for every cell (rendered HTML, console messages, page errors, network failures, DOM-heuristic findings, axe-core a11y violations, computed dimensions for `INSPECT_SELECTORS`, optional interactive states from `INTERACTIONS`), and runs a **tiered gate** that classifies the result as `pass | warn | fail`. `bin/check.py --visual` is the recommended pre-commit gate.
-
-```bash
-# First time? Verify all deps are ready before booting Playground.
-python3 bin/snap.py doctor
-
-# Capture one theme at every route/viewport
-python3 bin/snap.py shoot chonk
-
-# Just the desktop checkout (fastest inner loop)
-python3 bin/snap.py shoot chonk --routes checkout-filled --viewports desktop
-
-# Quick subset (snap_config.QUICK_*) -- fastest "did anything explode" sweep
-python3 bin/snap.py shoot chonk --quick
-
-# Smart sweep -- only re-shoot themes whose files moved in git
-python3 bin/snap.py shoot --changed
-# (framework changes under bin/* fall back to all themes)
-
-# Capture every theme in parallel (~400MB RAM/worker, ~2x faster)
-python3 bin/snap.py shoot --all --concurrency 2
-
-# Boot a single theme and leave it running for interactive poking via the
-# cursor-ide-browser MCP (or any browser) at http://localhost:9400/
-python3 bin/snap.py serve chonk          # admin auto-login is enabled
-                                          # for /wp-admin/ access
-
-# Aggregate findings into reviewable markdown + the tiered gate verdict
-python3 bin/snap.py report --open
-# -> tmp/snaps/<theme>/review.md   per-theme triage with **GATE: …** badge
-# -> tmp/snaps/<theme>/review.json per-theme JSON (gate + counts + routes)
-# -> tmp/snaps/review.md           cross-theme rollup + parity drift
-# -> tmp/snaps/review.json         overall gate + per-theme gates
-# Final line: STATUS: PASS | WARN | FAIL
-
-# Visual regression: compare current snaps to committed baselines
-python3 bin/snap.py diff --all
-python3 bin/snap.py diff chonk --threshold 0.5
-
-# Promote latest snaps -> committed baselines (after reviewing diffs)
-python3 bin/snap.py baseline --all
-python3 bin/snap.py baseline chonk --route home --viewport desktop
-
-# The single pre-commit gate: shoot + diff + report --strict, scoped to
-# the themes that actually changed by default (--visual-scope=changed).
-python3 bin/check.py --visual
-# Full sweep before a release:
-python3 bin/check.py --visual --visual-scope=all
-# Smoke test for one theme + the QUICK_* subset:
-python3 bin/check.py chonk --visual --visual-scope=quick
-```
-
-Per-cell artifacts:
-
-```
-tmp/snaps/<theme>/<viewport>/<route>.png                 # screenshot (Read directly)
-tmp/snaps/<theme>/<viewport>/<route>.html                # final rendered DOM
-tmp/snaps/<theme>/<viewport>/<route>.findings.json       # heuristics + axe + console + 4xx/5xx + INSPECT
-tmp/snaps/<theme>/<viewport>/<route>.a11y.json           # raw axe-core violations report
-tmp/snaps/<theme>/<viewport>/<route>.<flow>.png          # interactive cells (e.g. cart-filled.line-remove.png)
-tmp/snaps/<theme>/review.md                              # per-theme review with GATE badge
-tmp/snaps/<theme>/review.json                            # per-theme machine-readable summary
-tmp/snaps/review.md                                      # cross-theme rollup + parity drift
-tmp/snaps/review.json                                    # overall gate + per-theme gates
-tmp/diffs/<theme>/<viewport>/<route>.png                 # per-pixel diff overlay
-tests/visual-baseline/<theme>/<viewport>/<route>.png     # committed reference
-```
-
-The `tmp/` tree is `.gitignored`; the `tests/visual-baseline/` PNGs are committed. `bin/vendor/axe.min.js` is also gitignored — the framework downloads it from a version-pinned CDN URL on first run.
-
-### The tiered gate
-
-Every cell's findings are classified into one of three buckets:
-
-- **fail** (build-blocking, exit 1): heuristic `error`, uncaught JS (after noise filter), HTTP 5xx, axe critical/serious.
-- **warn** (loud banner, exit 0): heuristic `warn`/`info`, HTTP 4xx, console errors, axe moderate/minor, parity drift, perf-budget exceedances, interaction-failed.
-- **pass**: nothing flagged.
-
-`bin/check.py --visual` returns 0 for `pass`/`warn` and 1 for `fail`. Use it as your pre-commit gate.
-
-### Build-pipeline integration
-
-Other build scripts grew matching `--snap` flags so the gate runs inline after a mutation:
-
-- `python3 bin/clone.py <name> --snap` — auto-baseline a freshly-cloned theme.
-- `python3 bin/sync-playground.py --snap` — re-shoot affected themes after blueprint sync.
-- `python3 bin/append-wc-overrides.py --snap` — re-shoot after appending WC override CSS.
-
-### Configuration
-
-`bin/snap_config.py` is the single config file:
-
-- **Add a route or viewport** → edit `ROUTES` / `VIEWPORTS`, re-baseline.
-- **Measure a new layout selector** → add it to `INSPECT_SELECTORS` for the relevant route.
-- **Add an interactive flow** → append an `Interaction` entry to `INTERACTIONS` for the route. Each flow renders an extra `<route>.<flow>.png` cell.
-- **Silence pre-confirmed upstream noise** → append the substring to `KNOWN_NOISE_SUBSTRINGS`. Only do this after investigation confirms it isn't a theme bug.
-- **Tune budgets** → bump `BUDGETS` thresholds (`console_warning_count` is the only one currently active; `page_weight_kb`, `image_count`, `request_count` are wired up but disabled by default).
-
-First-time setup (one-off):
-
-```bash
-python3 -m pip install --user playwright Pillow
-playwright install chromium      # ~90 MB Chromium download
-python3 bin/snap.py doctor       # verifies everything is wired up
-```
-
-`@wp-playground/cli` is fetched on demand by `npx --yes`; no global install required. First boot takes ~2 minutes (WordPress download, plugin install, content seeding); subsequent boots are ~30 seconds when the playground cache is warm.
-
-## Adding a new theme
-
-1. Clone the base: `python3 bin/clone.py mybrand`
-2. Edit `mybrand/theme.json` until the storefront looks right.
-3. Symlink it for WordPress: `ln -s fifty/mybrand wp-content/themes/mybrand`
-4. Activate: `wp theme activate mybrand`
-5. Run the checks: `python3 bin/check.py mybrand`
-6. Seed the per-theme Playground content + images: `python3 bin/seed-playground-content.py`
-7. Refresh the inlined PHP + `importWxr` URL inside the new blueprint: `python3 bin/sync-playground.py`
-8. Generate the GH Pages short URLs: `python3 bin/build-redirects.py` (writes `docs/mybrand/<page>/index.html`; pushes are picked up by Pages within ~1 minute)
-9. Commit and push so `demo.regionallyfamous.com/mybrand/` resolves.
-
-## Working in this repo
-
-Each theme has its own `AGENTS.md` describing the per-theme rules (token system, block conventions, hard rules). Read the `AGENTS.md` for the theme you are editing. They do not contradict each other but they are theme-specific.
-
-When working on shared tooling (anything in `bin/`), changes affect every theme — run `python3 bin/check.py --all` after.
+- **One-click WordPress Playground demos.** A short URL like [`demo.regionallyfamous.com/chonk/cart/`](https://demo.regionallyfamous.com/chonk/cart/) boots a fully-seeded WordPress + WooCommerce instance in your browser. No install.
+- **Visual regression testing built into every commit.** `bin/snap.py` boots WordPress Playground locally for each theme, drives Playwright Chromium across every `(route × viewport)`, and captures screenshot **+** rendered DOM **+** console messages **+** page errors **+** network failures **+** axe-core a11y violations **+** computed dimensions for tracked layout selectors **+** scripted interactive flows. Diffs against committed baselines, emits a tiered `pass / warn / fail` gate.
+- **Custom DOM heuristics, not just axe.** ~25 hand-written checks for the bug classes WordPress + WooCommerce themes actually break on: broken/oversized/blurry images, narrow sidebars, missing `alt` attrs, leaked PHP debug output, raw `__()` i18n tokens, visible WC error notices, ellipsis truncation actively hiding content, empty landmarks, **duplicate `view-transition-name` collisions** (the kind that silently abort every browser-native page transition), and more.
+- **Cross-document view transitions, by default.** Every theme opts into [native CSS view transitions](https://developer.chrome.com/docs/web-platform/view-transitions/cross-document): the site title morphs from the header into the PDP hero, post titles morph from archive cards into single-post heroes, header and footer persist across navigation. CSS-only — no JavaScript, no SPA shell.
+- **WooCommerce-native, but the WC default chrome is invisible.** The themes paint over WC's loading skeletons, totals blocks, form inputs, sidebar layout, mini-cart drawer, product gallery, sale flashes, and review stars so the result looks like a custom store, not "yet another WooCommerce site".
+- **WCAG AA, enforced.** Hand-rolled contrast checks, axe-core on every snap, and a hover/focus state legibility check that catches the "accent color collapsed to invisible against base" footgun separately. No theme ships with a contrast violation.
+- **Agent-first by design.** Every theme has an `AGENTS.md`, `INDEX.md`, `CHANGELOG.md`, and `SYSTEM-PROMPT.md`. The repo-root `AGENTS.md` documents every footgun the project has hit, with the regression history and the codified guardrail.
+
+## Documentation
+
+The technical reference lives in the [wiki](https://github.com/RegionallyFamous/fifty/wiki).
+
+| If you want to... | Read |
+|---|---|
+| Try a theme in WordPress Playground (one-click demos, full URL tables) | [Getting Started](https://github.com/RegionallyFamous/fifty/wiki/Getting-Started) |
+| Install a theme into a real WordPress instance | [Getting Started → Local install](https://github.com/RegionallyFamous/fifty/wiki/Getting-Started#loading-themes-into-wordpress) |
+| See the monorepo layout and what every directory does | [Project Structure](https://github.com/RegionallyFamous/fifty/wiki/Project-Structure) |
+| Run `bin/check.py`, validators, and the rest of the CLI | [Tooling](https://github.com/RegionallyFamous/fifty/wiki/Tooling) |
+| Drive the visual snapshot framework | [Visual Snapshots](https://github.com/RegionallyFamous/fifty/wiki/Visual-Snapshots) |
+| Scaffold a new theme variant | [Adding a Theme](https://github.com/RegionallyFamous/fifty/wiki/Adding-a-Theme) |
+| Make changes to existing themes or shared tooling | [Working in the Repo](https://github.com/RegionallyFamous/fifty/wiki/Working-in-the-Repo) |
+| Deep dive into a single theme's design tokens, blocks, templates | [Architecture](https://github.com/RegionallyFamous/fifty/wiki/Architecture) · [Design Tokens](https://github.com/RegionallyFamous/fifty/wiki/Design-Tokens) · [Block Reference](https://github.com/RegionallyFamous/fifty/wiki/Block-Reference) · [Templates](https://github.com/RegionallyFamous/fifty/wiki/Templates) |
+| Use Fifty with Cursor / Claude / ChatGPT | [Working with LLMs](https://github.com/RegionallyFamous/fifty/wiki/Working-with-LLMs) |
+
+For agents working in the repo, [`AGENTS.md`](./AGENTS.md) at the root is the load-bearing file: it carries every footgun the project has hit, with the regression history and the codified guardrail.
 
 ## License
 
-GPL-2.0-or-later. See `LICENSE`.
+GPL-2.0-or-later. See [`LICENSE`](./LICENSE).

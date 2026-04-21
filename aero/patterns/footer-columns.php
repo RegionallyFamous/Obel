@@ -32,7 +32,7 @@
 		<!-- wp:column -->
 		<div class="wp-block-column">
 			<!-- wp:heading {"level":4,"fontSize":"sm","style":{"typography":{"letterSpacing":"var:custom|letter-spacing|wider","textTransform":"uppercase"}}} -->
-			<h4 class="wp-block-heading has-sm-font-size" style="letter-spacing:var(--wp--custom--letter-spacing--wider);text-transform:uppercase"><?php esc_html_e( 'Support', 'aero' ); ?></h4>
+			<h4 class="wp-block-heading has-sm-font-size" style="letter-spacing:var(--wp--custom--letter-spacing--wider);text-transform:uppercase"><?php esc_html_e( 'Help desk', 'aero' ); ?></h4>
 			<!-- /wp:heading -->
 			<!-- wp:paragraph -->
 			<p><a href="#"><?php esc_html_e( 'Contact', 'aero' ); ?></a></p>
@@ -49,7 +49,7 @@
 		<!-- wp:column -->
 		<div class="wp-block-column">
 			<!-- wp:heading {"level":4,"fontSize":"sm","style":{"typography":{"letterSpacing":"var:custom|letter-spacing|wider","textTransform":"uppercase"}}} -->
-			<h4 class="wp-block-heading has-sm-font-size" style="letter-spacing:var(--wp--custom--letter-spacing--wider);text-transform:uppercase"><?php esc_html_e( 'Legal', 'aero' ); ?></h4>
+			<h4 class="wp-block-heading has-sm-font-size" style="letter-spacing:var(--wp--custom--letter-spacing--wider);text-transform:uppercase"><?php esc_html_e( 'Fine print', 'aero' ); ?></h4>
 			<!-- /wp:heading -->
 			<!-- wp:paragraph -->
 			<p><a href="#"><?php esc_html_e( 'Privacy', 'aero' ); ?></a></p>
