@@ -459,6 +459,63 @@ table.variations td.label{{font-family:var(--wp--preset--font-family--sans);font
 {SENTINEL_CLOSE_PHASE_C}"""
 
 
+# ---------------------------------------------------------------------------
+# Phase D: Branded WC pages — account, empty states, archive header,
+# order-confirmation polish.
+# ---------------------------------------------------------------------------
+# Pairs with the page-level injections in wo-pages-mu.php and the new
+# templates in <theme>/templates/{order-confirmation,404}.html. Each
+# block here is keyed to a CSS class produced by the mu-plugin or the
+# template, never relies on WC core selectors that might change shape.
+#
+#   1. wo-account-intro / wo-account-help — branded login intro panel
+#      and trailing help text injected around the WC login form.
+#   2. wo-empty / wo-empty__* — generic branded empty state used by
+#      cart, shop archives, search results, 404, and order-not-found.
+#   3. wo-archive-hero — editorial hero strip injected before the
+#      product archive loop. Has cover-image variant when the term has
+#      a thumbnail, falls back to text-only otherwise.
+#   4. wo-next-steps / wo-recs — order-confirmation supplementary
+#      sections (3-step "what happens next", 4-card recs grid).
+SENTINEL_OPEN_PHASE_D = "/* wc-tells-phase-d-pages */"
+SENTINEL_CLOSE_PHASE_D = "/* /wc-tells-phase-d-pages */"
+CSS_PHASE_D = f"""{SENTINEL_OPEN_PHASE_D}
+.woocommerce-account .woocommerce>.u-columns,.woocommerce-account .u-columns{{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--wp--preset--spacing--2-xl);align-items:start;}}
+@media (max-width:768px){{.woocommerce-account .woocommerce>.u-columns,.woocommerce-account .u-columns{{grid-template-columns:1fr;}}}}
+.wo-account-intro{{padding:var(--wp--preset--spacing--xl) 0;border-right:1px solid var(--wp--preset--color--border);padding-right:var(--wp--preset--spacing--xl);}}
+@media (max-width:768px){{.wo-account-intro{{border-right:0;padding-right:0;border-bottom:1px solid var(--wp--preset--color--border);padding-bottom:var(--wp--preset--spacing--lg);}}}}
+.wo-account-intro__eyebrow{{font-family:var(--wp--preset--font-family--sans);font-size:var(--wp--preset--font-size--xs);letter-spacing:var(--wp--custom--letter-spacing--wider);text-transform:uppercase;color:var(--wp--preset--color--secondary);margin:0 0 var(--wp--preset--spacing--xs);}}
+.wo-account-intro__title{{font-family:var(--wp--preset--font-family--display,var(--wp--preset--font-family--serif));font-size:var(--wp--preset--font-size--3-xl);letter-spacing:var(--wp--custom--letter-spacing--tight);line-height:1.05;margin:0 0 var(--wp--preset--spacing--md);}}
+.wo-account-intro__lede{{color:var(--wp--preset--color--secondary);margin:0 0 var(--wp--preset--spacing--md);}}
+.wo-account-intro__perks{{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:var(--wp--preset--spacing--xs);}}
+.wo-account-intro__perks li{{position:relative;padding-left:var(--wp--preset--spacing--md);font-size:var(--wp--preset--font-size--sm);color:var(--wp--preset--color--contrast);}}
+.wo-account-intro__perks li::before{{content:"";position:absolute;left:0;top:0.65em;width:6px;height:6px;background:var(--wp--preset--color--accent);border-radius:50%;}}
+.wo-account-help{{margin-top:var(--wp--preset--spacing--lg);font-size:var(--wp--preset--font-size--sm);color:var(--wp--preset--color--secondary);}}
+.wo-empty{{display:flex;flex-direction:column;align-items:center;text-align:center;gap:var(--wp--preset--spacing--md);padding:var(--wp--preset--spacing--3-xl) 0;}}
+.wo-empty__art{{width:120px;height:auto;color:var(--wp--preset--color--secondary);}}
+.wo-empty__eyebrow{{font-family:var(--wp--preset--font-family--sans);font-size:var(--wp--preset--font-size--xs);letter-spacing:var(--wp--custom--letter-spacing--wider);text-transform:uppercase;color:var(--wp--preset--color--secondary);margin:0;}}
+.wo-empty__title{{font-family:var(--wp--preset--font-family--display,var(--wp--preset--font-family--serif));font-size:var(--wp--preset--font-size--4-xl);letter-spacing:var(--wp--custom--letter-spacing--tight);line-height:1.05;margin:0;}}
+.wo-empty__lede{{max-width:48ch;color:var(--wp--preset--color--secondary);margin:0;}}
+.wo-empty__ctas{{display:inline-flex;flex-wrap:wrap;gap:var(--wp--preset--spacing--sm);justify-content:center;margin:var(--wp--preset--spacing--md) 0 0;}}
+.wo-empty__cta{{display:inline-flex;align-items:center;justify-content:center;height:48px;padding:0 var(--wp--preset--spacing--lg);font-family:var(--wp--preset--font-family--sans);font-size:var(--wp--preset--font-size--sm);letter-spacing:var(--wp--custom--letter-spacing--wide);text-transform:uppercase;text-decoration:none;border-radius:var(--wp--custom--radius--sm,4px);transition:background 160ms ease,color 160ms ease,border-color 160ms ease;}}
+.wo-empty__cta--primary{{background:var(--wp--preset--color--contrast);color:var(--wp--preset--color--base);border:1px solid var(--wp--preset--color--contrast);}}
+.wo-empty__cta--primary:hover{{background:var(--wp--preset--color--accent);border-color:var(--wp--preset--color--accent);color:var(--wp--preset--color--base);}}
+.wo-empty__cta--secondary{{background:transparent;color:var(--wp--preset--color--contrast);border:1px solid var(--wp--preset--color--border);}}
+.wo-empty__cta--secondary:hover{{border-color:var(--wp--preset--color--contrast);}}
+.wo-archive-hero{{position:relative;padding:var(--wp--preset--spacing--3-xl) var(--wp--preset--spacing--lg);text-align:center;background:var(--wp--preset--color--subtle);background-size:cover;background-position:center;margin-bottom:var(--wp--preset--spacing--2-xl);}}
+.wo-archive-hero--has-cover{{min-height:300px;display:flex;align-items:center;justify-content:center;color:var(--wp--preset--color--base);}}
+.wo-archive-hero--has-cover::before{{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.25) 0%,rgba(0,0,0,0.55) 100%);}}
+.wo-archive-hero__inner{{position:relative;display:flex;flex-direction:column;gap:var(--wp--preset--spacing--xs);max-width:680px;margin:0 auto;}}
+.wo-archive-hero__eyebrow{{font-family:var(--wp--preset--font-family--sans);font-size:var(--wp--preset--font-size--xs);letter-spacing:var(--wp--custom--letter-spacing--wider);text-transform:uppercase;opacity:0.9;margin:0;}}
+.wo-archive-hero__title{{font-family:var(--wp--preset--font-family--display,var(--wp--preset--font-family--serif));font-size:var(--wp--preset--font-size--5-xl);letter-spacing:var(--wp--custom--letter-spacing--tight);line-height:1;margin:0;}}
+.wo-archive-hero__lede{{font-size:var(--wp--preset--font-size--md);max-width:48ch;margin:var(--wp--preset--spacing--xs) auto 0;opacity:0.85;}}
+.wo-archive-hero__lede p{{margin:0;}}
+.wo-next-steps .wp-block-paragraph,.wo-next-steps p{{font-size:var(--wp--preset--font-size--sm);}}
+.wo-recs .wp-block-product-template,.wo-recs .wp-block-product-collection .wp-block-post-template{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--wp--preset--spacing--lg);}}
+@media (max-width:900px){{.wo-recs .wp-block-product-template,.wo-recs .wp-block-product-collection .wp-block-post-template{{grid-template-columns:repeat(2,minmax(0,1fr));}}}}
+{SENTINEL_CLOSE_PHASE_D}"""
+
+
 # Each entry: (sentinel_open, sentinel_close, raw_css, anchor_after).
 # `anchor_after` is the marker the chunk is spliced in after — for the
 # first chunk that's the canonical archive-page marker; for follow-ups
@@ -512,6 +569,12 @@ CHUNKS: list[tuple[str, str, str, str]] = [
         SENTINEL_CLOSE_PHASE_C,
         CSS_PHASE_C,
         SENTINEL_CLOSE_PHASE_B,
+    ),
+    (
+        SENTINEL_OPEN_PHASE_D,
+        SENTINEL_CLOSE_PHASE_D,
+        CSS_PHASE_D,
+        SENTINEL_CLOSE_PHASE_C,
     ),
 ]
 

@@ -96,6 +96,11 @@ MAPPINGS: dict[str, Path] = {
     # check; observes the body so it re-injects if WC Blocks re-renders.
     "/wordpress/wp-content/mu-plugins/wo-payment-icons-mu.php":
         MONOREPO_ROOT / "playground" / "wo-payment-icons-mu.php",
+    # Branded WC pages: account-login intro, empty cart, no-products,
+    # editorial archive header. All four are filter/action injections
+    # (no template forks), styled by Phase D CSS in append-wc-overrides.
+    "/wordpress/wp-content/mu-plugins/wo-pages-mu.php":
+        MONOREPO_ROOT / "playground" / "wo-pages-mu.php",
 }
 
 # Targets that should receive the WO_* constants block at the top.

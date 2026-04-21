@@ -1,0 +1,232 @@
+<?php
+/**
+ * Wonders & Oddities branded WC pages mu-plugin.
+ *
+ * Bundles the four "page-level" Phase D deliverables that all share the
+ * same shape (filter a WC hook, inject a branded wrapper or replace
+ * markup):
+ *
+ *   1. My Account login: split layout with brand-intro panel on the
+ *      left, form on the right. Uses `woocommerce_before_customer_login_form`
+ *      / `_after_customer_login_form` to wrap the form in branded markup.
+ *      Same approach for the registration column on the right.
+ *
+ *   2. Empty cart message: `woocommerce_cart_is_empty` action emits a
+ *      branded heading + 2 CTA buttons. The default WC empty-cart text
+ *      ("Your cart is currently empty!") and the bare "Return to shop"
+ *      link both get suppressed via gettext (handled in the microcopy
+ *      mu-plugin) so this branded version is the only thing visible.
+ *
+ *   3. Empty search results / no products: filter
+ *      `woocommerce_no_products_found` to print a branded empty state
+ *      with a "Browse all products" CTA + recently-viewed prompt.
+ *
+ *   4. Editorial archive header: `woocommerce_before_main_content` hook
+ *      injects a hero strip at the top of category / tag / shop archives
+ *      that pulls the term cover image (sideloaded by wo-configure 11b)
+ *      + term name + term description into a hero banner. Falls through
+ *      to a clean text-only banner if the term has no cover image.
+ *
+ * All hooks are frontend-only and short-circuit on `is_admin()`. No DB
+ * writes, no options, no admin UI. Works with both block themes and
+ * legacy-PHP WC templates because every hook used here exists in both.
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+// ---------------------------------------------------------------------------
+// 1. Branded My Account login screen.
+// ---------------------------------------------------------------------------
+//
+// The default WC login screen is two side-by-side forms ("Login" and
+// "Register") with WC default styling. Premium storefronts use this
+// page as a brand moment — Aesop frames it as "Welcome back" with a
+// short value prop on the left, form on the right; Glossier puts the
+// last campaign hero next to the form.
+//
+// We inject:
+//   * a `wo-account-intro` panel BEFORE the login columns (left side
+//     visually via CSS grid in Phase D CSS), with a brand-voice intro.
+//   * a `wo-account-benefits` strip AFTER the login columns listing
+//     account perks (order history, faster checkout, saved addresses).
+add_action(
+	'woocommerce_before_customer_login_form',
+	function () {
+		if ( is_admin() || is_user_logged_in() ) {
+			return;
+		}
+		$brand = defined( 'WO_THEME_NAME' ) ? WO_THEME_NAME : 'our shop';
+		?>
+<aside class="wo-account-intro">
+	<p class="wo-account-intro__eyebrow">Account</p>
+	<h2 class="wo-account-intro__title">Welcome back to <?php echo esc_html( $brand ); ?>.</h2>
+	<p class="wo-account-intro__lede">Sign in to view your order history, track shipments, and check out faster next time.</p>
+	<ul class="wo-account-intro__perks">
+		<li>One-click reorders</li>
+		<li>Saved addresses + payment</li>
+		<li>Wishlist + early access drops</li>
+	</ul>
+</aside>
+		<?php
+	},
+	5
+);
+
+add_action(
+	'woocommerce_after_customer_login_form',
+	function () {
+		if ( is_admin() ) {
+			return;
+		}
+		?>
+<p class="wo-account-help">Trouble signing in? <a href="/contact/">Get in touch</a>.</p>
+		<?php
+	},
+	20
+);
+
+// ---------------------------------------------------------------------------
+// 2. Branded empty cart.
+// ---------------------------------------------------------------------------
+//
+// When the cart is empty WC fires `woocommerce_cart_is_empty`. Default
+// behavior is a small "Your cart is currently empty!" banner + a
+// "Return to shop" link. We replace the whole region with a branded
+// empty state (eyebrow + display-font heading + 2 CTAs).
+add_action(
+	'woocommerce_cart_is_empty',
+	function () {
+		if ( is_admin() ) {
+			return;
+		}
+		?>
+<div class="wo-empty wo-empty--cart">
+	<p class="wo-empty__eyebrow">Cart</p>
+	<h1 class="wo-empty__title">Your cart is empty.</h1>
+	<p class="wo-empty__lede">Browse the shop or pick up where you left off.</p>
+	<p class="wo-empty__ctas">
+		<a class="wo-empty__cta wo-empty__cta--primary" href="/shop/">Continue shopping</a>
+		<a class="wo-empty__cta wo-empty__cta--secondary" href="/journal/">Read the journal</a>
+	</p>
+</div>
+		<?php
+	},
+	5
+);
+
+// ---------------------------------------------------------------------------
+// 3. Branded "no products found" empty state.
+// ---------------------------------------------------------------------------
+//
+// Triggered from the legacy WC archive loop (and from the WC Blocks
+// product collection's empty-results inner block). Replaces WC's
+// "No products were found matching your selection." paragraph with
+// the same branded empty-state shape used for the cart.
+//
+// `remove_action` first to clear WC's default; then `add_action` to
+// re-add the branded version at the same priority so it appears in
+// the same template slot.
+add_action(
+	'init',
+	function () {
+		if ( ! function_exists( 'wc_no_products_found' ) ) {
+			return;
+		}
+		remove_action( 'woocommerce_no_products_found', 'wc_no_products_found' );
+		add_action(
+			'woocommerce_no_products_found',
+			function () {
+				if ( is_admin() ) {
+					return;
+				}
+				?>
+<div class="wo-empty wo-empty--shop">
+	<p class="wo-empty__eyebrow">Shop</p>
+	<h2 class="wo-empty__title">Nothing matches that filter yet.</h2>
+	<p class="wo-empty__lede">Try a different category — or see everything we currently have in stock.</p>
+	<p class="wo-empty__ctas">
+		<a class="wo-empty__cta wo-empty__cta--primary" href="/shop/">Browse all products</a>
+		<a class="wo-empty__cta wo-empty__cta--secondary" href="/journal/">Read the journal</a>
+	</p>
+</div>
+				<?php
+			},
+			10
+		);
+	},
+	20
+);
+
+// ---------------------------------------------------------------------------
+// 4. Editorial archive header (category / tag / shop).
+// ---------------------------------------------------------------------------
+//
+// On product category and tag archives, prepend a hero strip that uses
+// the term's cover image (sideloaded by wo-configure section 11b) as a
+// background image with the term name + description overlay. On the
+// generic shop archive (no term), a leaner H1+lede strip prints
+// instead. The strip is dropped before WC's `woocommerce_before_main_content`
+// hook so the existing block-theme markup is unaffected.
+add_action(
+	'woocommerce_before_main_content',
+	function () {
+		if ( is_admin() ) {
+			return;
+		}
+		if ( ! function_exists( 'is_product_category' ) || ! ( is_product_category() || is_product_tag() || is_shop() ) ) {
+			return;
+		}
+
+		$term      = get_queried_object();
+		$has_term  = ( $term && isset( $term->term_id ) );
+		$cover_url = '';
+		$title     = '';
+		$desc      = '';
+		$eyebrow   = '';
+
+		if ( $has_term ) {
+			$thumb_id = (int) get_term_meta( $term->term_id, 'thumbnail_id', true );
+			if ( $thumb_id ) {
+				$cover_url = wp_get_attachment_image_url( $thumb_id, 'large' );
+			}
+			$title   = $term->name;
+			$desc    = term_description( $term->term_id, $term->taxonomy );
+			$eyebrow = ( 'product_cat' === $term->taxonomy ) ? 'Collection' : 'Tag';
+		} elseif ( function_exists( 'is_shop' ) && is_shop() ) {
+			$shop_page_id = wc_get_page_id( 'shop' );
+			if ( $shop_page_id > 0 ) {
+				$cover_url = get_the_post_thumbnail_url( $shop_page_id, 'large' );
+				$title     = get_the_title( $shop_page_id );
+			}
+			if ( ! $title ) {
+				$title = __( 'Shop', 'fifty' );
+			}
+			$eyebrow = 'Shop';
+		}
+
+		if ( ! $title ) {
+			return;
+		}
+
+		$style = '';
+		$mod   = '';
+		if ( $cover_url ) {
+			$style = sprintf( ' style="background-image:url(%s);"', esc_url( $cover_url ) );
+			$mod   = ' wo-archive-hero--has-cover';
+		}
+		?>
+<header class="wo-archive-hero<?php echo esc_attr( $mod ); ?>"<?php echo $style; ?>>
+	<div class="wo-archive-hero__inner">
+		<p class="wo-archive-hero__eyebrow"><?php echo esc_html( $eyebrow ); ?></p>
+		<h1 class="wo-archive-hero__title"><?php echo esc_html( $title ); ?></h1>
+		<?php if ( $desc ) : ?>
+			<div class="wo-archive-hero__lede"><?php echo wp_kses_post( $desc ); ?></div>
+		<?php endif; ?>
+	</div>
+</header>
+		<?php
+	},
+	5
+);

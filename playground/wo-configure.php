@@ -818,7 +818,7 @@ if ( ! get_option( '_wo_product_images_seeded' ) ) {
 // the option name and update_option() call below to trigger a re-seed
 // on next boot. Running the blueprint a second time on the same version
 // skips this section, so re-boots do not nuke post-import editor edits.
-if ( ! get_option( '_wo_cart_checkout_seeded_v2' ) ) {
+if ( ! get_option( '_wo_cart_checkout_seeded_v3' ) ) {
 	$cart_id     = (int) get_option( 'woocommerce_cart_page_id' );
 	$checkout_id = (int) get_option( 'woocommerce_checkout_page_id' );
 
@@ -864,13 +864,27 @@ if ( ! get_option( '_wo_cart_checkout_seeded_v2' ) ) {
 <!-- /wp:woocommerce/filled-cart-block -->
 
 <!-- wp:woocommerce/empty-cart-block -->
-<div class="wp-block-woocommerce-empty-cart-block"><!-- wp:heading {"textAlign":"center","level":2} -->
-<h2 class="wp-block-heading has-text-align-center">Your cart is empty</h2>
+<div class="wp-block-woocommerce-empty-cart-block wo-empty wo-empty--cart"><!-- wp:paragraph {"align":"center","fontSize":"xs","textColor":"secondary","style":{"typography":{"textTransform":"uppercase","letterSpacing":"var:custom|letter-spacing|wider"},"spacing":{"margin":{"bottom":"0"}}}} -->
+<p class="has-text-align-center has-secondary-color has-text-color has-xs-font-size wo-empty__eyebrow" style="text-transform:uppercase;letter-spacing:var(--wp--custom--letter-spacing--wider);margin-bottom:0">Cart</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"textAlign":"center","level":1,"content":"Your cart is empty.","fontSize":"3xl","style":{"typography":{"letterSpacing":"var:custom|letter-spacing|tight"},"spacing":{"margin":{"top":"0","bottom":"0"}}}} -->
+<h1 class="wp-block-heading has-text-align-center has-3-xl-font-size wo-empty__title" style="margin-top:0;margin-bottom:0;letter-spacing:var(--wp--custom--letter-spacing--tight)">Your cart is empty.</h1>
 <!-- /wp:heading -->
 
-<!-- wp:paragraph {"align":"center"} -->
-<p class="has-text-align-center"><a href="/shop/">Continue browsing</a></p>
-<!-- /wp:paragraph --></div>
+<!-- wp:paragraph {"align":"center","textColor":"secondary"} -->
+<p class="has-text-align-center has-secondary-color has-text-color wo-empty__lede">Browse the shop or pick up where you left off.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:buttons {"layout":{"type":"flex","justifyContent":"center"},"style":{"spacing":{"margin":{"top":"var:preset|spacing|md"}}}} -->
+<div class="wp-block-buttons" style="margin-top:var(--wp--preset--spacing--md)"><!-- wp:button -->
+<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="/shop/">Continue shopping</a></div>
+<!-- /wp:button -->
+
+<!-- wp:button {"className":"is-style-outline"} -->
+<div class="wp-block-button is-style-outline"><a class="wp-block-button__link wp-element-button" href="/journal/">Read the journal</a></div>
+<!-- /wp:button --></div>
+<!-- /wp:buttons --></div>
 <!-- /wp:woocommerce/empty-cart-block --></div>
 <!-- /wp:woocommerce/cart -->
 CART;
@@ -966,7 +980,7 @@ CHECKOUT;
 		WP_CLI::warning( 'Checkout page id missing — woocommerce_checkout_page_id option is empty.' );
 	}
 
-	update_option( '_wo_cart_checkout_seeded_v2', '1' );
+	update_option( '_wo_cart_checkout_seeded_v3', '1' );
 	WP_CLI::log( "Cart/Checkout: {$cc_updated} pages reseeded with controlled WC Blocks tree." );
 }
 
