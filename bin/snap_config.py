@@ -330,10 +330,26 @@ INSPECT_SELECTORS: dict[str, list[str]] = {
         ".woocommerce-product-gallery",
         ".product .summary",
         ".wp-block-add-to-cart-form",
+        # Phase A: PDP image now renders via core/post-featured-image
+        # because the WC product-image-gallery block was unreliable.
+        # Track both so we can prove the swap landed.
+        ".wp-block-post-featured-image",
+        ".wp-block-post-featured-image img",
     ],
     "product-variable": [
         ".woocommerce-product-gallery",
         "table.variations",
+        # Phase C: variation `<select>`s are visually replaced by an
+        # interactive button-group. The original select stays in the
+        # DOM (visually hidden) so WC's variation_form JS keeps driving
+        # price/stock. Track all three so the gate fails if either the
+        # swatch wrapper or the hidden select disappear.
+        ".wo-swatch-wrap",
+        ".wo-swatch-group",
+        ".wo-swatch",
+        ".wo-swatch-select",
+        # Phase C: PDP gallery becomes sticky on >=782px viewports.
+        ".wp-block-post-featured-image",
     ],
     "home": [
         ".wp-site-blocks > main",
@@ -342,6 +358,10 @@ INSPECT_SELECTORS: dict[str, list[str]] = {
     "my-account": [
         ".woocommerce-form-login",
         ".u-columns",
+        # Phase D: branded login screen wraps the form in a
+        # `wo-account-intro` panel + `wo-account-help` link.
+        ".wo-account-intro",
+        ".wo-account-help",
     ],
     "journal": [
         ".wp-block-query",
@@ -350,5 +370,30 @@ INSPECT_SELECTORS: dict[str, list[str]] = {
     "category": [
         ".wp-block-woocommerce-product-template",
         ".wp-block-term-description",
+        # Phase D: editorial archive header strip injected by
+        # wo-pages-mu.php on category / tag / shop archives.
+        ".wo-archive-hero",
+        ".wo-archive-hero__title",
+    ],
+    # Phase C: mini-cart drawer is opened by the cart icon in the
+    # header. The drawer renders into a portal at the body root via
+    # WC Blocks, so this selector is global rather than nested under
+    # cart/checkout.
+    "mini-cart": [
+        ".wc-block-mini-cart__drawer",
+        ".wc-block-mini-cart-items",
+        ".wc-block-mini-cart__footer",
+    ],
+    # Phase D: branded order-confirmation template (Thank-you hero +
+    # next-steps timeline + recommendations).
+    "order-received": [
+        ".wo-next-steps",
+        ".wo-recs",
+    ],
+    # Phase D: branded 404 page (eyebrow + display heading + lede +
+    # search + dual CTA, all wrapped in `.wo-empty wo-empty--404`).
+    "not-found": [
+        ".wo-empty",
+        ".wo-empty--404",
     ],
 }
