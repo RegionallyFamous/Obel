@@ -802,6 +802,69 @@ _HEURISTICS_JS = r"""
         }
     });
 
+    // Duplicate `view-transition-name` collisions. Chrome's view-
+    // transitions API REQUIRES every active `view-transition-name`
+    // value to be unique on the page; collisions throw
+    // `InvalidStateError: Transition was aborted because of invalid
+    // state` on the next navigation AND log "Unexpected duplicate
+    // view-transition-name: <name>" to the console. The error is
+    // invisible during a single static `page.goto` (transitions
+    // only fire on navigation), so we have to detect it from the
+    // STATIC DOM by walking every element's computed
+    // `view-transition-name` and grouping by value.
+    //
+    // Two flavours of collision matter:
+    //
+    //   1. CSS-driven (the "site title" footgun) — a theme.json rule
+    //      like `.wp-block-site-title { view-transition-name:
+    //      fifty-site-title }` matches BOTH the header and the
+    //      footer wordmark and assigns them the same name.
+    //   2. PHP-driven (the "post-title appears twice" footgun) —
+    //      a `render_block` filter naively assigns
+    //      `fifty-post-{ID}-{kind}` to every `core/post-title`,
+    //      and the same post ID renders in two block contexts on
+    //      the same page (featured-products + post-template grid).
+    //
+    // Both are flagged here at error severity because the rendered
+    // page IS broken — the next click silently aborts every
+    // transition the theme tries to choreograph. Computed style is
+    // the load-bearing source of truth (not the inline
+    // `style=` attribute), because some rules apply via stylesheet
+    // and inheritance.
+    const vtSeen = new Map();  // name -> [{tag, id, classes}]
+    document.querySelectorAll('*').forEach((el) => {
+        const cs = window.getComputedStyle(el);
+        const name = cs.viewTransitionName;
+        if (!name || name === 'none' || name === 'auto') return;
+        const arr = vtSeen.get(name) || [];
+        arr.push({
+            tag: el.tagName.toLowerCase(),
+            id: el.id || '',
+            classes: (el.className && typeof el.className === 'string')
+                ? el.className.split(/\s+/).filter(Boolean).slice(0, 4).join('.')
+                : '',
+        });
+        vtSeen.set(name, arr);
+    });
+    for (const [name, els] of vtSeen.entries()) {
+        if (els.length < 2) continue;
+        const where = els.slice(0, 4).map((e) => {
+            const cls = e.classes ? '.' + e.classes : '';
+            const id = e.id ? '#' + e.id : '';
+            return `${e.tag}${id}${cls}`;
+        }).join(', ');
+        push("error", "view-transition-name-collision",
+             `Duplicate \`view-transition-name: ${name}\` on `
+             + `${els.length} elements (${where}). The next `
+             + `navigation will throw InvalidStateError and abort `
+             + `every view transition the theme defines. Fix by `
+             + `narrowing the selector (e.g. scope `
+             + `\`.wp-block-site-title\` to a header/footer ancestor) `
+             + `or by deduping per-post names in the render_block `
+             + `filter.`,
+             {vt_name: name, count: els.length});
+    }
+
     // Captured measurements for the user-supplied INSPECT_SELECTORS.
     const wanted = args.inspectSelectors || [];
     for (const sel of wanted) {

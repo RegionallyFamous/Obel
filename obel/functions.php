@@ -131,7 +131,32 @@ add_filter(
 			return $block_content;
 		}
 
-		$vt_name   = sprintf( 'fifty-post-%d-%s', $post_id, $kind );
+		$vt_name = sprintf( 'fifty-post-%d-%s', $post_id, $kind );
+
+		// Per-page uniqueness guard. `view-transition-name` MUST be
+		// unique on the page or Chrome aborts every transition with
+		// `InvalidStateError: Transition was aborted because of
+		// invalid state` AND logs `Unexpected duplicate
+		// view-transition-name: fifty-post-<id>-<kind>` to the
+		// console. The same post ID can render in two block contexts
+		// on the same page (e.g. a featured-products section AND a
+		// post-template grid that includes the same post), so the
+		// naive "name every post-title block" approach is not safe.
+		// Track names already assigned this request via a global; a
+		// closure `static` persists across the PHP-FPM worker's
+		// lifetime and would silently skip post-87 on request 2 just
+		// because request 1 saw it. The companion `init` reset below
+		// (registered next to this filter) clears the global at the
+		// start of every request so the dedup window IS the page.
+		global $fifty_vt_assigned;
+		if ( ! is_array( $fifty_vt_assigned ) ) {
+			$fifty_vt_assigned = array();
+		}
+		if ( isset( $fifty_vt_assigned[ $vt_name ] ) ) {
+			return $block_content;
+		}
+		$fifty_vt_assigned[ $vt_name ] = true;
+
 		$processor = new WP_HTML_Tag_Processor( $block_content );
 		if ( ! $processor->next_tag() ) {
 			return $block_content;
@@ -146,4 +171,19 @@ add_filter(
 	},
 	10,
 	3
+);
+
+// Reset the per-request `view-transition-name` dedup tracker at the
+// top of every request. Without this the global persists across
+// requests in the same PHP-FPM worker (or in WP-Playground's single
+// long-lived PHP instance) and the dedup "remembers" post IDs from
+// previous pageloads, silently dropping their transition names on
+// later pages where they'd be perfectly valid. `init` fires once per
+// request, before any block render, so this is the right resync
+// point.
+add_action(
+	'init',
+	static function (): void {
+		$GLOBALS['fifty_vt_assigned'] = array();
+	}
 );

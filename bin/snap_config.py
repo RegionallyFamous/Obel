@@ -155,6 +155,31 @@ KNOWN_NOISE_SUBSTRINGS: tuple[str, ...] = (
     # head is briefly null in headless Chromium during early DOM setup.
     # Harmless; emoji rendering still works.
     "Cannot read properties of null (reading 'appendChild')",
+    # WordPress Playground bumps the "Loaded WordPress version"
+    # against the requested version on every boot. Always logged,
+    # never actionable on our side (we don't pin a WP version).
+    "Loaded WordPress version",
+    # Playground service worker reports a benign timing constraint
+    # of the worker spec on every navigation. The message contains
+    # a literal "<some>" placeholder string — Playground bug, harmless
+    # for our visual snaps (we don't use the SW messaging surface).
+    "Event handler of <some> event must be added on the initial",
+    # jquery-migrate prints an info-level banner on every page that
+    # loads jQuery; not a regression signal.
+    "JQMIGRATE: Migrate is installed",
+    # WC's `_load_textdomain_just_in_time` notice is fired by WC core
+    # itself (not by any of our themes) when WP core initialises
+    # certain admin-bar strings before the `init` hook. Tracked
+    # upstream in WC; the warning has been logged on every WP boot
+    # since WP 6.7. Re-evaluate when WC ships a fix.
+    "_load_textdomain_just_in_time was called",
+    # Playground's SQLite shim lacks a refund-query MySQL function,
+    # so WC's email order-item template throws a SQL datatype
+    # mismatch when sending the customer-completed-order email
+    # during the demo blueprint. The email never goes anywhere
+    # (Playground has no MTA), and the visual templates render
+    # fine; only the email send path errors.
+    "wp_wc_orders.parent_order_id",
 )
 
 
