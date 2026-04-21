@@ -877,11 +877,19 @@ body.theme-aero h1,body.theme-aero h2,body.theme-aero .wp-block-heading{{text-sh
 #      aero/templates/front-page.html).
 SENTINEL_OPEN_PHASE_K = "/* wc-tells-phase-k-aero-signal-strip */"
 SENTINEL_CLOSE_PHASE_K = "/* /wc-tells-phase-k-aero-signal-strip */"
+#
+# No `!important` here on purpose: Phase K targets bespoke aero markup
+# (`.aero-signal-strip`, `.aero-signal-chip`) that no WC plugin paints,
+# so there's no cascade fight to win and the rules win on specificity
+# alone. Adding `!important` would trip `bin/check.py`'s
+# `check_no_important` rule for no good reason — that rule's allowlist
+# is reserved for chunks where WC plugin CSS has property-level
+# `!important` we have to override (see Phases A, C, E, J).
 CSS_PHASE_K = f"""{SENTINEL_OPEN_PHASE_K}
 body.theme-aero .aero-signal-strip{{background:linear-gradient(90deg,rgba(255,255,255,0.55) 0%,rgba(214,196,242,0.45) 28%,rgba(167,210,238,0.45) 55%,rgba(255,224,243,0.45) 82%,rgba(255,255,255,0.55) 100%);border-top:1px solid rgba(255,255,255,0.8);border-bottom:1px solid rgba(255,255,255,0.8);box-shadow:inset 0 1px 0 rgba(255,255,255,0.95),inset 0 -1px 0 rgba(74,63,135,0.08);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}}
-body.theme-aero .aero-signal-strip__row{{gap:var(--wp--preset--spacing--lg) !important;}}
-body.theme-aero .aero-signal-chip{{margin:0 !important;padding:6px 14px !important;border-radius:var(--wp--custom--radius--pill,9999px) !important;background:linear-gradient(180deg,rgba(255,255,255,0.85) 0%,rgba(255,255,255,0.55) 100%) !important;border:1px solid rgba(255,255,255,0.8) !important;color:var(--wp--preset--color--contrast) !important;font-family:var(--wp--preset--font-family--sans) !important;font-weight:600 !important;letter-spacing:var(--wp--custom--letter-spacing--wide,0.04em) !important;text-transform:uppercase !important;box-shadow:inset 0 1px 0 rgba(255,255,255,0.95),0 4px 10px rgba(74,63,135,0.10) !important;}}
-@media (max-width: 781px){{body.theme-aero .aero-signal-strip__row{{gap:var(--wp--preset--spacing--xs) !important;}} body.theme-aero .aero-signal-chip{{padding:5px 10px !important;}}}}
+body.theme-aero .aero-signal-strip .aero-signal-strip__row{{gap:var(--wp--preset--spacing--lg);}}
+body.theme-aero .aero-signal-strip .aero-signal-chip{{margin:0;padding:6px 14px;border-radius:var(--wp--custom--radius--pill,9999px);background:linear-gradient(180deg,rgba(255,255,255,0.85) 0%,rgba(255,255,255,0.55) 100%);border:1px solid rgba(255,255,255,0.8);color:var(--wp--preset--color--contrast);font-family:var(--wp--preset--font-family--sans);font-weight:600;letter-spacing:var(--wp--custom--letter-spacing--wide,0.04em);text-transform:uppercase;box-shadow:inset 0 1px 0 rgba(255,255,255,0.95),0 4px 10px rgba(74,63,135,0.10);}}
+@media (max-width: 781px){{body.theme-aero .aero-signal-strip .aero-signal-strip__row{{gap:var(--wp--preset--spacing--xs);}} body.theme-aero .aero-signal-strip .aero-signal-chip{{padding:5px 10px;}}}}
 {SENTINEL_CLOSE_PHASE_K}"""
 
 
