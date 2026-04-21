@@ -3714,12 +3714,12 @@ def _longest_shared_phrase(a: list[str], b: list[str]) -> str:
 
 
 def check_no_default_wc_strings() -> Result:
-    """Fail if the wo-microcopy-mu.php inlined into blueprint.json doesn't
-    suppress every default-WC string the demo critique calls out.
+    """Fail if a theme's functions.php doesn't ship every canonical
+    default-WC microcopy override.
 
     DEFAULT-WC-STRING FAIL MODE
     ---------------------------
-    Even after Phases A–E reskin every WC surface, three or four strings
+    Even after Phases A–E reskin every WC surface, four or five strings
     on the cart, account login, and shop archive are unmistakable
     "this is a stock WooCommerce install" tells:
 
@@ -3729,60 +3729,54 @@ def check_no_default_wc_strings() -> Result:
         - "Proceed to Checkout"         (order-button text)
         - "Lost your password?"         (account form link)
 
-    We override them all in `playground/wo-microcopy-mu.php`, which is
-    inlined verbatim into each theme's `playground/blueprint.json` by
-    `bin/sync-playground.py`. If a future edit to the mu-plugin or the
-    sync script ever drops one of those overrides, this check fires
-    against the rendered blueprint so the regression is impossible to
-    miss in CI.
+    Since the theme-shipped microcopy refactor, every theme owns its
+    own override block bracketed by `// === BEGIN wc microcopy ===`
+    sentinels at the bottom of `<theme>/functions.php`. The block
+    rewrites those strings in that theme's brand voice. This check
+    asserts both halves: the sentinel block is present, AND each of
+    the canonical override fragments survives inside it. Drop the
+    block and the live demo paints with stock WC strings; drop a
+    fragment and the matching surface regresses individually.
 
-    The check is per-theme because the per-theme constants
-    (`WO_THEME_NAME`, `WO_THEME_SLUG`, `WO_CONTENT_BASE_URL`) are
-    prepended to the inlined data; we want to confirm the mu-plugin
-    survived that prepend in every theme's blueprint.
+    The check is per-theme because the override block is per-theme
+    (each theme has its own voice + text domain). The previous
+    iteration scanned the inlined mu-plugin in blueprint.json; that
+    mu-plugin was deleted because shopper-facing brand must travel
+    with the released theme, not be bolted on by a Playground-only
+    must-use plugin.
 
     See AGENTS.md hard rule "No default WC strings on the live demo".
     """
-    r = Result("Default WC microcopy is overridden in inlined wo-microcopy-mu.php")
-    bp_path = ROOT / "playground" / "blueprint.json"
-    if not bp_path.exists():
-        r.skip("no playground/blueprint.json (theme without a Playground blueprint)")
-        return r
-    try:
-        bp = json.loads(bp_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        r.fail(f"playground/blueprint.json: invalid JSON ({exc}).")
+    r = Result("Default WC microcopy is overridden in <theme>/functions.php")
+    fn_path = ROOT / "functions.php"
+    if not fn_path.exists():
+        r.skip("no functions.php (theme without PHP bootstrap)")
         return r
 
-    target_data: str | None = None
-    for step in bp.get("steps", []) or []:
-        if not isinstance(step, dict):
-            continue
-        if step.get("step") != "writeFile":
-            continue
-        if "wo-microcopy-mu.php" not in (step.get("path") or ""):
-            continue
-        data = step.get("data")
-        if isinstance(data, str):
-            target_data = data
-            break
-
-    if target_data is None:
+    src = fn_path.read_text(encoding="utf-8")
+    begin = "// === BEGIN wc microcopy ==="
+    end = "// === END wc microcopy ==="
+    if begin not in src or end not in src:
         r.fail(
-            "playground/blueprint.json has no inlined "
-            "wo-microcopy-mu.php writeFile step. The demo will paint "
-            "with WC's default strings (\"Showing 1-16 of 55 results\", "
-            "\"Default sorting\", \"Estimated total\", \"Proceed to "
-            "Checkout\", \"Lost your password?\"). Run "
-            "`python3 bin/sync-playground.py` to inline the mu-plugin."
+            "functions.php has no `// === BEGIN wc microcopy === ... "
+            "// === END wc microcopy ===` block. The live demo will "
+            "paint with WC's default strings (\"Showing 1-16 of 55 "
+            "results\", \"Default sorting\", \"Estimated total\", "
+            "\"Proceed to Checkout\", \"Lost your password?\"). Append "
+            "the canonical block to `functions.php` (see obel/functions.php "
+            "for the reference shape) — it MUST live in the theme so the "
+            "overrides ship when the theme is dropped into wp-content/themes/."
         )
         return r
 
+    block = src[src.index(begin) : src.index(end) + len(end)]
+
     # Each entry: a fragment of the override that MUST appear in the
-    # inlined PHP, plus the user-facing default string it displaces.
-    # Fragments are intentionally narrow (the WP filter callback body)
-    # so a future refactor that splits the filter into multiple closures
-    # still works as long as the displaced string still gets replaced.
+    # block, plus the user-facing default string it displaces. Fragments
+    # are intentionally narrow (the WP filter hook name or the literal
+    # WC default string in the gettext map) so a future refactor that
+    # splits the filter into multiple closures still works as long as
+    # the displaced string still gets replaced.
     required = [
         ("woocommerce_blocks_cart_totals_label",
          "\"Estimated total\" cart totals label"),
@@ -3794,164 +3788,281 @@ def check_no_default_wc_strings() -> Result:
          "\"Lost your password?\" account login link"),
         ("render_block_woocommerce/product-results-count",
          "\"Showing 1-16 of 55 results\" loop result count "
-         "(rewritten in place via render_block filter — the previous "
-         "woocommerce_before_shop_loop echo produced a duplicate "
+         "(rewritten in place via render_block filter — a "
+         "woocommerce_before_shop_loop echo would produce a duplicate "
          "floating count inside wp:woocommerce/product-collection)"),
     ]
     for needle, label in required:
-        if needle not in target_data:
+        if needle not in block:
             r.fail(
-                f"inlined wo-microcopy-mu.php is missing the override "
-                f"for {label} (looked for `{needle}`). The default "
-                f"string will paint on the live demo."
+                f"functions.php wc microcopy block is missing the override "
+                f"for {label} (looked for `{needle}` between the BEGIN/END "
+                f"sentinels). The default string will paint on the live demo."
             )
 
     if r.passed and not r.skipped:
         r.details.append(
             f"all {len(required)} default-WC microcopy overrides "
-            f"present in inlined mu-plugin"
+            f"present in functions.php wc microcopy block"
         )
     return r
 
 
-def check_mu_plugin_no_legacy_loop_echoes() -> Result:
-    """Forbid `add_action('woocommerce_before_shop_loop', ...)` /
-    `woocommerce_after_shop_loop` callbacks in `wo-microcopy-mu.php`
-    that emit HTML.
+def check_no_brand_filters_in_playground() -> Result:
+    """Forbid shopper-facing brand filters in any `playground/*.php`.
 
-    THE 23-ITEMS-FLOATING-IN-THE-MIDDLE-OF-NOWHERE FAIL MODE
-    --------------------------------------------------------
-    These two WC actions fire in TWO places on every modern shop /
-    archive page:
+    BRAND-IN-PLAYGROUND FAIL MODE
+    -----------------------------
+    The `playground/` directory is for boot-time setup that has no
+    analogue on a real WordPress install: WXR import, WC catalogue
+    seeding, demo cart pre-fill, swatch markup, payment-icon strip.
+    Anything that affects what a real shopper sees on a released theme
+    MUST live in the theme directory (`<theme>/functions.php`,
+    templates, parts, patterns, `theme.json`, `styles/`, `style.css`)
+    so the override travels with the theme when a Proprietor downloads
+    it and drops it into `wp-content/themes/`.
 
-      1. The legacy `woocommerce_content()` shortcode loop (where the
-         original WC counter, sort dropdown, and "no products" notice
-         all hooked in).
-      2. INSIDE `wp:woocommerce/product-collection`'s server render --
-         the product-collection block invokes the loop hooks for
-         backwards compatibility with sidebar widgets and addon
-         plugins.
+    Before the theme-shipped microcopy refactor, `wo-microcopy-mu.php`
+    in `playground/` registered ~12 filters that affected exactly that
+    surface area: cart/checkout `gettext` map, sort labels, pagination
+    arrows, result-count rewrite, WC Blocks button text, required-field
+    marker swap. The mu-plugin was inlined into every blueprint and
+    nothing else; release-only consumers got bare WC default strings.
+    The fix moved every filter into `<theme>/functions.php` and
+    deleted the mu-plugin. This check guarantees no future regression:
+    if any `add_filter` / `add_action` registered against a known
+    brand-affecting hook reappears in `playground/*.php`, the gate
+    fails, names the file, names the hook, and points at the rule.
 
-    Themes built on the modern block editor place
-    `wp:woocommerce/product-results-count` (and `catalog-sorting`,
-    etc.) inside a flex header row in `archive-product.html` and
-    `product-search-results.html`, then render the product grid below
-    via `wp:woocommerce/product-collection`. A mu-plugin that echoes
-    HTML on `woocommerce_before_shop_loop` paints that HTML TWICE: once
-    in the title row (correct, because the matching block lives there)
-    and once floating above the product grid with no parent flex
-    container. The exact symptom reported on the live demo was a
-    naked "23 ITEMS" line appearing in the middle of nowhere, halfway
-    between the H1 row and the product grid. The previous mu-plugin
-    iteration shipped this regression because every static check in
-    the gate inspected source files; nothing inspected the runtime
-    interaction between mu-plugin echoes and modern shop block
-    composition.
+    The denylist is conservative on purpose. Hooks that legitimately
+    only matter at boot (`init`, `wp_loaded`, `woocommerce_init`,
+    `woocommerce_loaded`, `pre_get_posts` for the seed step, etc.)
+    are never on it; only hooks that change a string a shopper reads
+    or HTML a shopper sees are denied.
 
-    The canonical pattern is `render_block_<block-name>` filters:
-    they receive the block's already-correctly-positioned HTML and
-    rewrite it in place, so there is exactly ONE node per surface
-    and it sits where the template author put it. See the comment
-    block above the `render_block_woocommerce/product-results-count`
-    filter in `playground/wo-microcopy-mu.php` for the full
-    post-mortem.
+    Allowlist: a forbidden hook may be registered if its `add_filter`
+    call sits inside an `if ( defined('WO_DEMO_ONLY') )` (or any
+    `defined('WO_*')` constant) guard, so a future genuine demo-only
+    override can opt out of the rule explicitly. The check looks for
+    `defined(` within 200 chars before the `add_filter` call.
 
-    A new override that needs to fire in the legacy loop AND the
-    block render AND nowhere else is a contradiction in terms --
-    pick one mechanism and stick to it. If a future override genuinely
-    needs the legacy hook (e.g. a block-less archive a plugin ships)
-    add the surface to `_LOOP_ECHO_ALLOWLIST` below with a one-line
-    rationale comment in this docstring.
-
-    See AGENTS.md hard rule "Mu-plugin overrides MUST use
-    render_block_* filters, not woocommerce_*_shop_loop echoes".
+    See AGENTS.md root-rule "Shopper-facing brand lives in the theme,
+    not in playground/".
     """
-    r = Result("wo-microcopy-mu.php has no HTML echoes on legacy loop hooks")
-    # Canonical source lives at <monorepo>/playground/wo-microcopy-mu.php
-    # (single file, inlined into every theme's blueprint by
-    # bin/sync-playground.py). Always scan that single source so the
-    # check fires once per theme run with the same content -- a
-    # per-theme path would skip every theme in the monorepo because
-    # the mu-plugin is shared, not duplicated.
-    mu_path = MONOREPO_ROOT / "playground" / "wo-microcopy-mu.php"
-    if not mu_path.exists():
-        r.skip("no playground/wo-microcopy-mu.php (monorepo without the demo mu-plugin)")
+    r = Result("playground/*.php registers no shopper-facing brand filters")
+    pg_dir = MONOREPO_ROOT / "playground"
+    if not pg_dir.is_dir():
+        r.skip("no playground/ directory")
         return r
 
-    src = mu_path.read_text(encoding="utf-8")
-
-    # Surfaces that fire inside both the legacy loop AND
-    # `wp:woocommerce/product-collection`'s server render. Adding to
-    # this list expands the forbidden-hook set; never shrink it.
-    forbidden_hooks = (
-        "woocommerce_before_shop_loop",
-        "woocommerce_after_shop_loop",
-        "woocommerce_no_products_found",
+    # Hooks whose every callback rewrites a string a shopper reads
+    # (gettext family, WC Blocks React strings, sort labels, page-title
+    # visibility) or HTML a shopper sees (form-field marker, archive
+    # result-count rewrite, pagination arrows). Wildcards are matched
+    # by prefix.
+    forbidden_exact = {
+        "gettext",
+        "gettext_with_context",
+        "ngettext",
+        "ngettext_with_context",
+        "woocommerce_form_field",
+        "woocommerce_default_catalog_orderby_options",
+        "woocommerce_catalog_orderby",
+        "woocommerce_pagination_args",
+        "woocommerce_show_page_title",
+        "woocommerce_order_button_text",
+        "woocommerce_order_button_html",
+    }
+    forbidden_prefix = (
+        "render_block_woocommerce/",
+        "woocommerce_blocks_",
     )
 
-    # Scan every `add_action( 'hook', function ... )` with a callback
-    # body that emits HTML (`echo` of a string literal, `print`, an
-    # interpolated `<...>` heredoc, or a `printf` of `<...>`). Allow
-    # callbacks whose only side effect is a `remove_action` /
-    # `add_filter` that doesn't itself emit HTML, because those are
-    # legitimate runtime hook reordering.
-    add_action_re = re.compile(
-        r"add_action\s*\(\s*"
-        r"['\"](" + "|".join(re.escape(h) for h in forbidden_hooks) + r")['\"]"
-        r"\s*,\s*function\s*\([^)]*\)\s*\{",
+    register_re = re.compile(
+        r"add_(?:filter|action)\s*\(\s*['\"]([^'\"]+)['\"]",
         re.IGNORECASE,
     )
 
     failures: list[str] = []
-    for match in add_action_re.finditer(src):
-        hook = match.group(1)
-        body_start = match.end()
-        # Walk to the matching closing brace, respecting nesting.
-        depth = 1
-        i = body_start
-        while i < len(src) and depth > 0:
-            ch = src[i]
-            if ch == "{":
-                depth += 1
-            elif ch == "}":
-                depth -= 1
-            i += 1
-        body = src[body_start : i - 1]
-        # Strip line + block comments before the emit-HTML scan so
-        # docstrings that mention `echo '<p ...>'` as illustration
-        # don't trip the gate.
-        body_no_comments = re.sub(r"//[^\n]*", "", body)
-        body_no_comments = re.sub(r"/\*[\s\S]*?\*/", "", body_no_comments)
-        emits_html = bool(
-            re.search(r"\b(echo|print)\s+[^;]*['\"]\s*<", body_no_comments)
-            or re.search(r"\bprintf\s*\(\s*['\"]\s*<", body_no_comments)
-            or re.search(r"<<<['\"]?\w+['\"]?\s*\n[\s\S]*?<", body_no_comments)
-        )
-        if emits_html:
-            line_no = src.count("\n", 0, match.start()) + 1
+    files_scanned = 0
+    for php_path in sorted(pg_dir.glob("*.php")):
+        files_scanned += 1
+        src = php_path.read_text(encoding="utf-8")
+        # Strip line + block comments so a docstring example like
+        # `add_filter('gettext', ...)` doesn't trip the gate.
+        scrubbed = re.sub(r"//[^\n]*", "", src)
+        scrubbed = re.sub(r"/\*[\s\S]*?\*/", "", scrubbed)
+        for match in register_re.finditer(scrubbed):
+            hook = match.group(1)
+            denied = hook in forbidden_exact or any(
+                hook.startswith(p) for p in forbidden_prefix
+            )
+            if not denied:
+                continue
+            # Allowlist: if the call sits inside a `defined('WO_*')`
+            # guard within 200 chars upstream, treat as opt-out.
+            window = scrubbed[max(0, match.start() - 200) : match.start()]
+            if re.search(r"defined\s*\(\s*['\"]WO_[A-Z0-9_]+['\"]\s*\)", window):
+                continue
+            line_no = scrubbed.count("\n", 0, match.start()) + 1
             failures.append(
-                f"  playground/wo-microcopy-mu.php:{line_no}: "
-                f"`add_action('{hook}', function () {{ ... echo '<...>' ... }})` "
-                f"will paint the same HTML TWICE on every archive — once in "
-                f"the legacy loop position and once inside "
-                f"wp:woocommerce/product-collection's server render. Use a "
-                f"`render_block_<block-name>` filter to rewrite the existing "
-                f"block output in place instead."
+                f"  playground/{php_path.name}:{line_no}: registers "
+                f"`{hook}` — that hook rewrites a string or HTML a "
+                f"shopper reads on a real install. Move the filter into "
+                f"`<theme>/functions.php` between the "
+                f"`// === BEGIN wc microcopy ===` sentinels (or guard "
+                f"the registration with `if ( defined( 'WO_DEMO_ONLY' ) )` "
+                f"if it really is demo-only)."
             )
 
     if failures:
         r.fail(
-            "wo-microcopy-mu.php emits HTML on a shared WC loop action; "
-            "this paints duplicate, container-less markup inside the "
-            "wp:woocommerce/product-collection block. Switch to a "
-            "render_block_<block-name> filter (see the post-mortem above "
-            "the render_block_woocommerce/product-results-count filter "
-            "in the mu-plugin):\n" + "\n".join(failures)
+            "playground/*.php registers brand-affecting filters; the "
+            "release theme will paint with WC default strings because "
+            "the mu-plugin doesn't ship with it. See AGENTS.md root-rule "
+            "\"Shopper-facing brand lives in the theme, not in "
+            "playground/\":\n" + "\n".join(failures)
         )
     else:
         r.details.append(
-            f"no HTML-emitting echoes on {len(forbidden_hooks)} forbidden "
-            f"WC loop hooks ({', '.join(forbidden_hooks)})"
+            f"scanned {files_scanned} playground/*.php file(s); no "
+            f"brand-affecting filter registrations"
+        )
+    return r
+
+
+def check_wc_microcopy_distinct_across_themes() -> Result:
+    """Fail if two themes' wc microcopy maps translate the same WC
+    default string to the same override (excluding genuine universals
+    on the allowlist).
+
+    SAME-VOICE-EVERYWHERE FAIL MODE
+    -------------------------------
+    Each theme's `<theme>/functions.php` has a `// === BEGIN wc
+    microcopy ===` block whose `static $map = array(...);` rewrites
+    WC default strings into that theme's voice. A clone (`bin/clone.py`)
+    copies obel verbatim, so a fresh variant ships with obel's voice
+    until somebody rewrites the map. Without this gate, a side-by-side
+    review of five themes reads as "one shop in different paint jobs"
+    on every cart, checkout, account-login, and shop-archive surface
+    — the exact failure mode the per-theme microcopy refactor exists
+    to prevent.
+
+    The check parses each theme's `static $map = array( 'WC default'
+    => 'Theme override', ... );` block, groups translations by WC
+    default key, and fails on any key whose translation repeats across
+    two or more themes UNLESS the WC default is in the universal
+    allowlist at `bin/wc_microcopy_universal.json`. The allowlist
+    covers tiny utility verbs, single-word financial labels, and
+    case-variant duplicates ("Username or email address" / "Username
+    or Email Address") where forcing 5 distinct translations would
+    feel artificial.
+
+    Failure message names the WC default key, the duplicate translation,
+    and the themes sharing it; the fix is to rewrite the offending
+    theme's value in its own voice (preferred) or, very rarely, add
+    the WC default to `bin/wc_microcopy_universal.json` with a
+    one-line rationale.
+
+    See AGENTS.md hard rule "Per-theme WC microcopy must be distinct
+    across themes".
+    """
+    r = Result("WC microcopy maps are distinct across themes")
+    allowlist_path = MONOREPO_ROOT / "bin" / "wc_microcopy_universal.json"
+    allowlist: set[str] = set()
+    if allowlist_path.is_file():
+        try:
+            raw = json.loads(allowlist_path.read_text(encoding="utf-8"))
+            allowlist = {k for k in raw.keys() if not k.startswith("_comment")}
+        except json.JSONDecodeError as exc:
+            r.fail(f"wc_microcopy_universal.json: invalid JSON ({exc}).")
+            return r
+
+    begin = "// === BEGIN wc microcopy ==="
+    end = "// === END wc microcopy ==="
+    # PHP map entry: `'key' => 'value',` (single quotes only — the
+    # render template ships single-quoted PHP literals).
+    pair_re = re.compile(
+        r"'((?:[^'\\]|\\.)*)'\s*=>\s*'((?:[^'\\]|\\.)*)'",
+    )
+
+    def php_unquote(literal: str) -> str:
+        # PHP single-quoted strings: only \\ and \' are escaped.
+        return literal.replace("\\'", "'").replace("\\\\", "\\")
+
+    # theme_slug -> { wc_default -> override }
+    per_theme: dict[str, dict[str, str]] = {}
+    for theme_dir in iter_themes():
+        fn_path = theme_dir / "functions.php"
+        if not fn_path.is_file():
+            continue
+        src = fn_path.read_text(encoding="utf-8")
+        if begin not in src or end not in src:
+            # check_no_default_wc_strings flags the missing block
+            # already; don't double-fail here, just skip the theme
+            # in the cross-theme comparison.
+            continue
+        block = src[src.index(begin) : src.index(end) + len(end)]
+        # Narrow to the first `static $map = array(...)` so we don't
+        # accidentally pick up sort-label entries or other arrays.
+        map_match = re.search(
+            r"static\s+\$map\s*=\s*array\s*\(([\s\S]*?)\)\s*;",
+            block,
+        )
+        if not map_match:
+            continue
+        map_body = map_match.group(1)
+        per_theme[theme_dir.name] = {
+            php_unquote(k): php_unquote(v)
+            for k, v in pair_re.findall(map_body)
+        }
+
+    if len(per_theme) < 2:
+        r.skip(
+            f"only {len(per_theme)} theme(s) ship a wc microcopy map; "
+            f"cross-theme comparison needs at least 2"
+        )
+        return r
+
+    # All keys present in any theme. For each key we'll collect the
+    # per-theme translations and look for duplicates.
+    all_keys: set[str] = set()
+    for m in per_theme.values():
+        all_keys.update(m.keys())
+
+    failures: list[str] = []
+    pairs_checked = 0
+    for key in sorted(all_keys):
+        if key in allowlist:
+            continue
+        # value -> [theme slugs that translate to that value]
+        by_value: dict[str, list[str]] = {}
+        for slug, m in per_theme.items():
+            if key in m:
+                by_value.setdefault(m[key], []).append(slug)
+        for value, slugs in by_value.items():
+            pairs_checked += 1
+            if len(slugs) >= 2:
+                failures.append(
+                    f"  {sorted(slugs)} all translate `{key}` -> "
+                    f"`{value}`. Rewrite at least one in its own voice "
+                    f"(or, if the WC default genuinely should not vary, "
+                    f"add it to bin/wc_microcopy_universal.json)."
+                )
+
+    if failures:
+        r.fail(
+            f"WC microcopy maps share translations across themes "
+            f"(checked {pairs_checked} per-key translations across "
+            f"{len(per_theme)} themes; see the allowlist at "
+            f"bin/wc_microcopy_universal.json for genuine universals):\n"
+            + "\n".join(failures)
+        )
+    else:
+        r.details.append(
+            f"checked {pairs_checked} per-key translations across "
+            f"{len(per_theme)} themes; every non-allowlisted "
+            f"translation is unique"
         )
     return r
 
@@ -4210,7 +4321,8 @@ def run_checks_for(theme_root: Path, offline: bool) -> int:
         check_pattern_microcopy_distinct(),
         check_all_rendered_text_distinct_across_themes(),
         check_no_default_wc_strings(),
-        check_mu_plugin_no_legacy_loop_echoes(),
+        check_no_brand_filters_in_playground(),
+        check_wc_microcopy_distinct_across_themes(),
         check_playground_content_seeded(),
         check_no_unpushed_commits(),
     ]

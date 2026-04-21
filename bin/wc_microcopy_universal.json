@@ -1,0 +1,27 @@
+{
+  "_comment_1": "Allowlist of WooCommerce default strings whose translation may legitimately repeat across every theme without `check_wc_microcopy_distinct_across_themes` flagging the duplicate. Use sparingly — every entry here is a microcopy slot the family stops differentiating on.",
+  "_comment_2": "Add a key to this file ONLY when the WC default is a tiny utility verb, a financial label, or a single-word UI affordance where artificial divergence would read as forced (Cart subtotal -> Subtotal everywhere; Login -> Sign in everywhere). The rule of thumb: would a real Apple / Aesop / Hermès store really say something different here? If yes, rewrite the offending theme's map. If no, allowlist it.",
+  "_comment_3": "Keys are the WC default string verbatim (case-sensitive, exact whitespace). Values are a one-line rationale so future readers can audit the call.",
+
+  "Apply": "Universal cart action verb; no shop has ever wanted 'Activate coupon' or similar.",
+  "Apply coupon": "Same as 'Apply' — utility verb on the coupon field.",
+  "Be the first to review": "PDP empty-state prompt; no theme has shipped a distinctive rewrite yet, intentionally left identical until one wants to differentiate.",
+  "Cart subtotal": "Financial label collapsed to 'Subtotal' across every premium reference (Apple, Aesop, Hermès, Lululemon).",
+  "Description": "Single-word section heading; every premium PDP labels it 'Description'.",
+  "Log in": "Auth verb collapsed to 'Sign in' across every modern shop chrome.",
+  "Log out": "Auth verb collapsed to 'Sign out' across every modern shop chrome.",
+  "Login": "Case variant of 'Log in'; same rationale.",
+  "My Account": "Account chrome label; 'Account' is the universal short form.",
+  "My account": "Case variant of 'My Account'; same rationale.",
+  "Reviews": "Single-word section heading; 'Reviews' is universal across every premium PDP.",
+  "Rating": "Single-word label collapsed to 'Rating'; same rationale as 'Reviews'.",
+  "Subtotal": "Financial label; every premium reference uses 'Subtotal'.",
+  "Total": "Financial label; every premium reference uses 'Total'.",
+  "Update": "Cart action verb; no shop ships a distinctive verb here.",
+  "Update cart": "Same as 'Update' — utility verb on the cart-update button.",
+  "Username or Email Address": "Auth field label collapsed to 'Email' across every modern shop chrome (case-insensitive).",
+  "Username or email address": "Case variant of 'Username or Email Address'; same rationale.",
+  "View Cart": "Mini-cart drawer CTA; 'View cart' is universal across every premium reference.",
+  "View cart": "Case variant of 'View Cart'; same rationale.",
+  "Your rating": "PDP review-form label collapsed to 'Rating'; same rationale as 'Reviews'."
+}

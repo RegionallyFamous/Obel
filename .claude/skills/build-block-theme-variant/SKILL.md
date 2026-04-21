@@ -205,7 +205,7 @@ If any of these scripts are missing, stop and tell the user — don't improvise 
 
 Generate a mockup image **first** with `GenerateImage`, then ask **all** of these in a single `AskQuestion` call. Do not start building until answered.
 
-**The four questions that always matter:**
+**The five questions that always matter:**
 
 ```
 1. NAME            → confirm the new theme slug (lowercase, no spaces)
@@ -218,6 +218,16 @@ Generate a mockup image **first** with `GenerateImage`, then ask **all** of thes
 4. SHAPE           → page composition keywords (asymmetric / centered / grid /
                      editorial / dense) and which sections need radical restyle
                      vs. light retheme
+5. VOICE           → microcopy register for WC strings (cart, checkout,
+                     archive sort labels, result count, required-field marker,
+                     pagination glyphs). One line of voice direction
+                     ("brisk industrial", "Victorian shopkeeper",
+                     "lab-precise", "casual loft Brooklyn") is enough — it
+                     drives the per-theme `// === BEGIN wc microcopy ===`
+                     block in `functions.php` (see step 6). Every theme's
+                     map must read distinctly from every other theme's;
+                     `bin/check.py` `check_wc_microcopy_distinct_across_themes`
+                     enforces it.
 ```
 
 Bundle them. Never drip-feed.
@@ -422,6 +432,24 @@ The moment you start step 6, create a `TodoWrite` list with **one todo per surfa
    - My account → log in as a test customer
    - Order confirmation → place a real test order or use `wp post list --post_type=shop_order` and view one
 5. **No surface is "done" without a screenshot taken at the desktop viewport** with real content visible. Empty-state screenshots count separately (cart-empty, search-no-results, 404).
+
+### Per-theme WC microcopy block (`functions.php`)
+
+Every variant ships its own voice for the WooCommerce strings that surface during the cart / checkout / archive / account / login flow. This block lives in **this theme's `functions.php`** between the sentinels `// === BEGIN wc microcopy ===` and `// === END wc microcopy ===`, scoped to this theme's text domain. It is **never** placed in `playground/` — when the theme is downloaded by a Proprietor and dropped into `wp-content/themes/`, none of `playground/` travels with it, so any brand-affecting filter hidden there evaporates on release. `bin/check.py`'s `check_no_brand_filters_in_playground` enforces the boundary; `check_no_default_wc_strings` enforces presence; `check_wc_microcopy_distinct_across_themes` enforces uniqueness across every theme in the monorepo (with a small allowlist in `bin/wc_microcopy_universal.json` for genuine universals like "Subtotal" / "Login" / "Apply").
+
+Copy the block out of any sibling theme's `functions.php` (Obel / Chonk / Selvedge / Lysholm / Aero) as a starting skeleton, then rewrite every literal string in the variant's voice. The skeleton covers:
+
+| Hook | What it controls |
+|---|---|
+| `woocommerce_show_page_title` (return `true`) | Forces the shop archive page title to render so `wp:query-title` and the result-count row aren't fighting for the same slot |
+| `woocommerce_pagination_args` | Previous / next pagination glyphs (e.g. `←` / `→`, `‹ Prev` / `Next ›`, theme-specific) |
+| `render_block_woocommerce/product-results-count` | Result-count format (e.g. `"%d items"` → `"23 items"` / `"23 in stock"` / `"showing 23"` / `"23 picks"`) — this is a `render_block_*` filter, **never** a `woocommerce_before_shop_loop` echo |
+| `woocommerce_default_catalog_orderby_options` + `woocommerce_catalog_orderby` | Sort dropdown labels ("Featured" → "Editor's pick" / "TOP PICKS" / "Curator's pick" / "Most loved" / "House favourites") |
+| `gettext` (with a `static $map`) | ~50 cart / checkout / account / login strings remapped in the theme's voice. One distinct map per theme. |
+| `woocommerce_blocks_cart_totals_label` + `woocommerce_order_button_text` | React-rendered WC Blocks strings that bypass `gettext` |
+| `woocommerce_form_field` | Replaces the red `*` required-field marker with a theme-specific glyph (`·`, `+`, `•`, `▪`, `◇`) |
+
+Keep the block's comment header in the theme's voice as well — Woo-drow's tone for the Obel-derived voices, plain industrial for Chonk, etc. Per-theme uniqueness is the whole point: if `check_wc_microcopy_distinct_across_themes` flags a duplicate translation, either rephrase or add the source string to `bin/wc_microcopy_universal.json` with a one-line justification (only do this for genuine "Subtotal-class" universals — most flags are real and want a rewrite, not an allowlist entry).
 
 ### Common structural patterns
 

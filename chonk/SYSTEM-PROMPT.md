@@ -154,6 +154,7 @@ core/separator: wide  dots
 | Reusable layout for the inserter | New `.php` file in `patterns/` |
 | Page layout | `.html` file in `templates/` |
 | Header / footer | `.html` file in `parts/` |
+| WC microcopy / sort labels / result-count / required-marker / pagination glyphs | `functions.php` between `// === BEGIN wc microcopy ===` / `// === END wc microcopy ===` (per-theme voice; never `playground/`) |
 
 ### Use design tokens. Never hardcode.
 

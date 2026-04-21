@@ -187,3 +187,203 @@ add_action(
 		$GLOBALS['fifty_vt_assigned'] = array();
 	}
 );
+
+// === BEGIN wc microcopy ===
+//
+// Shopper-facing WC microcopy in the Aero voice.
+//
+// This block lives in the theme (not in playground/) so the overrides
+// travel with the released theme — drop the directory into
+// wp-content/themes/ on a real install and these strings ship with it.
+// See AGENTS.md root-rule "Shopper-facing brand lives in the theme,
+// not in playground/" for the full split between this block and what
+// the playground/ scaffolding is allowed to do.
+//
+// Sections, in order:
+//   1. Archive: page title visibility, pagination arrows, result count
+//      format, sort-dropdown labels.
+//   2. Cart + checkout + account microcopy via the gettext map.
+//   3. WC Blocks (React-rendered) string overrides that bypass gettext.
+//   4. Required-field marker swap (red <abbr>* -> theme-styled glyph).
+//
+// Why a render_block_* filter and NOT a woocommerce_before_shop_loop
+// echo for the result count: the legacy loop action fires inside
+// wp:woocommerce/product-collection's server render too, so an echo
+// paints the count twice — once in the title-row block, once floating
+// above the product grid. The render_block filter rewrites the
+// already-correctly-positioned <p> in place. See the "23 ITEMS off in
+// the middle of nowhere" post-mortem in git history for the long form.
+add_filter( 'woocommerce_show_page_title', '__return_true' );
+
+add_filter(
+	'woocommerce_pagination_args',
+	static function ( array $args ): array {
+		$args['prev_text'] = '&larr;';
+		$args['next_text'] = '&rarr;';
+		return $args;
+	}
+);
+
+add_filter(
+	'render_block_woocommerce/product-results-count',
+	static function ( $block_content ) {
+		if ( is_admin() || '' === trim( (string) $block_content ) ) {
+			return $block_content;
+		}
+		if ( ! function_exists( 'wc_get_loop_prop' ) ) {
+			return $block_content;
+		}
+		$total = (int) wc_get_loop_prop( 'total', 0 );
+		if ( $total <= 0 ) {
+			return $block_content;
+		}
+		$label = sprintf(
+			/* translators: %d: number of products in the current archive. */
+			esc_html( _n( '%d listing', '%d listings', $total, 'aero' ) ),
+			$total
+		);
+		$rewritten = preg_replace(
+			'#(<p\b[^>]*\bclass="[^"]*\bwoocommerce-result-count\b[^"]*"[^>]*>)[\s\S]*?(</p>)#i',
+			'$1' . $label . '$2',
+			$block_content,
+			1,
+			$count
+		);
+		return ( $count > 0 && null !== $rewritten ) ? $rewritten : $block_content;
+	},
+	20
+);
+
+add_filter(
+	'woocommerce_default_catalog_orderby_options',
+	static function ( array $options ): array {
+		if ( isset( $options['menu_order'] ) ) {
+			$options['menu_order'] = __( 'Curated', 'aero' );
+		}
+		if ( isset( $options['popularity'] ) ) {
+			$options['popularity'] = __( 'Most ordered', 'aero' );
+		}
+		if ( isset( $options['rating'] ) ) {
+			$options['rating'] = __( 'Highest rated', 'aero' );
+		}
+		if ( isset( $options['date'] ) ) {
+			$options['date'] = __( 'Recently added', 'aero' );
+		}
+		if ( isset( $options['price'] ) ) {
+			$options['price'] = __( 'Price: ascending', 'aero' );
+		}
+		if ( isset( $options['price-desc'] ) ) {
+			$options['price-desc'] = __( 'Price: descending', 'aero' );
+		}
+		return $options;
+	}
+);
+
+add_filter(
+	'woocommerce_catalog_orderby',
+	static function ( array $options ): array {
+		if ( isset( $options['menu_order'] ) ) {
+			$options['menu_order'] = __( 'Curated', 'aero' );
+		}
+		return $options;
+	}
+);
+
+add_filter(
+	'gettext',
+	static function ( $translation, $text, $domain ) {
+		if ( 'woocommerce' !== $domain && 'default' !== $domain ) {
+			return $translation;
+		}
+		// WC default => Aero voice. Per-theme overrides ship in each
+		// theme's functions.php so divergence is visible to the gate
+		// (see check_wc_microcopy_distinct_across_themes).
+		static $map = array(
+			'Estimated total'                                                               => 'Total due',
+			'Proceed to Checkout'                                                           => 'Initiate checkout',
+			'Proceed to checkout'                                                           => 'Initiate checkout',
+			'Lost your password?'                                                           => 'Recover access',
+			'Username or email address'                                                     => 'Email',
+			'Username or Email Address'                                                     => 'Email',
+			'+ Add apartment, suite, etc.'                                                  => '+ Address line 2',
+			'You are currently checking out as a guest.'                                    => 'Account holder? Sign in to prefill these fields.',
+			'Showing the single result'                                                     => '1 listing',
+			'Default sorting'                                                               => 'Curated',
+			'No products were found matching your selection.'                               => 'No items match those parameters.',
+			'No products in the cart.'                                                      => 'Basket holds nothing.',
+			'Your cart is currently empty!'                                                 => 'Basket holds nothing.',
+			'Your cart is currently empty.'                                                 => 'Basket holds nothing.',
+			'Return to shop'                                                                => 'Return to catalogue',
+			'Return To Shop'                                                                => 'Return to catalogue',
+			'Have a coupon?'                                                                => 'Discount code?',
+			'Update cart'                                                                   => 'Recalculate',
+			'Place order'                                                                   => 'Submit order',
+			'Apply coupon'                                                                  => 'Verify',
+			'Coupon code'                                                                   => 'Discount code',
+			'Order details'                                                                 => 'Order details',
+			'Order summary'                                                                 => 'Summary breakdown',
+			'Cart subtotal'                                                                 => 'Subtotal',
+			'Add to cart'                                                                   => 'Acquire',
+			'Customer details'                                                              => 'Customer information',
+			'Save my name, email, and website in this browser for the next time I comment.' => 'Save credentials for next visit.',
+			'Be the first to review'                                                        => 'Be the first to review',
+			'Your review'                                                                   => 'Review text',
+			'Your rating'                                                                   => 'Star rating',
+			'Submit'                                                                        => 'Submit review',
+			'Description'                                                                   => 'Description',
+			'Reviews'                                                                       => 'Reviews',
+			'Additional information'                                                        => 'Specifications',
+			'View cart'                                                                     => 'View cart',
+			'View Cart'                                                                     => 'View cart',
+			'Choose an option'                                                              => 'Select option',
+			'Clear'                                                                         => 'Reset all',
+			'Login'                                                                         => 'Sign in',
+			'Log in'                                                                        => 'Sign in',
+			'Log out'                                                                       => 'Sign out',
+			'Register'                                                                      => 'Register account',
+			'Remember me'                                                                   => 'Remember this device',
+			'My account'                                                                    => 'Account',
+			'My Account'                                                                    => 'Account',
+			'Order received'                                                                => 'Order received',
+			'Thank you. Your order has been received.'                                      => 'Thank you. Your order has been received.',
+			'You may also like&hellip;'                                                     => 'You may also enjoy',
+			'You may also like…'                                                            => 'You may also enjoy',
+			'Related products'                                                              => 'Related items',
+		);
+		return isset( $map[ $text ] ) ? $map[ $text ] : $translation;
+	},
+	20,
+	3
+);
+
+add_filter(
+	'woocommerce_blocks_cart_totals_label',
+	static function (): string {
+		return __( 'Total due', 'aero' );
+	}
+);
+
+add_filter(
+	'woocommerce_order_button_text',
+	static function (): string {
+		return __( 'Submit order', 'aero' );
+	}
+);
+
+add_filter(
+	'woocommerce_form_field',
+	static function ( $field, $key, $args, $value ) {
+		if ( false !== strpos( (string) $field, '<abbr class="required"' ) ) {
+			$field = preg_replace(
+				'#<abbr class="required"[^>]*>\*</abbr>#i',
+				'<span class="wo-required-mark" aria-hidden="true">◇</span>',
+				(string) $field
+			);
+		}
+		return $field;
+	},
+	20,
+	4
+);
+
+// === END wc microcopy ===

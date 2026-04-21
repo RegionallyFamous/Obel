@@ -75,13 +75,14 @@ MAPPINGS: dict[str, Path] = {
         MONOREPO_ROOT / "playground" / "wo-configure.php",
     "/wordpress/wp-content/mu-plugins/wo-cart-mu.php":
         MONOREPO_ROOT / "playground" / "wo-cart-mu.php",
-    # Premium-microcopy override mu-plugin. Replaces default WC strings
-    # ("Showing 1-16 of 55 results", "Default sorting", "Estimated
-    # total", "Proceed to Checkout", red-asterisk required markers) so
-    # the demo doesn't read as a generic WooCommerce install. See
-    # playground/wo-microcopy-mu.php for the full string map.
-    "/wordpress/wp-content/mu-plugins/wo-microcopy-mu.php":
-        MONOREPO_ROOT / "playground" / "wo-microcopy-mu.php",
+    # NOTE: wo-microcopy-mu.php was deleted in the theme-shipped microcopy
+    # refactor. Every shopper-facing WC override (gettext map, result count,
+    # sort labels, WC Blocks button text, required-field marker) now ships
+    # in each theme's <theme>/functions.php between the
+    # `// === BEGIN wc microcopy ===` sentinels so the overrides travel
+    # with the theme on a real install. The boundary is enforced by
+    # check_no_brand_filters_in_playground in bin/check.py — do not add a
+    # brand-affecting filter back into playground/.
     # Variation-swatches mu-plugin. Replaces WC's default variation
     # `<select>` with a button-group of color/size swatches by filtering
     # `woocommerce_dropdown_variation_attribute_options_html`. The
