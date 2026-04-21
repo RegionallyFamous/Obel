@@ -1,29 +1,35 @@
 # AGENTS.md — Fifty monorepo
 
-This is the agent guide for the **Fifty monorepo**. Each theme inside this repo (`obel/`, `chonk/`, future variants) has its own `AGENTS.md` with theme-specific rules. Read this file first to understand the layout, then read the theme-specific `AGENTS.md` for the theme you are editing.
+This is the agent guide for the **Fifty monorepo**. Each theme inside this repo (`obel/`, `chonk/`, `selvedge/`, `lysholm/`, plus any future variants you scaffold via `bin/clone.py`) has its own `AGENTS.md` with theme-specific rules. Read this file first to understand the layout, then read the theme-specific `AGENTS.md` for the theme you are editing.
 
 ## Repo layout
 
 ```
 fifty/
-├── obel/          # base theme (canonical reference)
-│   ├── AGENTS.md  ← read this when editing obel
+├── obel/                 # base theme (canonical reference) — editorial, soft, restrained
+│   ├── AGENTS.md         ← read this when editing obel
 │   ├── INDEX.md
 │   ├── theme.json
 │   └── …
-├── chonk/         # neo-brutalist variant
-│   ├── AGENTS.md  ← read this when editing chonk
+├── chonk/                # neo-brutalist variant
+│   ├── AGENTS.md         ← read this when editing chonk
 │   ├── INDEX.md
 │   └── …
-├── bin/           # shared CLI tooling (theme-aware)
-├── playground/    # shared Playground PHP helpers (read playground/AGENTS.md)
-├── docs/          # generated GH Pages site of short URLs (read bin/build-redirects.py)
-├── README.md      # human-facing project intro
-├── AGENTS.md      # you are here
+├── selvedge/             # workwear / indigo variant
+│   └── (same shape)
+├── lysholm/              # Nordic home goods variant
+│   └── (same shape)
+├── bin/                  # shared CLI tooling (theme-aware)
+├── playground/           # shared Playground PHP scaffolding + mu-plugins (read playground/AGENTS.md)
+├── tests/                # committed visual-baseline PNGs (read tests/visual-baseline/README.md)
+├── docs/                 # generated GH Pages site of short URLs (read bin/build-redirects.py)
+├── .claude/skills/       # in-repo agent skills (e.g. build-block-theme-variant)
+├── README.md             # human-facing project intro
+├── AGENTS.md             # you are here
 └── LICENSE
 ```
 
-WordPress sees each theme via symlinks: `wp-content/themes/obel -> fifty/obel`, `wp-content/themes/chonk -> fifty/chonk`. Edit the files inside `fifty/<theme>/` and the live site updates immediately.
+WordPress sees each theme via symlinks: `wp-content/themes/obel -> fifty/obel`, `wp-content/themes/chonk -> fifty/chonk`, etc. Edit the files inside `fifty/<theme>/` and the live site updates immediately.
 
 ## Hard rules (apply to every theme)
 

@@ -18,13 +18,17 @@ For deeper task-specific reference, read the wiki on demand. The relevant pages 
 |---|---|
 | `python3 ../bin/check.py` | Run every project check. Use this before declaring "done". |
 | `python3 ../bin/check.py --quick` | Same, skipping the network-dependent block-name check. |
+| `python3 ../bin/check.py --visual` | Run the static checks AND the snap-gated visual regression sweep (`snap.py shoot + diff + report --strict`). Tiered gate; exits 1 only on `fail`. Recommended pre-commit gate after any change to templates, parts, patterns, theme.json, or playground content. |
+| `python3 ../bin/snap.py doctor` | One-time check that Pillow, Playwright/Chromium, npx, axe-core, and baseline coverage are all wired up. Run after a fresh clone or Python upgrade. |
+| `python3 ../bin/snap.py shoot --routes <route> --viewports <viewport>` | Capture a single (route × viewport) PNG into `tmp/snaps/` for the inner edit loop. `Read` the resulting PNG to verify the change. |
+| `python3 ../bin/snap.py serve` | Boot this theme's WordPress Playground locally on `http://localhost:9400/` so you can drive it interactively (admin auto-login enabled). |
 | `python3 ../bin/build-index.py` | Regenerate `INDEX.md` after adding/removing files or editing `theme.json`. |
 | `python3 ../bin/list-tokens.py` | Print every design token in `theme.json`. (`INDEX.md` already contains this; use this script for fresh output if `INDEX.md` is stale.) |
 | `python3 ../bin/validate-theme-json.py` | Verify every `core/*` and `woocommerce/*` block name in `theme.json` against trunk. |
 | `python3 ../bin/clone.py NEW_NAME` | Clone Lysholm into a new theme folder, renaming all identifiers. |
 | `python3 ../bin/list-templates.py` | Print every template file alongside the WordPress URL it handles. Paste output into LLM context to find the right file without reading the directory. |
 
-If you remember nothing else from this file: **read `INDEX.md` first, run `python3 ../bin/check.py --quick` last.**
+If you remember nothing else from this file: **read `INDEX.md` first, run `python3 ../bin/check.py --visual` last** (or `--quick` for a fast offline subset that skips the visual sweep).
 
 ## What this project is
 
@@ -156,6 +160,9 @@ The full token reference is in `theme.json` (`settings.*`) and summarized in `IN
 ```bash
 python3 ../bin/check.py            # full check (online; validates block names)
 python3 ../bin/check.py --quick    # offline subset (skip block-name network check)
+python3 ../bin/check.py --visual   # static checks + snap-gated visual regression sweep
+                                   # (default scope: --visual-scope=changed; use =all
+                                   #  before a release, or =quick for a single-theme smoke test)
 ```
 
 `../bin/check.py` runs every check the project cares about: JSON validity, PHP syntax, block-name validity, `INDEX.md` freshness, `!important` scan, stray-CSS scan, block-namespace scan, AI-fingerprint scan, hardcoded-color scan, hardcoded-dimensions scan, block-attribute-token enforcement, duplicate-template scan. Output is one line per check. Exit code 0 if all pass.

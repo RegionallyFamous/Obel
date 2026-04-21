@@ -12,9 +12,13 @@ editing anything in here, and before adding a new theme variant.
 ```
 playground/                          # SHARED — no content lives here
   AGENTS.md                          # this file
-  wo-cart-mu.php                     # mu-plugin: pre-fills cart on ?demo=cart
   wo-import.php                      # generic WC catalogue importer (reads URLs from constants)
   wo-configure.php                   # generic WP/WC configurator (reads URLs from constants)
+  wo-cart-mu.php                     # mu-plugin: pre-fills cart on ?demo=cart
+  wo-microcopy-mu.php                # mu-plugin: replace default WC strings (Phase B)
+  wo-pages-mu.php                    # mu-plugin: branded my-account + archive header (Phase D)
+  wo-payment-icons-mu.php            # mu-plugin: payment-method icons in checkout (Phase C)
+  wo-swatches-mu.php                 # mu-plugin: variation <select> -> swatches (Phase C)
 
 <theme>/playground/                  # PER-THEME — content + assets + blueprint
   blueprint.json                     # auto-synced by bin/sync-playground.py
@@ -26,6 +30,28 @@ playground/                          # SHARED — no content lives here
     *.{png,jpg,jpeg,gif,webp,svg}    # product / page / post / category artwork
     *.{pdf,wav,mp3,mp4}              # downloadable attachments referenced from CSV/XML
 ```
+
+## What each shared script does
+
+| File | Type | Theme-aware? | Purpose |
+| --- | --- | --- | --- |
+| `wo-import.php` | `wp eval-file` | yes (constants) | Imports the per-theme `products.csv` into WooCommerce, sideloads images from `WO_CONTENT_BASE_URL`. |
+| `wo-configure.php` | `wp eval-file` | yes (constants) | Sets WP/WC options (permalinks, store address, shipping, payment methods, `show_on_front`, blogname / tagline), seeds 5 sample orders, 12 reviews, the customer account. |
+| `wo-cart-mu.php` | mu-plugin | no | Pre-fills the cart with two products when the URL contains `?demo=cart`. Drives the cart / checkout demo screenshots. |
+| `wo-microcopy-mu.php` | mu-plugin | no | Replaces the six "this is default WC" strings (`Showing 1-16 of 55 results`, `Default sorting`, `Estimated total`, `Proceed to Checkout`, `Lost your password?`, the `<abbr class="required">*</abbr>` marker) site-wide via `add_filter()`. See root `AGENTS.md` rule #10 for the gate that enforces this. |
+| `wo-pages-mu.php` | mu-plugin | no | Wraps the my-account login form in a branded `wo-account-intro` panel (Phase D) and injects the editorial `wo-archive-hero` header on category / tag / shop archives. Tracked by `bin/snap_config.py::INSPECT_SELECTORS["my-account"]` and `["category"]`. |
+| `wo-payment-icons-mu.php` | mu-plugin | no | Renders payment-method icons next to each gateway label in the WC Blocks checkout (Phase C). |
+| `wo-swatches-mu.php` | mu-plugin | no | Replaces variation `<select>` elements on the PDP with colour-swatch / text-pill button groups, keeping the original select visually-hidden so WC's `variation_form` JS continues to drive price + stock + image swap (Phase C). See root `AGENTS.md` rule #11. |
+
+The mu-plugins (`*-mu.php`) ship as `writeFile` steps in every blueprint that drop them into `wp-content/mu-plugins/` — no theme activation needed. The two `wp eval-file` scripts (`wo-import.php`, `wo-configure.php`) are inlined by `bin/sync-playground.py` with the per-theme constants block prepended.
+
+When you add a new shared script:
+
+1. Drop it in `playground/` with a `wo-*` prefix.
+2. If it's a mu-plugin, end the filename in `-mu.php` so the sync script knows to write it to `mu-plugins/`.
+3. If it needs theme-specific values, read them from `WO_THEME_NAME`, `WO_THEME_SLUG`, or `WO_CONTENT_BASE_URL` (mu-plugins don't get the constants block — it's only prepended to the `wp eval-file` scripts).
+4. `python3 bin/sync-playground.py` to inline it into every blueprint.
+5. If the new script affects rendered output, also extend `bin/snap_config.py::INSPECT_SELECTORS` so the visual gate proves it landed.
 
 The folder name `images/` is the historical convention; in practice it holds
 **every binary attachment** the per-theme CSV or XML points at, including
@@ -93,9 +119,13 @@ For every `<theme>/playground/blueprint.json` the script walks the `steps`
 array and:
 
 1. **`writeFile` steps for shared scripts** — replaces the `data` field
-   with the current source from `playground/wo-*.php`, prepending the
-   constants block above (except for `wo-cart-mu.php`, which is theme-
-   agnostic and constant-free).
+   with the current source from `playground/wo-*.php`. Only the two
+   `wp eval-file` scripts (`wo-import.php`, `wo-configure.php`) get the
+   per-theme constants block prepended (the set lives in
+   `bin/sync-playground.py::TARGETS_NEEDING_CONSTANTS`); every mu-plugin
+   (`wo-cart-mu.php`, `wo-microcopy-mu.php`, `wo-pages-mu.php`,
+   `wo-payment-icons-mu.php`, `wo-swatches-mu.php`) is inlined verbatim
+   because it doesn't need theme-specific values.
 2. **`importWxr` step** — rewrites `file.url` to point at
    `<WO_CONTENT_BASE_URL>content/content.xml`.
 
