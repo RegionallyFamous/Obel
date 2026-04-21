@@ -20,32 +20,19 @@ Read this **before** running `bin/clone.py` or touching any files, the moment th
 ## The non-negotiable workflow
 
 ```
- 1. PREFLIGHT       → read base theme rules + tooling
- 2. PIN INTENT      → mockup + 4-question briefing (one round, batched)
- 3. PLAN TOKENS     → full design system on paper before writing code
- 4. CLONE           → bin/clone.py
- 5. TOKENS FIRST    → theme.json palette, type, spacing, shadow, radius, borders, fontFace
- 6. STRUCTURE       → restyle templates/parts to match mockup composition
- 7. DYNAMIC         → swap hardcoded content for core/terms-query, core/query, core/navigation, core/site-*
- 8. SEED DATA       → ensure menus, pages, categories exist in the DB so dynamic blocks render real content
- 9. PLAYGROUND      → bin/seed-playground-content.py + bin/sync-playground.py + bin/build-redirects.py, then load the new theme's short URL and walk the surface checklist
-10. VERIFY          → check.py + bin/snap.py shoot/report at mobile/tablet/desktop/wide
-11. REPORT          → ship a single summary, not a back-and-forth
+1. PREFLIGHT       → read base theme rules + tooling
+2. PIN INTENT      → mockup + 4-question briefing (one round, batched)
+3. PLAN TOKENS     → full design system on paper before writing code
+4. CLONE           → bin/clone.py
+5. TOKENS FIRST    → theme.json palette, type, spacing, shadow, radius, borders, fontFace
+6. STRUCTURE       → restyle templates/parts to match mockup composition
+7. DYNAMIC         → swap hardcoded content for core/terms-query, core/query, core/navigation, core/site-*
+8. SEED DATA       → ensure menus, pages, categories exist in the DB so dynamic blocks render real content
+9. VERIFY          → check.py + screenshots at mobile/tablet/desktop
+10. REPORT         → ship a single summary, not a back-and-forth
 ```
 
 Skipping any step is what causes the "you held my hand too much" failure mode.
-
-**Step 9 is non-optional.** Every theme in this monorepo must ship a working `<theme>/playground/blueprint.json` AND a self-contained per-theme content set under `<theme>/playground/content/` and `<theme>/playground/images/`.
-
-The shared scaffolding (`playground/wo-*.php`) stays theme-agnostic and reads three constants — `WO_THEME_NAME`, `WO_THEME_SLUG`, `WO_CONTENT_BASE_URL` — that `bin/sync-playground.py` prepends to each inlined script body. Per-theme content (CSV catalogue, WXR pages/posts, every product/page/post/category image) lives under that theme's own `playground/content/` and `playground/images/`, with all image URLs inside the CSV/XML pointing at `https://raw.githubusercontent.com/<org>/<repo>/main/<theme>/playground/images/`. Each theme is free to diverge — different products, different copy, different artwork that matches the theme.
-
-The pipeline:
-
-1. `bin/clone.py` copied obel's blueprint and rewrote `obel`→`<new>` / `Obel`→`<New>`. It deliberately did NOT copy obel's `playground/content/` or `playground/images/` (text substitution doesn't touch CSV/XML, so copying would leave you pointing at obel's image URLs).
-2. `bin/seed-playground-content.py` populates the new theme's content + assets from the canonical W&O source, rewriting every image URL to point at the new theme's own `images/` folder.
-3. `bin/sync-playground.py` auto-discovers every theme via `_lib.iter_themes()`, re-inlines the shared `playground/*.php` helpers (with the per-theme constants prepended), and rewrites the `importWxr` URL to point at the per-theme `content.xml`.
-4. `bin/build-redirects.py` regenerates the `docs/` GH Pages site so the new theme is reachable at `https://demo.regionallyfamous.com/<theme>/` (plus `/shop/`, `/product/bottled-morning/`, `/cart/`, `/checkout/`, `/my-account/`, `/journal/`, `/404/`). The short URLs forward to the canonical Playground deeplinks so they're shareable. Re-run any time you add or remove a theme.
-5. Open the short URL (`https://demo.regionallyfamous.com/<theme>/`) and click through front page → shop → single product → cart → checkout → blog post → 404 once. If any pretty URL 404s inside Playground, the blueprint is broken — see "Playground gotchas" below. If product or page imagery looks like every other theme's, the seed step was skipped. If the short URL itself 404s on `demo.regionallyfamous.com`, the build-redirects step was skipped (or GH Pages hasn't picked up the latest push yet — give it ~1 minute).
 
 ---
 
@@ -173,45 +160,6 @@ The Chonk theme currently has hardcoded `<li><a href="/about">About</a></li>` li
 
 ---
 
-## HARD RULE: every theme's homepage layout must be unique
-
-**`templates/front-page.html` is the variant's visual signature.** Two themes that ship the same composition with only different colors and fonts are not two themes — they are one theme with a config switch. The monorepo refuses that.
-
-`bin/check.py` enforces this via `check_front_page_unique_layout`: it computes a structural fingerprint of `<main>`'s direct children for every theme (block name + first className, or `pattern:slug` for `wp:pattern` references) and fails the build if any two themes have the identical fingerprint. Identical means identical, in the same order. Three valid fingerprints from the existing themes:
-
-| Theme | Fingerprint (compact) | Notes |
-|---|---|---|
-| obel | `[pattern:obel/hero-split, group, group]` | 3 sections: split hero pattern → featured products group → journal group |
-| chonk | `[group(chonk-grid)]` | 1 outer asymmetric grid wrapper containing hero photo card, category mosaic, week's drop, manifesto, newsletter band |
-| selvedge | `[group, group, group, group, group]` | 5 sections: 2-col hero with 2×2 product mini-grid → 5-col category covers → 8-product catalog table → manifesto split → blog grid |
-
-Notice: same number of sections is OK if the surface mix differs; same surface mix is OK if the section count differs. **Identical** counts AND sequence is what fails.
-
-### How to earn a unique fingerprint
-
-Pick one or more, with intent — don't randomize:
-
-1. **Different section count.** Obel runs lean (3 sections). Selvedge runs dense (5+ sections, including a category strip and manifesto). Chonk runs as a single asymmetric grid (1 wrapper). Pick the rhythm that matches the brand.
-2. **Different dynamic-surface mix.** Choose at least two from `{woocommerce/product-collection, terms-query, query, media-text, cover, gallery}` and use them in a configuration that doesn't match any sibling. Obel uses `woocommerce/product-collection` + `query`; selvedge adds `terms-query` (5-col category covers) and `cover`; chonk uses `terms-query` for category cards, `woocommerce/product-collection` for "this week's drop", and skips a blog query entirely.
-3. **Different hero pattern.** If the hero is wrapped in a `wp:pattern`, give the new theme its own pattern under `<theme>/patterns/hero-*.php` and reference it via `<!-- wp:pattern {"slug":"<theme>/hero-X"} /-->`. The fingerprint includes the slug, so a different slug is automatically a different fingerprint.
-4. **Different section order.** Don't always lead with the hero followed by featured products. A boutique might lead with a category mosaic; a publication might lead with a featured story; a marketplace might lead with a search bar.
-
-### What does NOT earn a unique fingerprint
-
-- Renaming classNames on the same blocks. Fingerprint includes className but the check fails iff the *full* sequence matches.
-- Swapping background colors / fonts / spacing tokens. The fingerprint is purely structural.
-- Adding extra inline `core/spacer` / `core/separator` blocks at the top level just to bump the count. The reviewer will spot it; ship a real section instead.
-
-### Before declaring a homepage done
-
-Run `python3 bin/check.py <theme> --quick` and confirm the line `Front page layout differs from every other theme` passes. If it fails, the message includes both fingerprints — read them, decide which axis to vary, and rework the composition. Do not weaken the check to make it pass.
-
-### Templates other than `front-page.html`
-
-`single-product.html`, `archive-product.html`, `single.html`, `archive.html`, `cart`, `checkout`, `my-account`, `404.html`, `header.html`, `footer.html`, etc. are deliberately NOT subject to this rule. The shop function must remain coherent across variants — a customer should recognize "this is a checkout page" regardless of theme. Vary those via tokens (color, type, spacing) and small composition tweaks, but don't redesign their structure for the sake of differentiation. The front page is the only place where structural uniqueness is mandatory.
-
----
-
 ## Step 1 — Preflight (read before writing)
 
 Always read these in this order, from the **base theme** being cloned (usually `obel`):
@@ -229,9 +177,13 @@ Always read these in this order, from the **base theme** being cloned (usually `
 
 | Tool | Purpose |
 |---|---|
-| `python3 bin/clone.py NEW_NAME` | Clone the base theme into `../NEW_NAME` with all identifiers renamed |
+| `python3 bin/clone.py NEW_NAME` | Clone the base theme into `../NEW_NAME` with all identifiers renamed. Add `--snap` to also run `shoot` + `baseline` + `report` so the new theme has a starting baseline. |
 | `python3 bin/build-index.py` | Regenerate `INDEX.md` after token/template edits |
 | `python3 bin/check.py --quick` | Run before declaring done (catches `!important`, hardcoded colors, stray CSS, fingerprints, etc.) |
+| `python3 bin/check.py --visual` | The full pre-commit gate: static checks **plus** the snap-gated visual sweep (`--visual-scope=changed` by default). Returns 1 only on a `fail` verdict. |
+| `python3 bin/snap.py doctor` | One-shot dependency check (Pillow, Playwright/Chromium, npx, axe-core, baselines). Run once after cloning. |
+| `python3 bin/snap.py shoot --changed` | Boot Playground for every theme that moved in git, capture screenshots + DOM heuristics + axe a11y + INSPECT measurements + scripted interactions. |
+| `python3 bin/snap.py report --open` | Aggregate findings into per-theme + cross-theme `review.md` with a `**GATE: …**` badge and a final `STATUS:` line. |
 | `python3 bin/list-tokens.py` | Print every token slug |
 
 If any of these scripts are missing, stop and tell the user — don't improvise alternatives.
@@ -287,14 +239,15 @@ This prevents the "I'll patch it later" loop. The tokens are the design system; 
 
 ```bash
 cd path/to/base/theme
-python3 bin/clone.py NEW_NAME
+python3 bin/clone.py NEW_NAME --snap
 ```
 
-`clone.py` handles renaming text-domain, function prefixes, README, etc. Don't manually copy files.
+`clone.py` handles renaming text-domain, function prefixes, README, etc. Don't manually copy files. The `--snap` flag chains `bin/snap.py shoot NEW_NAME` + `baseline NEW_NAME` + `report NEW_NAME`, so the new theme ships with a green starting baseline before you touch a single template.
 
 After cloning, immediately:
 - Read the cloned `AGENTS.md` (it's a copy of the base's — the hard rules still apply)
-- `cd ../NEW_NAME && python3 bin/check.py --quick` to confirm it starts green
+- `python3 bin/check.py --quick` to confirm it starts green
+- `python3 bin/snap.py doctor` once per machine to confirm Playground deps are wired up
 
 ---
 
@@ -572,112 +525,24 @@ For product categories specifically, the user almost always already has terms vi
 
 ---
 
-## Step 9 — Ship a working Playground blueprint
-
-**Every theme in this monorepo must ship a working `<theme>/playground/blueprint.json` AND a self-contained per-theme content set under `<theme>/playground/{content,images}/`.** It is part of the deliverable, not an extra. A theme without a working blueprint is incomplete — there's no other way for a reviewer to load it without a full local WP + WC install. A theme that boots but renders the same product imagery as every other variant defeats the purpose of building variants.
-
-### What you don't have to do
-
-`bin/clone.py` already copied `obel/playground/blueprint.json` into your new theme and rewrote `obel`→`<new>` and `Obel`→`<New>` in the JSON. That handles `installTheme.path`, `installTheme.options.targetFolderName`, `setSiteOptions.blogname`, and the meta `title`/`description`. Don't recreate the blueprint by hand.
-
-`bin/clone.py` did NOT copy `obel/playground/content/` or `obel/playground/images/` — that's intentional. Those folders hold per-theme content with image URLs that bake in the theme slug, and clone.py's text substitution doesn't touch CSV/XML. Run the seed script next:
-
-```bash
-python3 bin/seed-playground-content.py
-```
-
-This auto-discovers themes that don't yet have `playground/content/`, fetches the canonical CSV / WXR / asset bundle from `RegionallyFamous/wonders-oddities` (cached at `/tmp/wonders-oddities-source` between runs), and writes them into `<theme>/playground/content/` and `<theme>/playground/images/` with every image URL inside the CSV/XML rewritten to point at this theme's own `images/` folder. Idempotent — re-runs are no-ops. Pass `--force` only when you intentionally want to re-pull from the upstream source (the per-theme files are the canonical source for that theme after the initial seed).
-
-Once both content and blueprint are in place, sync the shared helpers:
-
-### What you must do
-
-```bash
-python3 bin/sync-playground.py
-```
-
-This auto-discovers every theme in the monorepo (via `_lib.iter_themes()`) and re-inlines the latest `playground/*.php` bodies into each blueprint, prepending the per-theme constants block (`WO_THEME_NAME` from `theme.json` `title`, `WO_THEME_SLUG` and `WO_CONTENT_BASE_URL` from the directory name) and rewriting the `importWxr` step's URL to point at this theme's own `content/content.xml`. There is no hardcoded theme list — adding a new theme is automatic. Run it once after cloning + seeding, and again any time `playground/wo-import.php`, `playground/wo-configure.php`, or `playground/wo-cart-mu.php` change.
-
-Per-theme content edits (replacing artwork, rewriting copy, swapping SKUs) do NOT require re-syncing — those URLs are fetched live by the blueprint and importer at boot. The sync script only matters when the shared scaffolding or the per-theme constants need to change inside the inlined PHP bodies.
-
-Now generate the GH Pages short-URL redirector for the new theme:
-
-```bash
-python3 bin/build-redirects.py
-```
-
-This wipes and regenerates the `docs/` folder, which GitHub Pages serves at `https://demo.regionallyfamous.com/`. For every theme it writes `docs/<theme>/<page>/index.html` for every entry in the script's `PAGES` list, plus a `docs/index.html` landing page that lists every theme. Each redirector has both a `<meta http-equiv="refresh">` and a `<script>location.replace(…)</script>` so it works without JS, in link previews, and in modern browsers without flashing. The script is idempotent and reads each theme's blueprint URL from `_lib.theme_blueprint_raw_url(slug)` so adding a new theme requires zero code changes — just re-run the script. **Never edit anything under `docs/` by hand**; the next run wipes it. If you need a new alias, add a row to `PAGES` inside the script.
-
-Then load the short URL and walk the surface checklist:
-
-```
-https://demo.regionallyfamous.com/<theme>/
-```
-
-Or open the canonical deeplink directly if GH Pages isn't enabled on your fork yet:
-
-```
-https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/<org>/<repo>/main/<theme>/playground/blueprint.json
-```
-
-Append `&url=/<path>/` to deep-link into a specific surface (or use the corresponding `https://demo.regionallyfamous.com/<theme>/<page>/` short URL). Walk these at minimum, in order:
-
-```
-short URL                                              long URL (redirected to)
-fifty/<theme>/                                         &url=/                            front page
-fifty/<theme>/shop/                                    &url=/shop/                       shop archive
-fifty/<theme>/product/bottled-morning/                 &url=/product/bottled-morning/    single product
-fifty/<theme>/cart/                                    &url=/cart/?demo=cart             cart (pre-filled by the mu-plugin)
-fifty/<theme>/checkout/                                &url=/checkout/?demo=cart         checkout
-fifty/<theme>/journal/                                 &url=/journal/                    blog index
-                                                       &url=/welcome-to-wonders-and-oddities/   single post
-fifty/<theme>/404/                                     &url=/this-route-does-not-exist/  404
-```
-
-If **any** pretty URL 404s inside Playground, the blueprint is broken — almost certainly the permalink-flush gotcha (see below). If the short URL itself 404s on `demo.regionallyfamous.com`, either GH Pages hasn't picked up the latest push yet (give it ~1 minute), or `bin/build-redirects.py` was skipped. Don't ship until every URL above resolves to a designed page.
-
-### Playground gotchas
-
-**Permalink flush in `wp eval-file` context.** This is the bug that ate hours and shipped a broken demo for both obel and chonk. The naive pattern
-
-```php
-update_option( 'permalink_structure', '/%postname%/' );
-flush_rewrite_rules( true );
-```
-
-does **not** work. The global `$wp_rewrite` was constructed at WP boot from the previous (default = empty) structure; `update_option()` doesn't touch it. `flush_rewrite_rules()` then regenerates the `rewrite_rules` option from that stale property, producing rules for the default URL scheme. Every pretty post / page / product URL 404s as a result.
-
-The correct pattern (already in `playground/wo-configure.php`) is:
-
-```php
-global $wp_rewrite;
-$wp_rewrite->set_permalink_structure( '/%postname%/' );
-$wp_rewrite->set_category_base( '' );
-$wp_rewrite->set_tag_base( '' );
-$wp_rewrite->flush_rules( true );
-delete_option( 'rewrite_rules' );  // belt + suspenders for lazy rebuild
-```
-
-Don't "simplify" it back. If you do, you're reintroducing the bug.
-
-**Don't use `{ resource: url }` for the `writeFile` data field.** Playground caches URL fetches across boots, and `raw.githubusercontent.com` ships `cache-control: max-age=300`. A pushed change to the script can take 5+ minutes to surface, and Playground will run the previous version against the new blueprint. The whole point of `bin/sync-playground.py` is to inline the script body so there's only one URL to invalidate. Keep it inlined.
-
-**Playground's `wp-cli` step has no shell.** The command string is parsed into args and handed straight to WP-CLI; there is no `&&`, no `||`, no `;`, no `$(…)`, no pipes. Use a `runPHP` step (with `require_once '/wordpress/wp-load.php';` at the top) or a `wp eval-file` against a `writeFile`'d script for anything more complex than a single command.
-
-**Test in a fresh browser / incognito.** Playground persists each scope's WP install in the browser's OPFS, so loading a deeplink with an existing scope replays the previously-booted state — bug fixes in the blueprint won't take effect until a fresh scope boots. When verifying a fix, always use a brand-new browser context.
-
----
-
-## Step 10 — Verify
+## Step 9 — Verify
 
 Run, in order:
 
 ```bash
 python3 bin/build-index.py            # regenerate INDEX.md
-python3 bin/check.py --quick          # catches !important, stray CSS, hardcoded colors
+python3 bin/check.py --visual         # static checks + snap-gated visual sweep
+                                       # (= --quick + shoot + diff + report --strict
+                                       #  scoped to themes that moved in git)
 ```
 
-If `check.py` flags `!important` or hardcoded colors, **fix them** — don't suppress. Those are hard-rule violations.
+`bin/check.py --visual` is the single pre-commit gate. It exits 1 only on a `fail` verdict (heuristic `error`, uncaught JS, HTTP 5xx, axe critical/serious). `warn` (heuristic `warn`/`info`, HTTP 4xx, console errors, axe moderate/minor, parity drift, perf-budget exceedance, interaction-failed) is loud but exits 0 — fix what you can but it won't block the commit. If `check.py --visual` flags `!important` or hardcoded colors, **fix them** — don't suppress.
+
+For a full sweep before a release:
+
+```bash
+python3 bin/check.py --visual --visual-scope=all
+```
 
 Then visual verification — **three passes, all required**:
 
@@ -685,68 +550,45 @@ Then visual verification — **three passes, all required**:
 wp --path=PATH theme activate NEW_NAME
 wp --path=PATH cache flush
 python3 bin/check-contrast.py        # palette-level WCAG audit, must exit 0
+python3 bin/snap.py report --open    # opens tmp/snaps/review.md with GATE badge
 ```
 
-**Use `bin/snap.py` for every screenshot in the passes below.** It boots the theme's WordPress Playground locally via `@wp-playground/cli`, mounts the new theme dir on top of the GitHub-installed copy (so unsynced edits show up), captures Playwright PNGs PLUS diagnostic artifacts, and saves everything under `tmp/snaps/<theme>/<viewport>/<route>.{png,html,findings.json}`. The PNGs are readable directly with the `Read` tool; the per-cell `*.findings.json` and the rolled-up `tmp/snaps/<theme>/review.md` (generated by `python3 bin/snap.py shoot <theme> && python3 bin/snap.py report`) feed Pass C-zero's structural-defect scan automatically. See the root `AGENTS.md` "Seeing what you built (visual snapshots)" section for the full CLI surface — including `--routes` / `--viewports` for narrow re-shoots, `--concurrency N` for parallel sweeps, and `INSPECT_SELECTORS` in `bin/snap_config.py` for capturing the computed dimensions of any layout you want to monitor.
-
-Do **not** drive screenshots through the `cursor-ide-browser` MCP for the variant-build verification loop — `snap.py` is the canonical tool here because it (a) hits exact viewport widths declared in `bin/snap_config.py::VIEWPORTS` instead of the ~660 px the browser MCP defaults to, (b) captures the diagnostic side-channels the Pass C-zero scan depends on (uncaught JS, network 4xx/5xx, console errors, broken images, mid-word wraps, narrow grid items), and (c) leaves a comparable artifact trail under `tmp/snaps/` that you can `Read` instead of re-capturing. The browser MCP is appropriate for one-off live debugging via `python3 bin/snap.py serve <theme>`, not for the verification matrix.
+Open `tmp/snaps/<NEW_NAME>/review.md` and walk every finding before declaring done. The snap framework already covers most of what Pass A / B / C-zero look for (broken images, mid-word wraps, narrow grid items, ghost overlays via `font-not-loaded`/`empty-landmark`/`tap-target-too-small`, oversized responsive images, ellipsis truncation, placeholder images, axe-core a11y violations, parity drift across themes). The eyeball passes below catch what static heuristics can't (visual fidelity to the mockup, design language, hover/focus polish).
 
 ### Pass A — every surface at desktop (≥1280 px), with real content
 
-Walk the URL list from step 6 in order. For each, capture with `snap.py` and confirm:
-
-```bash
-python3 bin/snap.py shoot <theme> --viewports desktop
-# -> tmp/snaps/<theme>/desktop/<route>.png    (Read each)
-```
+Walk the URL list from step 6 in order. For each, navigate (with `?cb=N` cache-bust), screenshot, and confirm:
 
 - The variant's tokens (color, type, spacing, shadow) are visibly applied
 - No surface renders with default WP/WC styling that contradicts the mockup
 - Real content is visible (cart has items, search returns results, my-account shows a logged-in dashboard)
 - Any `core/navigation`, `core/terms-query`, `core/query` blocks have a real `ref` or wired data — none are showing empty states or "Add a menu" placeholders
 
-If a surface is broken, **fix it now before moving on** — don't batch fixes for the end. Each surface often surfaces a per-block override you also need to apply elsewhere. Re-shoot just the affected cell after each fix:
+If a surface is broken, **fix it now before moving on** — don't batch fixes for the end. Each surface often surfaces a per-block override you also need to apply elsewhere.
 
-```bash
-python3 bin/snap.py shoot <theme> --routes <route> --viewports desktop
-```
+### Pass B — every surface at three viewports
 
-### Pass B — every surface at four viewports
+This is the part that catches "looks great on my big screen, broken on a phone" failures, which are universal.
 
-This is the part that catches "looks great on my big screen, broken on a phone" failures, which are universal. `snap.py` already runs every route at every viewport defined in `bin/snap_config.py::VIEWPORTS`, so a single sweep covers the whole matrix:
-
-```bash
-python3 bin/snap.py shoot <theme>
-# -> tmp/snaps/<theme>/{mobile,tablet,desktop,wide}/<route>.png
-```
+For **every surface in the step 6 checklist** (not just the homepage), capture screenshots at:
 
 | Viewport | Width | What to verify |
 |---|---|---|
-| Mobile  | 390 px  | Columns stack cleanly, no horizontal scroll, tap targets ≥ 44 px, hamburger nav opens, mini-cart drawer fits |
-| Tablet  | 768 px  | Asymmetric layouts hold or gracefully reflow, multi-column grids transition sensibly |
-| Desktop | 1280 px | Full composition matches mockup, max content width is respected, gutters are consistent |
-| Wide    | 1920 px | Page doesn't sprawl beyond `wideSize`; backgrounds and full-bleed sections still feel intentional |
+| Mobile  | ~390 px  | Columns stack cleanly, no horizontal scroll, tap targets ≥ 44 px, hamburger nav opens, mini-cart drawer fits |
+| Tablet  | ~768 px  | Asymmetric layouts hold or gracefully reflow, multi-column grids transition sensibly |
+| Desktop | ~1280 px | Full composition matches mockup, max content width is respected, gutters are consistent |
 
-The exact viewport widths come from `bin/snap_config.py::VIEWPORTS` — they're real Playwright viewports, not approximate browser-resize hints, so what you see in the PNG is what visitors at that width will see. (Contrast this with the legacy browser MCP flow, which often defaulted to ~660 px even after `browser_resize` and silently masked desktop-only layout bugs.)
+Browser MCP-specific note: it often defaults to ~660 px even after `browser_resize`. Always issue `browser_resize` immediately before each screenshot pass and confirm the snapshot metadata reflects the requested width.
 
-For each viewport pass, scroll the rendered PNG to header, main content, mid-page, and **footer** before declaring the surface done. Footer regressions remain the most common miss; the captured PNG is full-page, so the footer is at the bottom of the file.
+For each viewport pass, scroll to header, main content, mid-page, and **footer** before declaring the surface done. Footer regressions remain the most common miss.
 
-**Acceptable shortcut:** if a surface inherits its layout entirely from another (e.g. `taxonomy-product_cat.html` from `archive-product.html`, or `archive.html` from `index.html`), one viewport pass on the parent + a desktop spot-check on the child is enough. Add the route to `bin/snap_config.py::ROUTES` only if you want it in the standing rollup.
+**Acceptable shortcut:** if a surface inherits its layout entirely from another (e.g. `taxonomy-product_cat.html` from `archive-product.html`, or `archive.html` from `index.html`), one viewport pass on the parent + a desktop spot-check on the child is enough.
 
 ### Pass C-zero — structural defect scan (do this BEFORE contrast)
 
 **This pass exists because "looks ok at a glance" is the failure mode that ships broken layouts.** Contrast and design-language checks assume the layout is structurally sound. If it isn't, you're auditing the wrong thing.
 
-**Start by reading the framework's report.** `bin/snap.py` already runs a JS heuristics pass on every cell during `shoot` and rolls the findings up into a markdown review:
-
-```bash
-python3 bin/snap.py shoot <theme>          # produces .png + .html + .findings.json per cell
-python3 bin/snap.py report                  # tmp/snaps/<theme>/review.md + cross-theme rollup
-```
-
-Open `tmp/snaps/<theme>/review.md` first. The cross-theme rollup at `tmp/snaps/review.md` shows whether you're at the green-light "0 errors / 0 warnings / 0 net 4xx-5xx / 0 uncaught JS" state. If anything in the per-route summary table is non-zero, fix it before continuing — the heuristics catch a meaningful subset of the manual-eye scan below for free (broken images, mid-word wraps, narrow grid items, raw i18n tokens, PHP debug output, visible WC notices, console errors, network failures, oversized hero images). Each finding includes the viewport, route, and a one-line message; the per-theme review also embeds an "Inspector measurements" section showing the captured `width × height`, `display`, and `grid-template-columns` for every selector listed in `bin/snap_config.py::INSPECT_SELECTORS` — invaluable when a card or sidebar is mysteriously narrow.
-
-Then, for **every** screenshot (every surface, every viewport), walk this fixed triage list. The point is to look for *specific defect classes* the heuristics can't see, not to "see if anything looks weird".
+For **every** screenshot (every surface, every viewport), run through this fixed triage list. The point is to look for *specific defect classes*, not to "see if anything looks weird".
 
 **The fixed triage list — apply to every screenshot:**
 
@@ -801,7 +643,7 @@ Fix every contrast failure immediately. Common fixes:
 
 ---
 
-## Step 11 — Report once
+## Step 10 — Report once
 
 Send the user a single summary message containing:
 
@@ -824,26 +666,17 @@ These are real mistakes from the Chonk build. Don't repeat them.
 | Hardcoded `#000000` in shadow definitions | Use `var(--wp--preset--color--contrast)` |
 | Reached for the `css` escape hatch ≥ 5 times | Cap it at 2-3 unfixable cases (sticker positioning, asymmetric flex-wrap override). Anything more means the design tokens are wrong. |
 | Built homepage faithfully but left the footer as the cloned default | Audit every template + part in step 6. The user will notice. |
-| Cloned obel, repainted the palette and swapped the fonts, and called the variant done — leaving `templates/front-page.html` byte-for-byte structurally identical to obel's | The monorepo refuses "same shape, different colors" reskins. Read the "every theme's homepage layout must be unique" hard rule above. Restructure the front page: change the section count, swap the dynamic-surface mix (`woocommerce/product-collection` vs `terms-query` vs `query` vs `media-text` vs `cover`), introduce the variant's own hero pattern, and/or reorder. `bin/check.py check_front_page_unique_layout` will fail the build until the fingerprint differs from every sibling theme. |
 | Used hardcoded category names in nav menus | Use `core/terms-query` so it auto-updates when the user adds categories |
 | Asked "should I make X dynamic?" mid-build | Default is yes, always, via core blocks. Only ask if there's no core block for it. |
 | Slug `6xl` → CSS class `has-6xl-font-size` rendered tiny | Always use dashed form `6-xl` to match WordPress's CSS variable normalization |
 | Announcement bar inside `parts/header.html` didn't go full-width | Lift it out as its own template part; include directly in templates with `align:"full"` |
-| Took screenshots only at the default viewport (or used the `cursor-ide-browser` MCP which defaults to ~660 px even after `browser_resize`) | Use `python3 bin/snap.py shoot <theme>` — it captures every (route × viewport) cell at the exact widths declared in `bin/snap_config.py::VIEWPORTS` (mobile / tablet / desktop / wide). Read each `tmp/snaps/<theme>/<viewport>/<route>.png` directly. Browser MCP is for one-off live debugging via `bin/snap.py serve <theme>`, not for the verification matrix. |
+| Took screenshots only at the default viewport | Screenshot at mobile + tablet + desktop. The browser MCP often defaults to ~660 px which masks desktop-only layout bugs. |
 | Adopted a condensed display font (Anton/Impact) without recalibrating letter-spacing | Use the letter-spacing table in step 5. Default `tighter:-0.04em` strangles condensed fonts. |
 | Footer columns built as `<ul><li><a href="/about">About</a></li>…</ul>` because "the menus aren't set up yet" | `core/navigation` block always. If the menu doesn't exist, seed it in step 8 via `wp menu create`. Hardcoded link lists are dead links the moment the user changes their site structure. |
 | Hardcoded "© 2026 Site Title" copyright text | `core/site-title` for the name, current year via a real WP block (or accept "© All rights reserved." with no year — never invent a year that will be wrong in 9 months). |
 | Used hardcoded category names anywhere outside a structural label | `core/terms-query` always |
-| Verified responsiveness only on the homepage | Four-viewport snapshot pass required for **every** surface in step 10 Pass B (with the parent-inheritance shortcut). Cart layout almost always breaks at mobile in ways the homepage doesn't — `python3 bin/snap.py shoot <theme>` covers every route × viewport in one command. |
-| Trusted "0 pixel-diffs vs baseline" as proof a re-baseline is safe | Always run `python3 bin/snap.py report` before promoting baselines. A diff that's all-green pixel-wise but ships a new uncaught JS error, broken image, or visible WC notice is exactly the regression the framework's heuristics catch. The rollup at `tmp/snaps/review.md` should be `0 / 0 / 0 / 0` across every theme before `bin/snap.py baseline --all`. |
-| Used `secondary` / `tertiary` text color slugs without checking contrast on every background they land on | Plan contrast pairs in step 5 and run `bin/check-contrast.py`. Per-surface, audit body/meta/buttons/links/focus/form fields against WCAG AA in step 10 Pass C. |
-| Shipped a theme variant without ever loading its Playground blueprint | Step 9 is non-optional. Every theme must have a working `<theme>/playground/blueprint.json`, which `bin/clone.py` creates and `bin/sync-playground.py` keeps in sync automatically. Walk the deeplink surface checklist before declaring done. |
-| Skipped `bin/seed-playground-content.py` after cloning, so the new theme's Playground booted with no products / blank pages OR — worse — with image URLs pointing at obel's `playground/images/` because someone "fixed" clone.py to copy `playground/content/` over | clone.py deliberately skips per-theme `playground/content/` and `playground/images/`. Those folders bake the theme slug into every image URL inside the CSV and XML, and clone.py's text substitution doesn't touch CSV/XML. Always run `python3 bin/seed-playground-content.py` after `bin/clone.py` so the new theme's content/ is seeded fresh with image URLs rewritten to its own slug. |
-| Hardcoded an image URL or theme name inside `playground/wo-import.php` or `playground/wo-configure.php` | Those scripts are SHARED across every theme — they must stay theme-agnostic and read URLs/names from the three constants `WO_THEME_NAME`, `WO_THEME_SLUG`, `WO_CONTENT_BASE_URL`. `bin/sync-playground.py` prepends the constants block when it inlines each script body. If the value you need can be expressed as a path under `WO_CONTENT_BASE_URL`, use that. Per-theme divergence belongs in `<theme>/playground/content/` (data) or `<theme>/playground/images/` (assets), never in the shared scripts. |
-| Skipped `bin/build-redirects.py` after cloning, so the new theme has no `demo.regionallyfamous.com/<theme>/` short URL — leaving every social share / slide deck / docs link stuck with the 200-character `?blueprint-url=…&url=/shop/` deeplink | Step 9 ends with `bin/build-redirects.py`, not `bin/sync-playground.py`. The script auto-discovers themes (no code change required to add a new one) and writes `docs/<theme>/<page>/index.html` for every entry in its `PAGES` list. Re-run it any time a theme is added or removed; commit the new `docs/` files alongside the theme. GH Pages picks up the change within ~1 minute. |
-| Edited a file under `docs/` by hand (e.g. tweaked the landing page copy, fixed a redirect) | Every file under `docs/` is regenerated from scratch by `bin/build-redirects.py`. Edits there will be silently wiped on the next run. Move the change into the script's `REDIRECT_TEMPLATE` / `INDEX_HEAD` / `PAGES` constants instead, then re-run the script. The exception is `docs/CNAME` (custom domain), which is preserved across rebuilds. |
-| Hardcoded the GitHub org / repo / branch (or the `demo.regionallyfamous.com/` URL) anywhere in `bin/` outside `_lib.py` | `bin/_lib.py` is the single source of truth for `GITHUB_ORG`, `GITHUB_REPO`, `GITHUB_BRANCH`, `GH_PAGES_BASE_URL`, `RAW_GITHUB_BASE_URL`, and the helpers built on top of them (`theme_content_base_url`, `theme_blueprint_raw_url`, `playground_deeplink`, `gh_pages_short_url`). Both `bin/sync-playground.py` and `bin/build-redirects.py` import from there, so renaming the org/repo/branch is a single-line change. Re-encoding the URL anywhere else means the next rename silently desyncs the two consumers. |
-| "Simplified" the permalink section of `playground/wo-configure.php` back to `update_option(...)` + `flush_rewrite_rules(...)` | That's the bug. In a `wp eval-file` context the global `$wp_rewrite` is stale; you must use `$wp_rewrite->set_permalink_structure()` first. See "Playground gotchas" in step 9. |
+| Verified responsiveness only on the homepage | Three-viewport screenshot pass required for **every** surface in step 9 Pass B (with the parent-inheritance shortcut). Cart layout almost always breaks at mobile in ways the homepage doesn't. |
+| Used `secondary` / `tertiary` text color slugs without checking contrast on every background they land on | Plan contrast pairs in step 5 and run `bin/check-contrast.py`. Per-surface, audit body/meta/buttons/links/focus/form fields against WCAG AA in step 9 Pass C. |
 | Removed the focus ring (`outline:none`) for visual cleanliness | Always keep a visible focus ring at ≥ 3:1 contrast. Style it; don't remove it. Tab through the homepage to verify before declaring done. |
 | Status colors (sale price, error, success) defaulted to red/green with no recalibration against the variant palette | Treat status colors as palette slugs (`status-positive`, `status-negative`, `status-warning`) and run them through the contrast script along with everything else. |
 | Used a `core/html` block to drop in raw markup because "the block I want doesn't quite exist" | Forbidden. Either compose the design from existing `core/*` / `woocommerce/*` blocks, or use the `theme.json` `css` escape hatch for pure styling problems. Raw HTML in a template defeats the entire design system. |
@@ -851,11 +684,9 @@ These are real mistakes from the Chonk build. Don't repeat them.
 | Left a `core/freeform` (Classic) block in a template after content migration | Convert to blocks via the editor or rewrite block-first. Classic blocks render outside the block tree and can't inherit any tokens. |
 | Inlined arbitrary SVG via `core/html` in a template or part | Move the icon into a pattern (`patterns/`), confirm it's decorative + uses `currentColor`, or prefer a real `core/image` / icon block. Templates and parts are off-limits for raw HTML. |
 | Set `display:grid` on `ul.products` (upsells / related / shop) without hiding WooCommerce's clearfix `::before` and `::after` pseudo-elements | The pseudos become real grid items and consume cells. See "WC integration gotchas" — fix is `display:none; content:none;` on the pseudos in the same scope. `bin/check.py` enforces this. |
-| Used a vibe-check ("yep, looks brutal") instead of running the structural defect scan on every screenshot | Pass C-zero is non-optional. Walk all 8 items per screenshot, after first reading `tmp/snaps/<theme>/review.md` (generated by `python3 bin/snap.py report`) to clear the heuristic-detectable defect classes. "Looks fine" is not an acceptable answer to any of the 8. |
-| Trusted automated `check.py` + `check-contrast.py` green as proof the surface is shippable | Those checks catch token violations and palette pairings. They don't catch layout defects (empty grid cells, ghost overlays, displaced cards, default WC styles leaking through). Pass C-zero — combining `bin/snap.py report` for the heuristic-detectable subset with the manual 8-item scan for the rest — is the layer that catches those. |
+| Used a vibe-check ("yep, looks brutal") instead of running the structural defect scan on every screenshot | Pass C-zero is non-optional. Walk all 8 items per screenshot. "Looks fine" is not an acceptable answer to any of them. |
+| Trusted automated `check.py` + `check-contrast.py` green as proof the surface is shippable | Those checks catch token violations and palette pairings. They don't catch layout defects (empty grid cells, ghost overlays, displaced cards, default WC styles leaking through). Pass C-zero is the layer that catches those — run it. |
 | Linked Google Fonts via `<link rel="stylesheet" href="https://fonts.googleapis.com/...">` in `parts/header.html` or via `wp_enqueue_style` in `functions.php` | Hard-rule violation. Download the `.woff2`(s) into `assets/fonts/` and register via `fontFace` with a `file:./...` src. `bin/check.py` `check_no_remote_fonts()` enforces it. |
-| Stripped the View Transitions block from `theme.json` `styles.css` or the `render_block` filter from `functions.php` while restyling | Both halves of the cross-document VT contract are part of the visual baseline (see monorepo `AGENTS.md` "View Transitions"). Clones inherit them via `bin/clone.py`. The CSS opt-in (`@view-transition { navigation: auto }` + persistent header/footer/title names + reduced-motion guard) and the per-post `view-transition-name` filter must both ship on every variant. Without them, navigation feels static instead of like a modern site. |
-| Reached for JavaScript to add typed View Transitions or `pagereveal` direction awareness | No JS bundles, no `<script>` tags. The CSS-only baseline (cross-document VT + persistent named regions + per-post morph) is the ceiling. If you want richer behavior, ship more CSS keyframes, not JavaScript. |
 | Used `@import url('https://fonts.googleapis.com/...')` inside the `theme.json` `styles.css` escape hatch | Same violation. The `css` escape hatch is for tiny structural tweaks, not for smuggling in remote stylesheets. Self-host the `.woff2`. |
 | Picked a non-Google-Fonts family (Adobe Typekit, custom foundry, Bunny Fonts CDN) for a variant | Not allowed. Either find a Google Fonts equivalent (there's almost always one) or stay on the system stack. Foundry/Adobe licensing rules out clone-and-ship. |
 | Set `"fontDisplay":"block"` (or omitted it) so the page sat blank waiting for the custom font | Always `"fontDisplay":"swap"` so the system fallback renders first paint and the custom font swaps in when ready. |
@@ -876,8 +707,6 @@ These are bugs where WooCommerce's plugin CSS or block-rendering quirks fight th
 | WC sets `.columns-4` on `ul.products` for upsells even when only 2 products exist, causing the grid to have empty cells | WC defaults `woocommerce_upsells_columns` to 4 regardless of available product count. | `add_filter('woocommerce_upsells_columns', fn($n, $upsells) => $upsells ? min(count($upsells), 4) : 4, 10, 2);` in `functions.php`. Also `woocommerce_output_related_products_args` for related. | Could grep `functions.php` for these filters when `single-product.html` template exists — not yet implemented |
 | Footer "Privacy / Terms / Cookies" links don't render at all on some surfaces | A `core/navigation` block ref points to a `wp_navigation` post that doesn't exist (deleted, never created, or wrong ID). The block renders nothing instead of an error. | Verify every `ref:N` in templates/parts maps to a real post: `wp post list --post_type=wp_navigation --field=ID,post_title`. For short stable lists (≤4 items pointing at known pages), prefer inline `wp:paragraph` links over a `core/navigation` ref — fewer moving parts. | Could grep templates for `"ref":N` and verify each post exists — not yet implemented |
 | `core/terms-query` shows nothing despite categories existing in DB | `showNested:false` (the default) only surfaces top-level terms; if your "Shop" parent has count 0 and all children are nested, the block looks empty. | Set `showNested:true` and use `orderBy:"count"` + `order:"desc"` so populated children float to the top. | Could grep templates for `core/terms-query` without `showNested:true` and warn — not yet implemented |
-| Stock level renders twice on a single product page (e.g. themed "7 IN STOCK" above and a plain "7 in stock" right above the quantity field) | `woocommerce/add-to-cart-form` is a legacy block that auto-renders its own `<p class="stock">` and `<div class="woocommerce-variation-availability">` inside the form. When the template also includes a separate `woocommerce/product-stock-indicator` block (which we want, because that one is themable per block attrs), the user sees the stock label twice. We can't drop `add-to-cart-form` until WC ships the modern equivalent in its trunk template — see `obel/AGENTS.md` "Things that look like good ideas but aren't". | Hide the form's auto-rendered stock paragraphs in the theme.json `styles.css`: `.woocommerce div.product form.cart .stock, .woocommerce div.product .woocommerce-variation-availability { display: none; }`. Keep the standalone `woocommerce/product-stock-indicator` block in the template — that's the one with theme styling. | Could grep `templates/single-product.html` for both blocks without a matching display:none rule in `theme.json` styles.css — not yet implemented |
-| Quantity field on the single product page looks small and visually disconnected from the ADD TO CART button (input renders ~28px tall, button ~44px tall, awkward gap) | Two compounding issues: (1) the form uses `align-items: center` so the smaller intrinsic input height stays small instead of stretching to match the button, and (2) WC's `input.qty` defaults are tiny (browser-default font + padding + 64px width) versus a generously padded button. | In theme.json `styles.css`: `.cart { align-items: stretch; gap: var(--wp--preset--spacing--md); }`, then bump the input to width ~88px, `font-size: var(--wp--preset--font-size--base)`, `font-weight: medium`, `padding: sm lg`, `line-height: 1`. Add a real `:focus-within` ring on the wrapper (`box-shadow: 0 0 0 3px var(--wp--preset--color--accent-soft)`) since `outline: none` on the input alone strips the only visible focus indicator. Kill `::-webkit-inner-spin-button` / `::-webkit-outer-spin-button` (`appearance: none; margin: 0`) so Chrome/Safari don't show ugly native spinners. | Visual scan in Pass C-zero step 4 (button vs input height parity). Worth a future lint that compares `padding-block` of `.cart .quantity input.qty` and `.single_add_to_cart_button` and warns when they don't match. |
 
 **Process rule:** every time you find a new WC + theme.json integration bug, add a row to this table AND open a PR adding the lint check (or a "could be added" placeholder). Visual-only catches are a regression waiting to happen — encode the bug in the linter once and never see it again.
 
@@ -923,10 +752,11 @@ Plus generate a mockup image alongside, so the user can react to a picture, not 
 
 **Code hygiene:**
 
-- [ ] `bin/check.py --quick` exits 0
+- [ ] `bin/check.py --visual` exits 0 (static checks + snap gate; `--visual-scope=all` for a release)
+- [ ] `bin/snap.py report` shows `STATUS: PASS` (or `WARN` with every warn intentional and noted) — never `FAIL`
+- [ ] Per-theme `tmp/snaps/<NEW_NAME>/review.md` shows `**GATE: PASS**` (or `WARN` with notes)
 - [ ] `bin/check-contrast.py` exits 0 (every required palette pairing meets WCAG AA)
 - [ ] `INDEX.md` regenerated
-- [ ] `templates/front-page.html` has a structurally unique top-level composition vs every sibling theme (different section count, different surface mix, or different hero pattern). The `Front page layout differs from every other theme` line in `bin/check.py` confirms it.
 - [ ] No `!important` in `theme.json` (grep confirms)
 - [ ] No hardcoded hex colors in `theme.json` `css` field
 - [ ] No remote font URLs anywhere — `fontFace[*].src` is `file:./...`, no `fonts.googleapis.com` / `fonts.gstatic.com` / `<link rel=preconnect>` to font CDNs / `@import url('https://fonts...')`. `bin/check.py check_no_remote_fonts` exits clean.
@@ -938,19 +768,6 @@ Plus generate a mockup image alongside, so the user can react to a picture, not 
 - [ ] Every category/product/post list uses `core/terms-query` or `core/query`, not hardcoded markup
 - [ ] Menus, pages, and any referenced taxonomy terms exist in the DB (or explicitly handed off to the user with instructions)
 
-**Playground blueprint (the deliverable is incomplete without this):**
-
-- [ ] `<theme>/playground/blueprint.json` exists (created automatically by `bin/clone.py`)
-- [ ] `<theme>/playground/content/` contains `products.csv`, `content.xml`, and `category-images.json` (created by `bin/seed-playground-content.py`)
-- [ ] `<theme>/playground/images/` contains the per-theme product / page / post artwork (created by `bin/seed-playground-content.py`; replace with theme-styled artwork as desired)
-- [ ] Sample image URLs inside `<theme>/playground/content/products.csv` and `content.xml` start with `https://raw.githubusercontent.com/<org>/<repo>/main/<theme>/playground/images/` — NOT `wonders-oddities` and NOT another theme's slug
-- [ ] `python3 bin/sync-playground.py` reports "already in sync" for every theme (no stale inlined helpers)
-- [ ] Blueprint metadata references the correct theme — `meta.title`, `meta.description`, `installTheme.path`, `installTheme.options.targetFolderName`, `setSiteOptions.blogname`, the `define('WO_THEME_NAME', '<Theme>')` constants prepended to `wo-import.php` and `wo-configure.php`, and the `importWxr` step's `file.url` all read `<Theme>` / `<theme>`, not `Obel` / `obel`
-- [ ] `python3 bin/build-redirects.py` ran successfully and `docs/<theme>/index.html` plus `docs/<theme>/{shop,product/bottled-morning,cart,checkout,my-account,journal,404}/index.html` exist; the new theme is listed as a card on the regenerated `docs/index.html`
-- [ ] Opened the short URL (`https://demo.regionallyfamous.com/<theme>/`) in a fresh browser / incognito window — it forwards to the canonical Playground deeplink and boot completes without errors. (If GH Pages is not enabled on your fork, fall back to the long deeplink: `https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/<org>/<repo>/main/<theme>/playground/blueprint.json`.)
-- [ ] Walked every URL in the surface checklist via the short URLs (`fifty/<theme>/`, `fifty/<theme>/shop/`, `fifty/<theme>/product/bottled-morning/`, `fifty/<theme>/cart/`, `fifty/<theme>/checkout/`, `fifty/<theme>/my-account/`, `fifty/<theme>/journal/`, `fifty/<theme>/404/`) — every pretty URL resolves to a designed page inside Playground, no 404s on legitimate URLs, the 404 page renders the variant's branded 404
-- [ ] `playground/wo-configure.php`'s permalink section still uses `$wp_rewrite->set_permalink_structure(...)` (not just `update_option(...)`)
-
 **Modern-blocks-only audit (run the validation greps from the hard rule):**
 
 - [ ] `grep -rE '<!-- wp:(html|shortcode|freeform)' templates parts patterns` returns zero matches
@@ -961,9 +778,9 @@ Plus generate a mockup image alongside, so the user can react to a picture, not 
 - [ ] `templates/checkout.html` uses `woocommerce/checkout` (not `[woocommerce_checkout]`)
 - [ ] My-account surface uses `woocommerce/customer-account-content` (not `[woocommerce_my_account]`)
 
-**Surface coverage — for every surface, all four boxes must be ticked.** All screenshots come from `python3 bin/snap.py shoot <theme>` (which writes `tmp/snaps/<theme>/<viewport>/<route>.png` for every cell in `bin/snap_config.py::ROUTES × VIEWPORTS`); the structural defect scan starts from `python3 bin/snap.py report` (which writes `tmp/snaps/<theme>/review.md`) and finishes with the manual 8-item triage on the PNGs.
+**Surface coverage — for every surface, all four boxes must be ticked:**
 
-| Surface | snap.py PNG at desktop renders w/ real content | snap.py PNGs at mobile + tablet + desktop + wide all reviewed | Structural defect scan clean (review.md heuristics + 8-item triage from Pass C-zero — empty cells, orphans, ghost overlays, default WC styles, collapsed dimensions, missing hover/focus, item-count mismatch, off-canvas) | Per-surface contrast audit clean (body, meta, buttons, links, focus, form fields) |
+| Surface | Restyled + desktop screenshot w/ real content | Mobile + tablet + desktop screenshots taken | Structural defect scan clean (8-item triage from Pass C-zero — empty cells, orphans, ghost overlays, default WC styles, collapsed dimensions, missing hover/focus, item-count mismatch, off-canvas) | Per-surface contrast audit clean (body, meta, buttons, links, focus, form fields) |
 |---|---|---|---|---|
 | Front page (`/`) | ☐ | ☐ | ☐ | ☐ |
 | Blog index | ☐ | ☐ | ☐ | ☐ |

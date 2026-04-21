@@ -230,3 +230,28 @@ add_action(
 	},
 	5
 );
+
+// ---------------------------------------------------------------------------
+// 5. Per-theme body class for distinctive Phase E polish.
+// ---------------------------------------------------------------------------
+//
+// Block themes don't expose a per-theme body class on the frontend by
+// default (`wp_get_theme()->get_stylesheet()` is only added in admin).
+// Without one, every Phase E rule that needs to scope to a single theme
+// (Chonk's brutalist ATC, Selvedge's italic editorial sections, etc.)
+// would have to be forked into per-theme theme.json files instead of
+// living in the shared CSS chunk.
+//
+// We piggyback off the WO_THEME_SLUG constant that sync-playground.py
+// already injects ahead of every blueprint script (one of: chonk, obel,
+// selvedge, lysholm) and emit `theme-<slug>`. Phase E CSS uses
+// `body.theme-chonk .wc-block-…` etc. to scope per-theme polish.
+add_filter(
+	'body_class',
+	function ( array $classes ) {
+		if ( defined( 'WO_THEME_SLUG' ) && WO_THEME_SLUG ) {
+			$classes[] = 'theme-' . sanitize_html_class( (string) WO_THEME_SLUG );
+		}
+		return $classes;
+	}
+);

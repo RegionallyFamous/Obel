@@ -536,6 +536,54 @@ CSS_PHASE_D_FOOTER = f"""{SENTINEL_OPEN_PHASE_D_FOOTER}
 {SENTINEL_CLOSE_PHASE_D_FOOTER}"""
 
 
+# ---------------------------------------------------------------------------
+# Phase E: per-theme distinctive polish.
+# ---------------------------------------------------------------------------
+# Scoped via the `body.theme-<slug>` class injected by wo-pages-mu.php.
+# These are the rules that should make the four demos read as four
+# different storefronts even when looking only at the cart, PDP, or
+# archive — the parts where a generic WC build looks identical across
+# themes.
+#
+#   chonk    — brutalist hard-edged ATC, tilted Sale stickers, caption
+#              pill on the PDP image.
+#   obel     — sharp ATC (no radius, hairline border, wide tracking),
+#              hairline rules between archive sections, chevron
+#              breadcrumb separator.
+#   selvedge — dark contrast swatches with cream selected ring, italic
+#              display headings on archive sections, "Notes from the
+#              workshop" attribution on PDP titles.
+#   lysholm  — Nordic generous whitespace, centered shop hero,
+#              tabular-nums prices everywhere.
+SENTINEL_OPEN_PHASE_E = "/* wc-tells-phase-e-distinctive */"
+SENTINEL_CLOSE_PHASE_E = "/* /wc-tells-phase-e-distinctive */"
+CSS_PHASE_E = f"""{SENTINEL_OPEN_PHASE_E}
+body.theme-chonk .single-product .single_add_to_cart_button,body.theme-chonk .wp-block-button .wp-block-button__link,body.theme-chonk .wc-block-cart__submit-container .wc-block-components-checkout-place-order-button{{border-radius:0 !important;border-width:2px !important;border-style:solid !important;border-color:var(--wp--preset--color--contrast) !important;background:var(--wp--preset--color--contrast) !important;color:var(--wp--preset--color--base) !important;font-family:var(--wp--preset--font-family--display) !important;font-weight:var(--wp--custom--font-weight--medium,500) !important;letter-spacing:var(--wp--custom--letter-spacing--widest,0.16em) !important;text-transform:uppercase !important;padding:var(--wp--preset--spacing--md) var(--wp--preset--spacing--xl) !important;box-shadow:4px 4px 0 0 var(--wp--preset--color--accent) !important;transition:transform 120ms ease,box-shadow 120ms ease !important;}}
+body.theme-chonk .single-product .single_add_to_cart_button:hover,body.theme-chonk .wp-block-button .wp-block-button__link:hover,body.theme-chonk .wc-block-cart__submit-container .wc-block-components-checkout-place-order-button:hover{{transform:translate(-2px,-2px) !important;box-shadow:6px 6px 0 0 var(--wp--preset--color--accent) !important;background:var(--wp--preset--color--contrast) !important;color:var(--wp--preset--color--base) !important;}}
+body.theme-chonk .onsale,body.theme-chonk .wc-block-product-collection .wc-block-components-product-sale-badge,body.theme-chonk .wc-block-grid__product-onsale{{position:absolute;top:var(--wp--preset--spacing--sm);left:var(--wp--preset--spacing--sm);z-index:2;background:var(--wp--preset--color--accent);color:var(--wp--preset--color--contrast);font-family:var(--wp--preset--font-family--display);font-weight:var(--wp--custom--font-weight--medium,500);font-size:var(--wp--preset--font-size--xs);letter-spacing:var(--wp--custom--letter-spacing--widest,0.16em);text-transform:uppercase;padding:var(--wp--preset--spacing--2-xs) var(--wp--preset--spacing--sm);border-radius:0;transform:rotate(-6deg);box-shadow:2px 2px 0 0 var(--wp--preset--color--contrast);}}
+body.theme-chonk .single-product .wp-block-post-featured-image{{position:relative;}}
+body.theme-chonk .single-product .wp-block-post-featured-image::after{{content:"Tap to zoom";position:absolute;bottom:var(--wp--preset--spacing--md);left:var(--wp--preset--spacing--md);background:var(--wp--preset--color--contrast);color:var(--wp--preset--color--base);font-family:var(--wp--preset--font-family--sans);font-size:var(--wp--preset--font-size--xs);letter-spacing:var(--wp--custom--letter-spacing--wider,0.08em);text-transform:uppercase;padding:var(--wp--preset--spacing--2-xs) var(--wp--preset--spacing--sm);border-radius:var(--wp--custom--radius--pill,9999px);pointer-events:none;}}
+body.theme-obel .single-product .single_add_to_cart_button,body.theme-obel .wp-block-button .wp-block-button__link,body.theme-obel .wc-block-cart__submit-container .wc-block-components-checkout-place-order-button{{border-radius:0 !important;border:1px solid var(--wp--preset--color--contrast) !important;background:var(--wp--preset--color--base) !important;color:var(--wp--preset--color--contrast) !important;letter-spacing:var(--wp--custom--letter-spacing--widest,0.18em) !important;text-transform:uppercase !important;padding:var(--wp--preset--spacing--md) var(--wp--preset--spacing--2-xl) !important;font-weight:var(--wp--custom--font-weight--regular,400) !important;}}
+body.theme-obel .single-product .single_add_to_cart_button:hover,body.theme-obel .wp-block-button .wp-block-button__link:hover,body.theme-obel .wc-block-cart__submit-container .wc-block-components-checkout-place-order-button:hover{{background:var(--wp--preset--color--contrast) !important;color:var(--wp--preset--color--base) !important;}}
+body.theme-obel .wc-block-product-template>li,body.theme-obel .wc-block-product-collection .wp-block-post,body.theme-obel .products .product{{border-bottom:1px solid var(--wp--preset--color--border);padding-bottom:var(--wp--preset--spacing--lg);}}
+body.theme-obel .woocommerce-breadcrumb,body.theme-obel .wc-block-breadcrumbs,body.theme-obel nav.woocommerce-breadcrumb{{font-size:var(--wp--preset--font-size--xs);letter-spacing:var(--wp--custom--letter-spacing--wider,0.08em);text-transform:uppercase;color:var(--wp--preset--color--secondary);}}
+body.theme-obel .woocommerce-breadcrumb a,body.theme-obel .wc-block-breadcrumbs a{{color:var(--wp--preset--color--secondary);text-decoration:none;}}
+body.theme-obel .woocommerce-breadcrumb a:hover,body.theme-obel .wc-block-breadcrumbs a:hover{{color:var(--wp--preset--color--contrast);}}
+body.theme-obel .woocommerce-breadcrumb,body.theme-obel .wc-block-breadcrumbs{{display:flex;flex-wrap:wrap;gap:var(--wp--preset--spacing--xs);align-items:center;}}
+body.theme-obel .woocommerce-breadcrumb>a:not(:last-child)::after,body.theme-obel .wc-block-breadcrumbs__item:not(:last-child)::after{{content:"›";display:inline-block;margin-left:var(--wp--preset--spacing--xs);color:var(--wp--preset--color--tertiary,var(--wp--preset--color--border));}}
+body.theme-selvedge .wo-swatch--color{{background:var(--wp--preset--color--contrast);border-color:var(--wp--preset--color--contrast);}}
+body.theme-selvedge .wo-swatch--color .wo-swatch__dot{{box-shadow:inset 0 0 0 1px rgba(255,255,255,0.16);}}
+body.theme-selvedge .wo-swatch[aria-pressed="true"],body.theme-selvedge .wo-swatch--color[aria-pressed="true"]{{box-shadow:0 0 0 2px var(--wp--preset--color--base),0 0 0 4px var(--wp--preset--color--accent);}}
+body.theme-selvedge .single-product .product_title,body.theme-selvedge .wo-archive-hero__title,body.theme-selvedge .wc-block-cart__totals-title,body.theme-selvedge .woocommerce-MyAccount-content h2,body.theme-selvedge .wo-recs>.wp-block-heading{{font-style:italic;letter-spacing:var(--wp--custom--letter-spacing--tight,-0.02em);}}
+body.theme-selvedge .single-product .product_title::after{{content:"Notes from the workshop.";display:block;margin-top:var(--wp--preset--spacing--xs);font-style:normal;font-family:var(--wp--preset--font-family--sans);font-size:var(--wp--preset--font-size--xs);letter-spacing:var(--wp--custom--letter-spacing--wider,0.08em);text-transform:uppercase;color:var(--wp--preset--color--secondary);}}
+body.theme-lysholm .wc-block-product-collection,body.theme-lysholm .wc-block-cart,body.theme-lysholm .wc-block-checkout,body.theme-lysholm .single-product .product{{padding-block:var(--wp--preset--spacing--3-xl);}}
+body.theme-lysholm .wo-archive-hero,body.theme-lysholm .wo-archive-hero__inner{{text-align:center;align-items:center;justify-items:center;}}
+body.theme-lysholm .wo-archive-hero__lede{{max-width:48ch;margin-inline:auto;}}
+body.theme-lysholm .price,body.theme-lysholm .wc-block-components-product-price,body.theme-lysholm .woocommerce-Price-amount,body.theme-lysholm .wc-block-formatted-money-amount,body.theme-lysholm .wc-block-components-totals-item__value,body.theme-lysholm .wc-block-components-product-price ins,body.theme-lysholm .wc-block-components-product-price del{{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1,"lnum" 1;letter-spacing:0;}}
+body.theme-lysholm .wp-block-product-collection .wp-block-post,body.theme-lysholm .wc-block-grid__product{{padding:var(--wp--preset--spacing--md);}}
+{SENTINEL_CLOSE_PHASE_E}"""
+
+
 # Each entry: (sentinel_open, sentinel_close, raw_css, anchor_after).
 # `anchor_after` is the marker the chunk is spliced in after — for the
 # first chunk that's the canonical archive-page marker; for follow-ups
@@ -601,6 +649,12 @@ CHUNKS: list[tuple[str, str, str, str]] = [
         SENTINEL_CLOSE_PHASE_D_FOOTER,
         CSS_PHASE_D_FOOTER,
         SENTINEL_CLOSE_PHASE_D,
+    ),
+    (
+        SENTINEL_OPEN_PHASE_E,
+        SENTINEL_CLOSE_PHASE_E,
+        CSS_PHASE_E,
+        SENTINEL_CLOSE_PHASE_D_FOOTER,
     ),
 ]
 
