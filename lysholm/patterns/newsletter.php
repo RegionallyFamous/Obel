@@ -20,7 +20,7 @@
 	<!-- /wp:paragraph -->
 
 	<!-- wp:search <?php echo wp_json_encode( array(
-		'label'          => __( 'Your address', 'lysholm' ),
+		'label'          => __( 'The address we\'ll write to', 'lysholm' ),
 		'showLabel'      => false,
 		'placeholder'    => __( 'name@quiet.example', 'lysholm' ),
 		'buttonText'     => __( 'Subscribe', 'lysholm' ),

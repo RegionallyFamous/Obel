@@ -157,6 +157,48 @@ function wo_truthy( $value ): bool {
 }
 
 /**
+ * Walk the up-to-three "Attribute N name / value(s) / visible / global /
+ * default" column groups present in WC's CSV export format and return a
+ * structured list. Each entry is an associative array with `name` (the
+ * human-readable label), `values` (array of options, split on `|`),
+ * `visible` (bool), `global` (bool — whether WC should treat this as a
+ * global pa_<slug> taxonomy; we ignore the flag for import simplicity and
+ * always create local attributes), and `default` (the default option for
+ * variation pickers, '' when the source row left it blank). Empty
+ * attribute slots are skipped silently so a 1-attribute row does not
+ * leak two empty entries.
+ */
+function wo_collect_attributes_from_row( array $row ): array {
+	$out = array();
+	for ( $n = 1; $n <= 3; $n++ ) {
+		$name = trim( (string) ( $row[ "Attribute $n name" ] ?? '' ) );
+		if ( '' === $name ) {
+			continue;
+		}
+		$value_str = trim( (string) ( $row[ "Attribute $n value(s)" ] ?? '' ) );
+		if ( '' === $value_str ) {
+			continue;
+		}
+		$values = array_values(
+			array_filter(
+				array_map( 'trim', explode( '|', $value_str ) ),
+				'strlen'
+			)
+		);
+		if ( empty( $values ) ) {
+			continue;
+		}
+		$out[] = array(
+			'name'    => $name,
+			'values'  => $values,
+			'visible' => wo_truthy( $row[ "Attribute $n visible" ] ?? '1' ),
+			'default' => trim( (string) ( $row[ "Attribute $n default" ] ?? '' ) ),
+		);
+	}
+	return $out;
+}
+
+/**
  * Sideload a single image URL into the media library and return the new
  * attachment ID, or 0 on failure.
  *
@@ -235,32 +277,70 @@ if ( count( $lines ) < 2 ) {
 $headers = str_getcsv( array_shift( $lines ) );
 $num     = count( $headers );
 
-$created = 0;
-$skipped = 0;
-$failed  = 0;
-
+// Two-pass parse:
+//
+//   Pass 1 reads every CSV row into memory, resolving the row dictionary
+//   once so we can reorder execution without re-parsing. We then split
+//   into "parents" (simple / variable / grouped / external) and
+//   "variations" (rows whose Type is `variation` and whose Parent points
+//   at another row via `id:<row-id>`).
+//
+//   Pass 2a creates parents in CSV order and remembers the
+//   row-ID -> WC product-ID map so pass 2b can resolve `Parent: id:1013`
+//   into a real WP post ID.
+//
+//   Pass 2b creates each variation as a real WC_Product_Variation under
+//   its parent. WITHOUT this split the pre-fix importer fell into the
+//   default `WC_Product_Simple` branch for every variation row,
+//   silently shipping ~20 orphan simple products with names like "Left
+//   Sock of Destiny – Small / Moonlit Grey", no Categories cell, and
+//   the resulting "Uncategorized" fallback term — visible as
+//   `/product-category/uncategorized/` filling up with variation-named
+//   junk and the shop archive padding to 55 results instead of 32.
+//   A single-pass fix would be simpler but does not hold across rows
+//   where a variation references a parent declared LATER in the CSV.
+$rows = array();
 foreach ( $lines as $line ) {
 	if ( '' === trim( $line ) ) {
 		continue;
 	}
-
 	$cells = str_getcsv( $line );
-	// Pad/truncate to header width so array_combine() never fatals on
-	// rows that have an unexpected column count.
 	if ( count( $cells ) < $num ) {
 		$cells = array_pad( $cells, $num, '' );
 	} elseif ( count( $cells ) > $num ) {
 		$cells = array_slice( $cells, 0, $num );
 	}
-	$row = array_combine( $headers, $cells );
+	$rows[] = array_combine( $headers, $cells );
+}
 
-	$sku = trim( (string) ( $row['SKU'] ?? '' ) );
-	if ( '' !== $sku && wc_get_product_id_by_sku( $sku ) ) {
-		++$skipped;
-		continue;
+$row_id_to_product_id = array();   // CSV ID column -> WC post ID
+$variation_parent_ids = array();   // WC parent IDs that received variations
+$created = 0;
+$skipped = 0;
+$failed  = 0;
+
+// -------------------------------------------------------------------
+// Pass 2a: parent products (simple / variable / grouped / external).
+// -------------------------------------------------------------------
+foreach ( $rows as $row ) {
+	$type = strtolower( trim( (string) ( $row['Type'] ?? 'simple' ) ) );
+	if ( 'variation' === $type ) {
+		continue; // handled in pass 2b
 	}
 
-	$type = strtolower( trim( (string) ( $row['Type'] ?? 'simple' ) ) );
+	$sku = trim( (string) ( $row['SKU'] ?? '' ) );
+	if ( '' !== $sku ) {
+		$existing_pid = wc_get_product_id_by_sku( $sku );
+		if ( $existing_pid ) {
+			++$skipped;
+			$row_csv_id = (int) ( $row['ID'] ?? 0 );
+			if ( $row_csv_id ) {
+				$row_id_to_product_id[ $row_csv_id ] = (int) $existing_pid;
+			}
+			continue;
+		}
+	}
+
 	switch ( $type ) {
 		case 'variable':
 			$product = new WC_Product_Variable();
@@ -380,7 +460,48 @@ foreach ( $lines as $line ) {
 			$product->set_tag_ids( array_values( array_unique( $tag_ids ) ) );
 		}
 
+		// Variable-product attributes. We mark an attribute as "for
+		// variations" iff the parent row supplied a default value for
+		// it (the WC export convention) — `Brand` etc. on the same
+		// row are informational only and stay non-variation.
+		// All attributes are imported as LOCAL (per-product) rather
+		// than global (`pa_<slug>`) taxonomies, mirroring what
+		// wo-configure.php does for Bottled Morning / Pocket Thunder.
+		// Local attributes Just Work for variation pickers and avoid
+		// having to wc_create_attribute() + flush rewrite rules in a
+		// long-lived PHP-FPM context.
+		if ( $product->is_type( 'variable' ) ) {
+			$attr_specs = wo_collect_attributes_from_row( $row );
+			$wc_attrs   = array();
+			$defaults   = array();
+			foreach ( $attr_specs as $idx => $spec ) {
+				$a = new WC_Product_Attribute();
+				$a->set_name( $spec['name'] );
+				$a->set_options( $spec['values'] );
+				$a->set_position( $idx );
+				$a->set_visible( $spec['visible'] );
+				$a->set_variation( '' !== $spec['default'] );
+				$wc_attrs[] = $a;
+				if ( '' !== $spec['default'] ) {
+					$defaults[ 'attribute_' . sanitize_title( $spec['name'] ) ] = $spec['default'];
+				}
+			}
+			if ( ! empty( $wc_attrs ) ) {
+				$product->set_attributes( $wc_attrs );
+			}
+			if ( ! empty( $defaults ) ) {
+				$product->set_default_attributes( $defaults );
+			}
+		}
+
 		$product_id = $product->save();
+
+		// Remember row -> product mapping so pass 2b can resolve
+		// `Parent: id:1013` references into a real WP post ID.
+		$row_csv_id = (int) ( $row['ID'] ?? 0 );
+		if ( $row_csv_id && $product_id ) {
+			$row_id_to_product_id[ $row_csv_id ] = (int) $product_id;
+		}
 
 		// Images are attached after the initial save so each attachment
 		// can record its parent post ID. We re-fetch the product object
@@ -415,11 +536,116 @@ foreach ( $lines as $line ) {
 	}
 }
 
+// -------------------------------------------------------------------
+// Pass 2b: variations.
+// -------------------------------------------------------------------
+// Each variation row references its parent variable product via the
+// `Parent` column in the form `id:<csv-row-id>`. We resolve that to a
+// real WC post ID through the row-id map populated in pass 2a, then
+// build a WC_Product_Variation with the row's per-variation attribute
+// pairs (`attribute_<sanitized name>` => `<chosen value>`), price,
+// stock, and SKU. After every variation for a given parent has been
+// inserted we call WC_Product_Variable::sync($parent_id) so WC
+// recomputes the parent's price range, in-stock-children flag, and
+// visible-children index — without it the PDP picker shows the right
+// options but a broken add-to-cart state.
+//
+// Variations are post_type=product_variation, NOT post_type=product,
+// so registering them properly (rather than as orphan simples)
+// removes them from /product-category/<term>/ archives entirely. That
+// is what fixes the "23 entries showing in /product-category/uncategorized/"
+// symptom and brings the shop archive count back from 55 down to ~32.
+$variations_created = 0;
+$variations_skipped = 0;
+$variations_failed  = 0;
+foreach ( $rows as $row ) {
+	$type = strtolower( trim( (string) ( $row['Type'] ?? '' ) ) );
+	if ( 'variation' !== $type ) {
+		continue;
+	}
+
+	$sku = trim( (string) ( $row['SKU'] ?? '' ) );
+	if ( '' !== $sku && wc_get_product_id_by_sku( $sku ) ) {
+		++$variations_skipped;
+		continue;
+	}
+
+	$parent_ref = trim( (string) ( $row['Parent'] ?? '' ) );
+	if ( ! preg_match( '/^id:(\d+)$/', $parent_ref, $m ) ) {
+		++$variations_failed;
+		WP_CLI::warning( sprintf( 'Variation %s has unparseable Parent %s; skipping.', $sku, $parent_ref ) );
+		continue;
+	}
+	$parent_csv_id     = (int) $m[1];
+	$parent_product_id = $row_id_to_product_id[ $parent_csv_id ] ?? 0;
+	if ( ! $parent_product_id ) {
+		++$variations_failed;
+		WP_CLI::warning( sprintf( 'Variation %s could not resolve parent CSV id %d; skipping.', $sku, $parent_csv_id ) );
+		continue;
+	}
+
+	try {
+		$variation = new WC_Product_Variation();
+		$variation->set_parent_id( $parent_product_id );
+
+		$attr_specs = wo_collect_attributes_from_row( $row );
+		$attr_map   = array();
+		foreach ( $attr_specs as $spec ) {
+			$attr_map[ 'attribute_' . sanitize_title( $spec['name'] ) ] = $spec['values'][0];
+		}
+		if ( ! empty( $attr_map ) ) {
+			$variation->set_attributes( $attr_map );
+		}
+
+		if ( '' !== $sku ) {
+			$variation->set_sku( $sku );
+		}
+		$variation->set_status( wo_truthy( $row['Published'] ?? '1' ) ? 'publish' : 'draft' );
+
+		$reg = trim( (string) ( $row['Regular price'] ?? '' ) );
+		if ( '' !== $reg ) {
+			$variation->set_regular_price( $reg );
+		}
+		$sale = trim( (string) ( $row['Sale price'] ?? '' ) );
+		if ( '' !== $sale ) {
+			$variation->set_sale_price( $sale );
+		}
+
+		if ( wo_truthy( $row['In stock?'] ?? '1' ) ) {
+			$variation->set_stock_status( 'instock' );
+			$stock = trim( (string) ( $row['Stock'] ?? '' ) );
+			if ( '' !== $stock && is_numeric( $stock ) ) {
+				$variation->set_manage_stock( true );
+				$variation->set_stock_quantity( (int) $stock );
+			}
+		} else {
+			$variation->set_stock_status( 'outofstock' );
+		}
+
+		$variation->save();
+		$variation_parent_ids[ $parent_product_id ] = true;
+		++$variations_created;
+	} catch ( Exception $e ) {
+		++$variations_failed;
+		WP_CLI::warning( sprintf( 'Skipping variation "%s" (SKU %s): %s', $row['Name'] ?? '?', $sku, $e->getMessage() ) );
+	}
+}
+
+// Resync each variable parent that received variations so the parent's
+// derived data (price range, stock state, default selected variation
+// resolved against in-stock children) reflects what we just inserted.
+foreach ( array_keys( $variation_parent_ids ) as $pid ) {
+	WC_Product_Variable::sync( (int) $pid );
+}
+
 WP_CLI::success(
 	sprintf(
-		'W&O import done. Created=%d Skipped=%d Failed=%d',
+		'W&O import done. Created=%d Skipped=%d Failed=%d  | Variations: created=%d skipped=%d failed=%d',
 		$created,
 		$skipped,
-		$failed
+		$failed,
+		$variations_created,
+		$variations_skipped,
+		$variations_failed
 	)
 );

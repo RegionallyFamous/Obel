@@ -155,6 +155,36 @@ The full token reference is in `theme.json` (`settings.*`) and summarized in `IN
 - **Switching to `woocommerce/add-to-cart-with-options` in `single-product.html`** before WooCommerce switches its own canonical template. Stay aligned with the WC trunk template at `plugins/woocommerce/templates/templates/single-product.html`.
 - **Adding emojis to user-facing text or commit messages.** WP core themes don't, and Automattic reviewers notice.
 
+## Block markup invariants (the editor will reject your block otherwise)
+
+Patterns and templates are stored as serialized block markup -- block-comment delimiters wrap the HTML that the block's `save()` function would emit. When you load a pattern in the editor, WP runs `parse() + validateBlock()` and compares the stored HTML to the freshly-rendered `save()` output. Mismatches surface as **"This block contains unexpected or invalid content"** banners in the editor, and on the front end WP silently runs the deprecated handler (which often drops attributes or whole sub-trees).
+
+Two checks defend against this:
+
+1. **`check_block_markup_anti_patterns()`** -- a fast Python regex pass that catches the three common authoring mistakes below. Runs by default with `bin/check.py`.
+2. **`check_blocks_validator()`** -- the canonical editor-parity check: a Node.js script (`bin/blocks-validator/check-blocks.mjs`) that boots `@wordpress/blocks` under JSDOM and runs the real `parse() + validateBlock()` pipeline against every pattern/template/part. Skipped if Node 18+ or `node_modules/` aren't installed; run `cd ../bin/blocks-validator && npm install` once to enable it.
+
+The fast Python check enforces three invariants. If you hit one, fix the markup -- don't suppress the check.
+
+1. **`core/group` with a top-level `border.color` MUST carry `has-border-color`.** When the JSON declares `"border":{"color":"var:preset|color|border", ...}`, save() emits `class="...has-border-color..."`. Per-side borders (`"border":{"top":{"color":...}}`) are styled inline only and do NOT add the class.
+
+2. **`core/paragraph` MUST NOT carry legacy `wo-empty__*` classes.** That convention pre-dates the block editor's strict className handling; save() drops unknown classes on round-trip and the block fails to validate. Move the styling into `theme.json` (`styles.elements.h*` or block variations) instead.
+
+3. **`core/button` `box-shadow` belongs on the inner `<a class="wp-block-button__link wp-element-button">`, NEVER on the outer `<div class="wp-block-button">`.** Save() places the shadow on the link element. If the wrapper div carries it, the editor flags the block as invalid on load.
+
+Things that are NOT linted (because the validator confirmed they round-trip cleanly):
+
+- `core/heading` with a `"content":"…"` JSON attribute. Fine when it matches the inner HTML.
+- `core/quote` with a bare `<cite>` child instead of a JSON `citation` attribute. Save() preserves the inner `<cite>` verbatim.
+- `woocommerce/product-price` self-closed inside a `product-template`. Both render paths ship.
+
+Two longer-tail mistakes the validator catches but the regex check doesn't:
+
+- `core/cover` with a CSS variable in `min-height`. The block editor needs a numeric `minHeight` + `minHeightUnit` in JSON to round-trip the inline style. Use `"minHeight":640,"minHeightUnit":"px"` and `style="min-height:640px"`, not `var(--wp--custom--cover--hero)`.
+- `core/separator` with a `backgroundColor` MUST carry `has-alpha-channel-opacity` (not `has-css-opacity`) on the `<hr>`.
+
+When in doubt: run `python3 ../bin/check.py --quick` and let both gates speak.
+
 ## Validation checklist (run before declaring "done")
 
 ```bash

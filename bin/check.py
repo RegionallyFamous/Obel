@@ -736,6 +736,169 @@ def check_block_attrs_use_tokens() -> Result:
     return r
 
 
+def check_block_markup_anti_patterns() -> Result:
+    """Fail if any pattern/template/part contains a known block-markup anti-pattern
+    that the WordPress editor will flag as 'invalid content' (or silently auto-
+    upgrade on load).
+
+    These are the cheap-to-detect invariants. The expensive editor-parity diff
+    lives in `bin/blocks-validator/check-blocks.mjs` (run via
+    `check_blocks_validator()` below); this function exists so that a typical
+    edit gets quick feedback without requiring Node.js.
+
+    Invariants enforced (one fail line per offender):
+      1. core/group: when the JSON declares `border.color` (preset or raw),
+         the rendered <div> MUST carry the `has-border-color` class. Save()
+         emits it and the validator rejects the block otherwise.
+      2. core/paragraph: the class list MUST NOT include legacy
+         `wo-empty__*` markers -- core/paragraph doesn't support a custom
+         className via that selector and save() drops them, breaking the
+         round-trip.
+      3. core/button: `box-shadow` belongs on the inner `<a class=
+         "wp-block-button__link wp-element-button">`, NEVER on the outer
+         `<div class="wp-block-button">`. Save() places it on the link.
+    """
+    r = Result("Block markup matches save() output (group classes, button shadow, paragraph classes)")
+
+    skip_dirs = {"templates/", "parts/", "patterns/"}
+    files: list[Path] = []
+    for path in iter_files((".html", ".php")):
+        rel = path.relative_to(ROOT).as_posix()
+        if not any(rel.startswith(d) for d in skip_dirs):
+            continue
+        files.append(path)
+
+    # --- Invariant 1: core/group with border.color preset must add has-border-color
+    group_open_re = re.compile(
+        r'<!--\s*wp:group\s+(\{[^>]*?\})\s*-->\s*\n\s*(<(?:div|main|section|aside|nav|header|footer|article|figure)\s+[^>]*class="[^"]*?wp-block-group[^"]*?"[^>]*>)'
+    )
+
+    # --- Invariant 3: core/button shadow on outer wrapper
+    button_outer_shadow_re = re.compile(
+        r'<div\s+class="wp-block-button[^"]*"[^>]*style="[^"]*box-shadow:'
+    )
+
+    # NB: We deliberately do NOT lint `woocommerce/product-price` for self-close
+    # form. The block ships both render paths and the editor-parity validator
+    # stubs WC blocks anyway -- the regex is too coarse to disambiguate
+    # standalone uses from query-loop descendants reliably.
+
+    # NB: We deliberately do NOT lint `core/quote` for a JSON `citation` attribute.
+    # Save() preserves the inner `<cite>` element inside `<blockquote>` verbatim,
+    # so the editor-parity validator round-trips both forms cleanly.
+
+    # NB: We deliberately do NOT lint `core/heading` for a `content` attribute
+    # in JSON. Save() round-trips it cleanly when it matches the inner HTML
+    # (verified by the editor-parity validator across 2700+ blocks), and a
+    # naive regex check produces a flood of false positives.
+
+    # --- Invariant 2: core/paragraph anti-patterns
+    para_block_re = re.compile(
+        r'<!--\s*wp:paragraph\s+(\{[^>]*?\})\s*-->\s*\n\s*(<p\s+[^>]*>)',
+        re.MULTILINE,
+    )
+
+    for path in files:
+        rel = path.relative_to(ROOT).as_posix()
+        text = path.read_text(encoding="utf-8", errors="replace")
+
+        # Invariant 1: group + top-level border.color + has-border-color.
+        # Save() only emits `has-border-color` when border.color is set as a
+        # single string at the top level of `border`. Per-side borders
+        # (`border.top.color`, etc.) are styled inline and do NOT add the class.
+        for m in group_open_re.finditer(text):
+            json_part, tag = m.group(1), m.group(2)
+            if not re.search(r'"border"\s*:\s*\{[^{}]*?"color"\s*:\s*"', json_part):
+                continue
+            if 'has-border-color' in tag:
+                continue
+            lineno = text.count("\n", 0, m.start()) + 1
+            r.fail(
+                f"{rel}:{lineno}: core/group declares border.color but rendered <{tag.split()[0][1:]}> "
+                f"is missing the `has-border-color` class. Add it to the class list."
+            )
+
+        # Invariant 2: paragraph legacy wo-empty__ class
+        for m in para_block_re.finditer(text):
+            tag = m.group(2)
+            if 'wo-empty__' in tag:
+                lineno = text.count("\n", 0, m.start(2)) + 1
+                r.fail(
+                    f"{rel}:{lineno}: core/paragraph carries a legacy `wo-empty__*` class. "
+                    f"Remove it -- core/paragraph doesn't preserve unknown classes through save()."
+                )
+
+        # Invariant 3: button shadow on outer wrapper
+        for m in button_outer_shadow_re.finditer(text):
+            lineno = text.count("\n", 0, m.start()) + 1
+            r.fail(
+                f"{rel}:{lineno}: core/button has `box-shadow` on the outer "
+                f"`.wp-block-button` div. Move it to the inner `a.wp-block-button__link` -- "
+                f"that's where save() places it."
+            )
+
+    if r.passed:
+        r.details.append(f"{len(files)} pattern/template/part file(s) checked")
+    return r
+
+
+def check_blocks_validator() -> Result:
+    """Run the Node.js editor-parity validator (`bin/blocks-validator/`) and
+    surface any block that the WP editor would flag or auto-upgrade on load.
+
+    This is the canonical answer to "would the editor accept this markup?".
+    The Python anti-pattern check above catches the cheap stuff fast; this
+    one boots @wordpress/blocks under JSDOM and runs the real `parse()` +
+    `validateBlock()` pipeline, so it finds the long tail (subtle class
+    ordering, deprecated attribute shapes, etc.) too.
+
+    Skipped (not failed) if Node.js or the validator's `node_modules/` are
+    missing -- the contributor doc explains how to set them up.
+    """
+    r = Result("Block markup passes the @wordpress/blocks editor-parity validator")
+    if shutil.which("node") is None:
+        r.skip("`node` not on PATH; install Node 18+ to run editor-parity validation.")
+        return r
+    validator_dir = MONOREPO_ROOT / "bin" / "blocks-validator"
+    if not (validator_dir / "node_modules").exists():
+        r.skip(
+            f"`{validator_dir}/node_modules/` missing. "
+            f"Run `cd {validator_dir} && npm install` once to enable this check."
+        )
+        return r
+    script = validator_dir / "check-blocks.mjs"
+    try:
+        proc = subprocess.run(
+            ["node", str(script), str(ROOT)],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired:
+        r.fail("blocks-validator timed out after 120s")
+        return r
+    if proc.returncode == 0:
+        # Last line is the summary, e.g. "✓ Validated 569 blocks across 45 file(s) ..."
+        last = (proc.stderr.strip().splitlines() or [""])[-1]
+        if last:
+            r.details.append(last)
+        return r
+    # Non-zero exit: extract the per-block headers ("─── core/group in <file>") and
+    # surface them as fail lines. The full diff stays in stderr for debugging but
+    # would drown the summary table.
+    headers = [
+        line.strip() for line in proc.stderr.splitlines() if line.startswith("─── ")
+    ]
+    if not headers:
+        # Surface the raw stderr if we can't parse it.
+        r.fail(proc.stderr.strip()[:1000])
+        return r
+    for h in headers:
+        # Strip the leading "─── " for the fail-line format.
+        r.fail(h[4:])
+    return r
+
+
 def check_no_duplicate_templates() -> Result:
     """Fail if any two files in templates/ have identical content."""
     r = Result("No duplicate template files in templates/")
@@ -2902,8 +3065,16 @@ PATTERN_MICROCOPY_MIN_CHARS = 20
 # image or icon across themes and SHOULD match by design (an image of
 # a coral-linen-tagged glass bottle is a coral-linen-tagged glass bottle
 # regardless of the theme's voice).
+#
+# The string-body subpattern `(?:\\.|(?!\1).)*` skips over backslash-
+# escaped characters (e.g. `\'` inside a single-quoted PHP string)
+# instead of stopping at the first inner quote. The earlier regex used
+# a non-greedy `.*?` which truncated at the first `\'`, so strings like
+# `'What if it doesn\'t fit right?'` extracted as just `What if it
+# doesn\` and silently collided across themes that all happened to
+# start with the same eight letters. Handle escapes properly.
 PATTERN_MICROCOPY_RE = re.compile(
-    r"""(?<![A-Za-z0-9_])(?:esc_html_e|esc_html__|_e|__)\s*\(\s*(['"])(.*?)\1""",
+    r"""(?<![A-Za-z0-9_])(?:esc_html_e|esc_html__|_e|__)\s*\(\s*(['"])((?:\\.|(?!\1).)*)\1""",
     re.DOTALL,
 )
 
@@ -3118,6 +3289,243 @@ def check_pattern_microcopy_distinct() -> Result:
             f"{len(theme_patterns)} pattern file(s) + "
             f"{len(theme_headings)} template/part file(s) with headings; "
             f"all microcopy distinct vs every other theme"
+        )
+    return r
+
+
+# ---------------------------------------------------------------------------
+# Comprehensive cross-theme rendered-text distinctness check.
+#
+# `check_pattern_microcopy_distinct` only looks at:
+#   - PHP `__()/_e()/...` strings inside patterns/*.php
+#   - `wp:heading` block delimiters in templates/parts
+#
+# That's a small slice of what the demo actually paints. Every paragraph,
+# button label, list item, blockquote, verse, pullquote, footer
+# copyright, eyebrow strap, FAQ question, hero subtitle, and care-copy
+# block also reads on a side-by-side demo browse — and `bin/clone.py`
+# copies them verbatim from obel into every new theme. The audit script
+# below documents what we found before this gate was added: 39 distinct
+# strings duplicated across 2–5 themes. The check below scans EVERY
+# rendered text surface so the same regression can't reach the demo
+# again.
+#
+# Scanned surfaces (in templates/, parts/, patterns/):
+#   - block delimiter `"content":"…"` for any of:
+#       wp:heading, wp:paragraph, wp:button, wp:list-item, wp:verse,
+#       wp:pullquote, wp:preformatted
+#   - inner text inside any block-rendered `<h1-6>`, `<p>`, `<li>`,
+#     `<button>`, `<a>`, `<figcaption>`, `<blockquote>` tag
+#   - PHP `__()/_e()/esc_html_e()/esc_html__()/esc_attr_e()/esc_attr__()`
+#     literals inside *.php
+# ---------------------------------------------------------------------------
+
+ALL_TEXT_MIN_CHARS = 12
+
+ALL_TEXT_BLOCK_DELIMITER_RE = re.compile(
+    r'<!--\s*wp:(?:heading|paragraph|button|list-item|verse|pullquote|preformatted)\s+'
+    r'(\{[^}]*?"content"\s*:\s*"((?:\\.|[^"\\])*)"[^}]*?\})\s*/?-->',
+    re.DOTALL,
+)
+
+ALL_TEXT_INNER_HTML_RE = re.compile(
+    r'<(?:h[1-6]|p|li|figcaption|blockquote|button|a)[^>]*>([^<]{4,})'
+    r'</(?:h[1-6]|p|li|figcaption|blockquote|button|a)>'
+)
+
+ALL_TEXT_PHP_TX_RE = re.compile(
+    r"""(?<![A-Za-z0-9_])(?:esc_html_e|esc_html__|esc_attr_e|esc_attr__|_e|__)\s*\(\s*"""
+    r"""(['"])((?:\\.|(?!\1).)*)\1""",
+    re.DOTALL,
+)
+
+# Generic wayfinding / system text every store needs end-to-end. Each
+# entry must already be normalised (lowercased, whitespace collapsed,
+# trailing punctuation stripped) — see `_normalize_for_text_audit`.
+ALL_TEXT_ALLOWLIST = frozenset({
+    # short imperatives + nav (most are <12 chars and won't reach the
+    # check anyway, but we list them defensively)
+    "shop", "cart", "checkout", "account", "my account", "log in",
+    "login", "register", "search", "menu", "home", "about", "contact",
+    "blog", "journal", "read more", "view all", "view cart",
+    "add to cart", "shop all", "shop now", "learn more", "all", "next",
+    "previous", "back", "close", "open", "submit", "subscribe",
+    "newsletter", "instagram", "twitter", "facebook", "pinterest",
+    "tiktok", "returns", "shipping", "help", "faq", "support", "press",
+    "careers", "company", "product", "products", "collection",
+    "collections", "categories", "category",
+    # 404 / search empty states
+    "page not found", "search results", "no results", "no posts",
+    # cart / checkout system labels
+    "continue shopping", "order summary", "subtotal", "total", "tax",
+    "discount", "view details", "see details", "read the journal",
+    "read the story",
+    # short attribute / image labels often shared by design (alt-text,
+    # status pills, etc.)
+    "in stock", "out of stock", "free", "sold out", "on sale",
+})
+
+
+def _normalize_for_text_audit(s: str) -> str:
+    """Lowercase, collapse whitespace, strip HTML tags, strip trailing
+    punctuation. Mirrors `_normalize_heading` but also drops PHP-source
+    backslash-escaped quotes and common JSON-encoded characters."""
+    s = s.replace("\\'", "'").replace('\\"', '"')
+    s = s.replace("\\u2019", "'").replace("\\u2014", "—").replace("\\u2013", "–")
+    s = s.replace("\\n", " ").replace("\\/", "/")
+    s = re.sub(r"<[^>]+>", "", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s.lower().rstrip(".,;:!?— -")
+
+
+def _extract_all_rendered_text(theme_dir: Path) -> dict[str, set[str]]:
+    """Map normalised user-visible text → set of "{rel}::{raw}" tags.
+
+    We collect every text fragment a visitor would see end-to-end:
+    block-delimiter content, inner HTML text, and PHP translatable
+    literals. Any fragment whose normalised form is < ALL_TEXT_MIN_CHARS
+    or appears in the wayfinding allowlist is dropped — those are
+    expected to repeat across themes by design.
+    """
+    out: dict[str, set[str]] = {}
+    for sub in ("templates", "parts", "patterns"):
+        d = theme_dir / sub
+        if not d.is_dir():
+            continue
+        for path in sorted(d.rglob("*")):
+            if not path.is_file() or path.suffix not in {".html", ".php"}:
+                continue
+            text = path.read_text(encoding="utf-8", errors="ignore")
+            rel = path.relative_to(theme_dir).as_posix()
+
+            fragments: list[str] = []
+            for m in ALL_TEXT_BLOCK_DELIMITER_RE.finditer(text):
+                # Block-attribute JSON values are unicode-escaped; decode
+                # so smart quotes / em-dashes normalise the same way as
+                # the inner-HTML form of the same string.
+                raw = m.group(2)
+                try:
+                    raw = raw.encode("utf-8").decode("unicode_escape", errors="ignore")
+                except Exception:
+                    pass
+                fragments.append(raw)
+            for m in ALL_TEXT_INNER_HTML_RE.finditer(text):
+                fragments.append(m.group(1))
+            if path.suffix == ".php":
+                for m in ALL_TEXT_PHP_TX_RE.finditer(text):
+                    fragments.append(m.group(2))
+
+            for raw in fragments:
+                norm = _normalize_for_text_audit(raw)
+                if len(norm) < ALL_TEXT_MIN_CHARS:
+                    continue
+                if norm in ALL_TEXT_ALLOWLIST:
+                    continue
+                out.setdefault(norm, set()).add(rel)
+    return out
+
+
+def check_all_rendered_text_distinct_across_themes() -> Result:
+    """Fail when ANY rendered text fragment in this theme appears
+    verbatim (after case-insensitive whitespace normalisation) in
+    another theme.
+
+    Why this exists
+    ---------------
+    `check_pattern_microcopy_distinct` only inspects PHP translatable
+    strings inside patterns/*.php and the `content` attribute of
+    `wp:heading` block delimiters. That misses the long tail of copy
+    that actually paints on the demo:
+
+        - paragraph body text (`wp:paragraph`)
+        - button labels (`wp:button`, plain `<a class=…__link>`)
+        - list items, blockquotes, verses, pullquotes, preformatted
+        - eyebrow / strap paragraphs
+        - footer copyright lines
+        - 404 / no-results / coming-soon body copy
+        - order-confirmation step lists ("01 — Confirmation", …)
+        - care + shipping policy paragraphs on PDPs
+
+    A single audit pass against every theme on this branch found 39
+    such duplicate strings, all originating from `bin/clone.py` copying
+    obel verbatim into the new theme without a follow-up voice pass.
+    The result reads on a side-by-side demo browse as one shop in
+    different paint jobs — exactly the failure mode the project goes
+    out of its way to avoid.
+
+    What this check enforces
+    ------------------------
+    For every theme, walk templates/, parts/, patterns/. From each
+    *.html and *.php file, extract:
+
+        (1) every `"content":"…"` value inside a wp:heading,
+            wp:paragraph, wp:button, wp:list-item, wp:verse,
+            wp:pullquote, or wp:preformatted block delimiter,
+        (2) every inner-text run inside a block-rendered <h1-6>, <p>,
+            <li>, <button>, <a>, <figcaption>, or <blockquote> tag,
+        (3) every PHP `__()/_e()/esc_html_e()/esc_html__()/
+            esc_attr_e()/esc_attr__()` literal in *.php files.
+
+    Normalise (lowercase, collapse whitespace, strip trailing
+    punctuation, decode JSON unicode escapes and PHP backslash escapes,
+    strip inline tags). Drop fragments shorter than
+    ALL_TEXT_MIN_CHARS (12 chars) and any fragment in
+    ALL_TEXT_ALLOWLIST (functional wayfinding text every store needs).
+
+    Then for every remaining fragment in this theme, fail if the same
+    normalised fragment appears in any other theme's surface.
+
+    Fix path
+    --------
+    Two options when this fires:
+      1. If the duplicate is intentional functional / system text,
+         add it to ALL_TEXT_ALLOWLIST above (with a comment).
+      2. Otherwise, rewrite the offending fragment in this theme's
+         own brand voice. `bin/personalize-microcopy.py` holds the
+         per-theme substitution map used to clean up the original
+         clone-and-skin debt — extend that map and re-run, or edit
+         the file directly.
+    """
+    r = Result("All rendered text distinct across themes")
+
+    theme_slug = ROOT.name
+    my_text = _extract_all_rendered_text(ROOT)
+    if not my_text:
+        r.skip("no templates/, parts/, or patterns/ with rendered text")
+        return r
+
+    # Build other-theme index lazily — once per other theme, not once
+    # per fragment. Keys are normalised text; values are
+    # {theme_slug: {rel_paths}}.
+    other_index: dict[str, dict[str, set[str]]] = {}
+    for other in iter_themes():
+        other_slug = other.name
+        if other_slug == theme_slug:
+            continue
+        for norm, rels in _extract_all_rendered_text(other).items():
+            other_index.setdefault(norm, {})[other_slug] = rels
+
+    collisions = 0
+    for norm in sorted(my_text):
+        if norm not in other_index:
+            continue
+        my_rel = next(iter(sorted(my_text[norm])))
+        for other_slug, other_rels in sorted(other_index[norm].items()):
+            other_rel = next(iter(sorted(other_rels)))
+            shown = norm if len(norm) <= 100 else norm[:97] + "..."
+            r.fail(
+                f"{my_rel}: ships rendered text shared verbatim with "
+                f"{other_slug}/{other_rel} — \"{shown}\" — rewrite in "
+                f"{theme_slug}'s voice (or add to ALL_TEXT_ALLOWLIST "
+                f"if it's truly system / wayfinding copy)"
+            )
+            collisions += 1
+
+    if r.passed and not r.skipped:
+        r.details.append(
+            f"{len(my_text)} text fragment(s) scanned across "
+            f"templates/, parts/, patterns/; all distinct vs every "
+            f"other theme"
         )
     return r
 
@@ -3475,6 +3883,8 @@ def run_checks_for(theme_root: Path, offline: bool) -> int:
         check_wc_overrides_styled(),
         check_no_hardcoded_dimensions(),
         check_block_attrs_use_tokens(),
+        check_block_markup_anti_patterns(),
+        check_blocks_validator(),
         check_no_duplicate_templates(),
         check_no_duplicate_stock_indicator(),
         check_archive_sort_dropdown_styled(),
@@ -3489,6 +3899,7 @@ def run_checks_for(theme_root: Path, offline: bool) -> int:
         check_front_page_unique_layout(),
         check_pdp_has_image(),
         check_pattern_microcopy_distinct(),
+        check_all_rendered_text_distinct_across_themes(),
         check_no_default_wc_strings(),
         check_playground_content_seeded(),
         check_no_unpushed_commits(),

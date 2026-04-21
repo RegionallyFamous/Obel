@@ -68,7 +68,14 @@ VARIANTS: dict[str, dict[str, str]] = {
     "Order received": {
         "aero":     "Signal received",
         "chonk":    "ORDER LOCKED IN",
-        "lysholm":  "Order received, with thanks",
+        # IMPORTANT: don't include "Order received" as a substring
+        # of the replacement — the script applies substitutions with
+        # `str.replace`, so any subsequent re-run would find the
+        # needle inside its own previous output and cascade-duplicate
+        # ("Order received, with thanks, with thanks, with thanks…").
+        # The cascade-guard below blocks this but the replacement
+        # must still avoid the substring.
+        "lysholm":  "Received with thanks",
         "selvedge": "Order on the bench",
     },
     "01 — Confirmation": {
@@ -148,7 +155,9 @@ VARIANTS: dict[str, dict[str, str]] = {
         "selvedge": "The page you came for has been mended, retired, or was never stitched. Try the search below or head back to the workshop.",
     },
     "Browse the shop": {
-        "aero":     "Browse the catalog",
+        # NOTE: don't use "Browse the catalog" here — lysholm's
+        # cta-banner already ships that exact string.
+        "aero":     "Browse the orbit",
         "chonk":    "SHOP THE STACK",
         "lysholm":  "Browse the shelves",
         "selvedge": "Browse the line",
@@ -216,8 +225,38 @@ VARIANTS: dict[str, dict[str, str]] = {
     "Email address": {
         "aero":     "Your signal",
         "chonk":    "YOUR EMAIL",
-        "lysholm":  "Your address",
-        "selvedge": "Your address",
+        # NOTE: lysholm and selvedge can't both use "Your address"
+        # — they collide. Give each its own voice-y label.
+        "lysholm":  "The address we'll write to",
+        "selvedge": "Your bench address",
+    },
+    # Mop-up: an earlier version of this script set both lysholm and
+    # selvedge newsletter labels to the literal "Your address", which
+    # collided. Rewrite that shared string to each theme's distinct
+    # label. Idempotent — only matches if the earlier output is still
+    # in the file.
+    "'Your address'": {
+        "lysholm":  "'The address we\\'ll write to'",
+        "selvedge": "'Your bench address'",
+    },
+    # Mop-up: chonk's value-props headings were briefly set to plain
+    # UPPERCASE versions of obel's strings ("FREE SHIPPING" etc.).
+    # The audit normalises case before checking collisions, so those
+    # still tripped. Rewrite to different *words* in chonk's voice.
+    "'FREE SHIPPING'": {
+        "chonk":    "'FREE POSTAGE'",
+    },
+    "'30-DAY RETURNS'": {
+        "chonk":    "'30-DAY SEND-BACK'",
+    },
+    "'MADE TO LAST'": {
+        "chonk":    "'BUILT HEAVY'",
+    },
+    # Mop-up: aero's 404 "Browse the shop" button was briefly set to
+    # "Browse the catalog", which collides with lysholm's cta-banner.
+    # Rewrite the literal aero string already in the file.
+    ">Browse the catalog<": {
+        "aero":     ">Browse the orbit<",
     },
     "you@example.com": {
         "aero":     "name@orbit.example",
@@ -228,28 +267,32 @@ VARIANTS: dict[str, dict[str, str]] = {
 
     # ------------------------------------------------------------------
     # patterns/value-props.php — three icon trio
+    # NOTE: chonk needs different *words*, not just uppercased case,
+    # because the audit normalises case before checking collisions.
     # ------------------------------------------------------------------
     "Free shipping": {
-        "chonk":    "FREE SHIPPING",
-        "lysholm":  "Shipping is on us",
-        "selvedge": "Shipping at no charge",
+        "chonk":    "FREE POSTAGE",
+        "lysholm":  "Shipping on the house",
+        "selvedge": "Postage at no charge",
     },
     "30-day returns": {
-        "chonk":    "30-DAY RETURNS",
-        "lysholm":  "Returns within 30 days",
-        "selvedge": "30 days to return",
+        "chonk":    "30-DAY SEND-BACK",
+        "lysholm":  "Returns within thirty days",
+        "selvedge": "Thirty days to return",
     },
     "Made to last": {
-        "chonk":    "MADE TO LAST",
+        "chonk":    "BUILT HEAVY",
         "lysholm":  "Built to outlast",
-        "selvedge": "Made to outlast you",
+        "selvedge": "Built to outlast you",
     },
 
     # ------------------------------------------------------------------
-    # patterns/faq-accordion.php
+    # patterns/faq-accordion.php — short heading "Frequently asked"
+    # is < 12 chars normalised so it doesn't trip the audit, but we
+    # still personalise it for voice.
     # ------------------------------------------------------------------
     "Frequently asked": {
-        "chonk":    "FAQ",
+        "chonk":    "FREQUENTLY HOLLERED",
         "lysholm":  "Quietly asked",
         "selvedge": "From the workbench",
     },
@@ -276,14 +319,21 @@ VARIANTS: dict[str, dict[str, str]] = {
     # patterns/testimonials.php + featured-products.php headings
     # ------------------------------------------------------------------
     "What customers say": {
-        "chonk":    "WHAT FOLKS SAY",
+        "chonk":    "WHAT FOLKS HOLLER",
         "lysholm":  "From quiet readers",
         "selvedge": "From the visiting log",
     },
-    "This season": {
-        "chonk":    "THIS SEASON",
+    # The featured-products heading is "This season's picks" in obel.
+    # We have to match the PHP-escaped form (`\'`) and also the
+    # already-uppercased chonk form, since the previous personalisation
+    # pass changed only the first two words.
+    "This season\\'s picks": {
+        "chonk":    "THIS DROP\\'s best",
         "lysholm":  "This quiet season",
         "selvedge": "On the bench this season",
+    },
+    "THIS SEASON\\'s picks": {
+        "chonk":    "THIS DROP\\'s best",
     },
 
     # ------------------------------------------------------------------
@@ -353,12 +403,61 @@ VARIANTS: dict[str, dict[str, str]] = {
 
     # ------------------------------------------------------------------
     # templates/front-page.html — "From the journal" eyebrow (obel +
-    # selvedge collide → rewrite selvedge)
+    # selvedge collide → rewrite selvedge). selvedge's front-page
+    # capitalises every word, so we register both forms.
     # ------------------------------------------------------------------
     "From the journal": {
         "selvedge": "From the workbench",
     },
+    "From the Journal": {
+        "selvedge": "From the Workbench",
+    },
+
+    # ------------------------------------------------------------------
+    # selvedge's front-page uses Title Case for section headings,
+    # so the lowercase needles above don't match. Register the
+    # Title-Case forms explicitly.
+    # ------------------------------------------------------------------
+    "Shop by Category": {
+        "selvedge": "Shop by Trade",
+    },
+    "New Arrivals": {
+        "selvedge": "New Off the Bench",
+    },
+
+    # ------------------------------------------------------------------
+    # lysholm/patterns/hero-split.php — the alt text was previously
+    # tweaked to "Bottled Morning" (capital M) but the rest of the
+    # sentence is still obel's exact wording. Match the capital-M form.
+    # ------------------------------------------------------------------
+    "Bottled Morning — a cork-stoppered glass bottle of warm light, tagged in coral linen on a soft natural backdrop. The flagship product of the Wonders & Oddities demo catalogue.": {
+        "lysholm":  "Bottled Morning — a hand-stoppered glass bottle of soft Nordic light, tagged in pale linen on a bare cream backdrop. The flagship object of our quiet Wonders & Oddities catalogue.",
+    },
 }
+
+
+def _validate_cascade_safety() -> None:
+    """Refuse to run if any substitution's replacement contains the
+    needle as a substring. Such pairs cause `str.replace` to find the
+    needle inside its own previous output on every subsequent run,
+    producing strings like "Order received, with thanks, with thanks,
+    with thanks…". One real cascade in lysholm/templates/order-
+    confirmation.html cost us a panicked debug session — this guard
+    makes that impossible to ship."""
+    bad: list[tuple[str, str, str]] = []
+    for needle, by_theme in VARIANTS.items():
+        for theme, repl in by_theme.items():
+            if needle in repl:
+                bad.append((needle, theme, repl))
+    if bad:
+        print("ERROR: cascade-hazard substitutions detected — refusing to run:",
+              file=sys.stderr)
+        for n, t, r in bad:
+            print(f"  needle={n!r}  theme={t}  repl={r!r}", file=sys.stderr)
+        print("\nFix: choose a replacement that does NOT contain the needle "
+              "as a substring (otherwise re-runs duplicate the suffix).",
+              file=sys.stderr)
+        sys.exit(2)
 
 
 def apply_for_theme(theme_dir: Path, dry_run: bool) -> tuple[int, int]:
@@ -403,6 +502,8 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true",
                         help="Print the substitutions but don't write files.")
     args = parser.parse_args()
+
+    _validate_cascade_safety()
 
     themes = [
         p for p in sorted(THEMES_ROOT.iterdir())

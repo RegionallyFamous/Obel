@@ -18,7 +18,7 @@
 		<!-- /wp:paragraph -->
 
 		<!-- wp:heading {"textAlign":"center","level":2} -->
-		<h2 class="wp-block-heading has-text-align-center"><?php esc_html_e( 'THIS SEASON\'s picks', 'chonk' ); ?></h2>
+		<h2 class="wp-block-heading has-text-align-center"><?php esc_html_e( 'THIS DROP\'s best', 'chonk' ); ?></h2>
 		<!-- /wp:heading -->
 	</div>
 	<!-- /wp:group -->
