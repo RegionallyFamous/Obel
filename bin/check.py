@@ -244,7 +244,7 @@ def _strip_allowed_hex_chunks(text: str) -> str:
             j = out.find(close_marker, i + len(open_marker))
             if j == -1:
                 break
-            out = out[:i] + out[j + len(close_marker):]
+            out = out[:i] + out[j + len(close_marker) :]
     return out
 
 
@@ -267,7 +267,7 @@ def _strip_allowed_important_chunks(text: str) -> str:
                 # the scan still catches new !important rules added past
                 # the dangling sentinel.
                 break
-            out = out[:i] + out[j + len(close_marker):]
+            out = out[:i] + out[j + len(close_marker) :]
     return out
 
 
@@ -304,7 +304,9 @@ def check_block_prefixes() -> Result:
     block_re = re.compile(r"<!--\s*wp:([a-z0-9-]+)/")
     for path in iter_files((".html", ".php")):
         rel = path.relative_to(ROOT).as_posix()
-        if not (rel.startswith("templates/") or rel.startswith("parts/") or rel.startswith("patterns/")):
+        if not (
+            rel.startswith("templates/") or rel.startswith("parts/") or rel.startswith("patterns/")
+        ):
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
         for lineno, line in enumerate(text.splitlines(), 1):
@@ -385,11 +387,7 @@ def check_no_hex_in_theme_json() -> Result:
             for i, v in enumerate(node):
                 walk(v, f"{path}[{i}]")
         elif isinstance(node, str):
-            scanned = (
-                _strip_allowed_hex_chunks(node)
-                if path.endswith("styles.css")
-                else node
-            )
+            scanned = _strip_allowed_hex_chunks(node) if path.endswith("styles.css") else node
             for m in hex_re.finditer(scanned):
                 r.fail(f"theme.json: '{m.group(0)}' at {path}")
 
@@ -444,12 +442,7 @@ def check_no_remote_fonts() -> Result:
     )
     remote_scheme_re = re.compile(r"^(https?:)?//", re.IGNORECASE)
 
-    families = (
-        data.get("settings", {})
-        .get("typography", {})
-        .get("fontFamilies", [])
-        or []
-    )
+    families = data.get("settings", {}).get("typography", {}).get("fontFamilies", []) or []
     for fam in families:
         if not isinstance(fam, dict):
             continue
@@ -571,8 +564,8 @@ def check_wc_grid_integration() -> Result:
     rule_re = re.compile(r"([^{};]+)\{([^{}]*)\}")
 
     grid_rules: list[tuple[str, str]] = []  # (selectors, body)
-    pseudo_rules: list[str] = []             # selector strings
-    width_reset_rules: list[str] = []        # selector strings
+    pseudo_rules: list[str] = []  # selector strings
+    width_reset_rules: list[str] = []  # selector strings
 
     for m in rule_re.finditer(css):
         selectors = m.group(1).strip()
@@ -582,8 +575,7 @@ def check_wc_grid_integration() -> Result:
         sel_list = [s.strip() for s in selectors.split(",")]
 
         is_grid_on_products = "display:grid" in body_norm and any(
-            re.search(r"(?:^|\s|\.)products(?:\s|$)|ul\.products(?:\s|$)", s)
-            for s in sel_list
+            re.search(r"(?:^|\s|\.)products(?:\s|$)|ul\.products(?:\s|$)", s) for s in sel_list
         )
         if is_grid_on_products:
             grid_rules.append((selectors, body_norm))
@@ -596,10 +588,7 @@ def check_wc_grid_integration() -> Result:
         if is_pseudo_kill:
             pseudo_rules.extend(sel_list)
 
-        is_width_reset = (
-            "width:100%" in body_norm
-            and any("li.product" in s for s in sel_list)
-        )
+        is_width_reset = "width:100%" in body_norm and any("li.product" in s for s in sel_list)
         if is_width_reset:
             width_reset_rules.extend(sel_list)
 
@@ -619,15 +608,9 @@ def check_wc_grid_integration() -> Result:
             scopes = {"products"}
 
         for scope in scopes:
-            has_before = any(
-                f".{scope}" in s and "::before" in s for s in pseudo_rules
-            )
-            has_after = any(
-                f".{scope}" in s and "::after" in s for s in pseudo_rules
-            )
-            has_width_reset = any(
-                f".{scope}" in s and "li.product" in s for s in width_reset_rules
-            )
+            has_before = any(f".{scope}" in s and "::before" in s for s in pseudo_rules)
+            has_after = any(f".{scope}" in s and "::after" in s for s in pseudo_rules)
+            has_width_reset = any(f".{scope}" in s and "li.product" in s for s in width_reset_rules)
 
             if not (has_before and has_after):
                 r.fail(
@@ -683,7 +666,7 @@ def check_no_hardcoded_dimensions() -> Result:
                     # Identify the CSS property name preceding this value.
                     # segment ends just before the number, so the last ';' delimiter
                     # separates the current declaration from prior ones.
-                    segment = style_val[max(0, m.start() - 80):m.start()]
+                    segment = style_val[max(0, m.start() - 80) : m.start()]
                     last_decl = segment.rsplit(";", 1)[-1]
                     # The declaration is "property:" — take the part before the colon.
                     prop = last_decl.split(":")[0].strip()
@@ -724,14 +707,14 @@ def check_block_attrs_use_tokens() -> Result:
         for lineno, line in enumerate(text.splitlines(), 1):
             for m in content_size_re.finditer(line):
                 r.fail(
-                    f"{rel}:{lineno}: hardcoded contentSize \"{m.group(1)}\". "
+                    f'{rel}:{lineno}: hardcoded contentSize "{m.group(1)}". '
                     f"Drop the override (uses settings.layout.contentSize), or use "
-                    f"\"var(--wp--style--global--wide-size)\" / \"var(--wp--custom--layout--<slug>)\"."
+                    f'"var(--wp--style--global--wide-size)" / "var(--wp--custom--layout--<slug>)".'
                 )
             for m in aspect_ratio_re.finditer(line):
                 r.fail(
-                    f"{rel}:{lineno}: hardcoded aspectRatio \"{m.group(1)}\". "
-                    f"Use \"var(--wp--custom--aspect-ratio--<slug>)\"."
+                    f'{rel}:{lineno}: hardcoded aspectRatio "{m.group(1)}". '
+                    f'Use "var(--wp--custom--aspect-ratio--<slug>)".'
                 )
     return r
 
@@ -809,7 +792,7 @@ def check_block_markup_anti_patterns() -> Result:
 
     # --- Invariant 2: core/paragraph anti-patterns
     para_block_re = re.compile(
-        r'<!--\s*wp:paragraph\s+(\{[^>]*?\})\s*-->\s*\n\s*(<p\s+[^>]*>)',
+        r"<!--\s*wp:paragraph\s+(\{[^>]*?\})\s*-->\s*\n\s*(<p\s+[^>]*>)",
         re.MULTILINE,
     )
 
@@ -819,7 +802,7 @@ def check_block_markup_anti_patterns() -> Result:
     # the child variants like `wp-block-accordion-item`). Allow attribute
     # noise before the class= so themes can add anchor IDs etc.
     accordion_open_re = re.compile(
-        r'<!--\s*wp:accordion(?:\s+\{[^}]*\})?\s*-->\s*\n\s*'
+        r"<!--\s*wp:accordion(?:\s+\{[^}]*\})?\s*-->\s*\n\s*"
         r'(<(?:div|section)\s+[^>]*class="[^"]*\bwp-block-accordion(?!-)[^"]*"[^>]*>)'
     )
 
@@ -829,9 +812,7 @@ def check_block_markup_anti_patterns() -> Result:
     # whitespace+attrs or `>`; the `(?![^>]*\stype=)` ensures no `type=`
     # appears before the closing `>`. Self-closing variants are not used in
     # block markup, so we don't bother matching them.
-    button_no_type_re = re.compile(
-        r'<button(?![^>]*\stype=)(?:\s[^>]*)?>'
-    )
+    button_no_type_re = re.compile(r"<button(?![^>]*\stype=)(?:\s[^>]*)?>")
 
     for path in files:
         rel = path.relative_to(ROOT).as_posix()
@@ -845,7 +826,7 @@ def check_block_markup_anti_patterns() -> Result:
             json_part, tag = m.group(1), m.group(2)
             if not re.search(r'"border"\s*:\s*\{[^{}]*?"color"\s*:\s*"', json_part):
                 continue
-            if 'has-border-color' in tag:
+            if "has-border-color" in tag:
                 continue
             lineno = text.count("\n", 0, m.start()) + 1
             r.fail(
@@ -865,7 +846,7 @@ def check_block_markup_anti_patterns() -> Result:
         # get silently scrubbed by the editor.
         for m in para_block_re.finditer(text):
             json_part, tag = m.group(1), m.group(2)
-            if 'wo-empty__' not in tag:
+            if "wo-empty__" not in tag:
                 continue
             classname_attr = re.search(r'"className"\s*:\s*"([^"]*)"', json_part)
             preserved = set()
@@ -874,8 +855,7 @@ def check_block_markup_anti_patterns() -> Result:
             tag_classes = re.search(r'\sclass="([^"]*)"', tag)
             tag_class_set = set(tag_classes.group(1).split()) if tag_classes else set()
             unsupported = {
-                c for c in tag_class_set
-                if c.startswith('wo-empty__') and c not in preserved
+                c for c in tag_class_set if c.startswith("wo-empty__") and c not in preserved
             }
             if not unsupported:
                 continue
@@ -886,7 +866,7 @@ def check_block_markup_anti_patterns() -> Result:
                 f"the block's `className` attribute. core/paragraph save() "
                 f"only preserves classes declared via `className`; raw "
                 f"classes inlined into `<p>` are dropped on the next editor "
-                f"round-trip. Add them to `\"className\":\"...\"` in the "
+                f'round-trip. Add them to `"className":"..."` in the '
                 f"`wp:paragraph` JSON, or remove them."
             )
 
@@ -906,7 +886,7 @@ def check_block_markup_anti_patterns() -> Result:
                 continue
             lineno = text.count("\n", 0, m.start(1)) + 1
             r.fail(
-                f"{rel}:{lineno}: core/accordion wrapper is missing `role=\"group\"`. "
+                f'{rel}:{lineno}: core/accordion wrapper is missing `role="group"`. '
                 f"Save() emits it; without it the editor will silently rewrite the "
                 f"markup on first load and the next round-trip will look like a regression."
             )
@@ -918,7 +898,7 @@ def check_block_markup_anti_patterns() -> Result:
             lineno = text.count("\n", 0, m.start()) + 1
             r.fail(
                 f"{rel}:{lineno}: <button> is missing an explicit `type=` attribute. "
-                f"Add `type=\"button\"` (or `type=\"submit\"` if it really is a form "
+                f'Add `type="button"` (or `type="submit"` if it really is a form '
                 f"submit) -- the HTML default is `submit`, which silently posts any "
                 f"surrounding <form> on click."
             )
@@ -972,9 +952,7 @@ def check_blocks_validator() -> Result:
     # Non-zero exit: extract the per-block headers ("─── core/group in <file>") and
     # surface them as fail lines. The full diff stays in stderr for debugging but
     # would drown the summary table.
-    headers = [
-        line.strip() for line in proc.stderr.splitlines() if line.startswith("─── ")
-    ]
+    headers = [line.strip() for line in proc.stderr.splitlines() if line.startswith("─── ")]
     if not headers:
         # Surface the raw stderr if we can't parse it.
         r.fail(proc.stderr.strip()[:1000])
@@ -1093,6 +1071,7 @@ def check_no_duplicate_templates() -> Result:
     """Fail if any two files in templates/ have identical content."""
     r = Result("No duplicate template files in templates/")
     import hashlib
+
     seen: dict[str, str] = {}
     templates_dir = ROOT / "templates"
     if not templates_dir.exists():
@@ -1148,7 +1127,7 @@ def check_wc_overrides_styled() -> Result:
         r.fail(str(exc))
         return r
 
-    styles = (data.get("styles", {}) or {})
+    styles = data.get("styles", {}) or {}
     top_css = styles.get("css") if isinstance(styles.get("css"), str) else ""
     top_css_norm = re.sub(r"\s+", "", top_css or "")
     blocks = styles.get("blocks") or {}
@@ -1327,7 +1306,7 @@ def check_wc_overrides_styled() -> Result:
         if isinstance(inert, dict) and isinstance(inert.get("css"), str) and inert["css"].strip():
             r.fail(
                 f"{target['name']}: found "
-                f"`styles.blocks[\"{target['inert_block']}\"].css`, but WP "
+                f'`styles.blocks["{target["inert_block"]}"].css`, but WP '
                 f"wraps that field in `:root :where(...)` (specificity 0,0,1) "
                 f"so it cannot beat WC's `(0,4,3)` plugin CSS. Move the WC "
                 f"selectors to top-level `styles.css`."
@@ -1336,10 +1315,7 @@ def check_wc_overrides_styled() -> Result:
 
         # 2) Required selectors must appear (whitespace-insensitive) in the
         #    verbatim top-level styles.css.
-        missing = [
-            s for s in target["must_target"]
-            if re.sub(r"\s+", "", s) not in top_css_norm
-        ]
+        missing = [s for s in target["must_target"] if re.sub(r"\s+", "", s) not in top_css_norm]
         if missing:
             r.fail(
                 f"{target['name']}: top-level `styles.css` is missing "
@@ -1405,7 +1381,7 @@ def _front_page_fingerprint(html: str) -> list[str]:
     # parse its attrs as JSON, picking the first one whose tagName is "main".
     main_open = None
     for m in re.finditer(
-        r'<!--\s*wp:group\s+(\{[^>]*?\})\s*-->',
+        r"<!--\s*wp:group\s+(\{[^>]*?\})\s*-->",
         html,
     ):
         try:
@@ -1434,7 +1410,7 @@ def _front_page_fingerprint(html: str) -> list[str]:
 
         # Opening (or self-closing) block.
         if depth == 0:
-            block = name[len("wp:"):]
+            block = name[len("wp:") :]
             label = block
             if attrs_json:
                 try:
@@ -1499,9 +1475,7 @@ def check_no_wc_tabs_block() -> Result:
     for path in iter_files((".html", ".php")):
         rel = path.relative_to(ROOT).as_posix()
         if not (
-            rel.startswith("templates/")
-            or rel.startswith("parts/")
-            or rel.startswith("patterns/")
+            rel.startswith("templates/") or rel.startswith("parts/") or rel.startswith("patterns/")
         ):
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
@@ -1522,16 +1496,18 @@ def check_no_wc_tabs_block() -> Result:
             data = json.loads(theme_json.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             data = {}
-        blocks = ((data.get("styles") or {}).get("blocks") or {})
+        blocks = (data.get("styles") or {}).get("blocks") or {}
         if "woocommerce/product-details" in blocks:
             r.fail(
-                "theme.json still has `styles.blocks[\"woocommerce/product-"
-                "details\"]`. The block is no longer rendered — delete the "
+                'theme.json still has `styles.blocks["woocommerce/product-'
+                'details"]`. The block is no longer rendered — delete the '
                 "entry. Style `core/details` instead."
             )
 
     if r.passed and not r.skipped:
-        r.details.append("no WC tabs block in templates/parts/patterns and no stale theme.json styling")
+        r.details.append(
+            "no WC tabs block in templates/parts/patterns and no stale theme.json styling"
+        )
     return r
 
 
@@ -1591,8 +1567,13 @@ def check_no_duplicate_stock_indicator() -> Result:
     triggering_template: Path | None = None
     for path in template_paths:
         text = path.read_text(encoding="utf-8", errors="replace")
-        renders_indicator = re.search(r"<!--\s*wp:woocommerce/product-stock-indicator(?:\s|/|-->)", text) is not None
-        renders_form = re.search(r"<!--\s*wp:woocommerce/add-to-cart-form(?:\s|/|-->)", text) is not None
+        renders_indicator = (
+            re.search(r"<!--\s*wp:woocommerce/product-stock-indicator(?:\s|/|-->)", text)
+            is not None
+        )
+        renders_form = (
+            re.search(r"<!--\s*wp:woocommerce/add-to-cart-form(?:\s|/|-->)", text) is not None
+        )
         if renders_indicator and renders_form:
             needs_hide_rule = True
             triggering_template = path
@@ -1631,8 +1612,8 @@ def check_no_duplicate_stock_indicator() -> Result:
             f"{triggering_template.relative_to(ROOT).as_posix()} renders both "
             f"`wp:woocommerce/product-stock-indicator` (designed copy) and "
             f"`wp:woocommerce/add-to-cart-form` (which renders WC's native "
-            f"`<p class=\"stock\">` above the quantity input). The result is "
-            f"\"in stock\" appearing twice on every PDP. Add a rule to "
+            f'`<p class="stock">` above the quantity input). The result is '
+            f'"in stock" appearing twice on every PDP. Add a rule to '
             f"top-level `styles.css` matching one of "
             f"{selector_roots} (whitespace ignored) and "
             f"`display:none` so the form's stock paragraph is hidden. The "
@@ -1640,7 +1621,7 @@ def check_no_duplicate_stock_indicator() -> Result:
             f".wp-block-add-to-cart-form .stock,"
             f".wc-block-add-to-cart-form__stock,"
             f".woocommerce-variation-availability {{ display: none; }}`. "
-            f"Block-scoped `styles.blocks[\"woocommerce/add-to-cart-form\"]"
+            f'Block-scoped `styles.blocks["woocommerce/add-to-cart-form"]'
             f".css` does NOT work — see check_wc_overrides_styled."
         )
         return r
@@ -1649,7 +1630,7 @@ def check_no_duplicate_stock_indicator() -> Result:
         r.fail(
             f"top-level `styles.css` matches `{matched_selector}` but never "
             f"declares `display:none` (or `visibility:hidden`). The form's "
-            f"`<p class=\"stock\">` is still visible — duplicating the "
+            f'`<p class="stock">` is still visible — duplicating the '
             f"designed product-stock-indicator above."
         )
         return r
@@ -1658,7 +1639,7 @@ def check_no_duplicate_stock_indicator() -> Result:
         r.fail(
             "stock paragraph is hidden, but `.woocommerce-variation-"
             "availability` isn't. On variable products WC renders a SECOND "
-            "duplicate `<p class=\"stock\">`-style line under the variation "
+            'duplicate `<p class="stock">`-style line under the variation '
             "selector as the shopper picks attributes. Add "
             "`.woocommerce-variation-availability` to the same hide rule."
         )
@@ -1758,9 +1739,7 @@ def check_hover_state_legibility() -> Result:
         r.fail(f"theme.json: invalid JSON ({exc}).")
         return r
 
-    palette_list = (
-        ((data.get("settings") or {}).get("color") or {}).get("palette") or []
-    )
+    palette_list = ((data.get("settings") or {}).get("color") or {}).get("palette") or []
     palette: dict[str, str] = {
         p["slug"]: p["color"]
         for p in palette_list
@@ -1785,12 +1764,8 @@ def check_hover_state_legibility() -> Result:
     DEFAULT_BG = palette["base"]
 
     state_re = re.compile(r":(hover|focus|focus-visible|active)\b")
-    color_re = re.compile(
-        r"(?:^|[;{\s])color\s*:\s*var\(--wp--preset--color--([a-z0-9-]+)\)"
-    )
-    bg_re = re.compile(
-        r"\bbackground(?:-color)?\s*:\s*var\(--wp--preset--color--([a-z0-9-]+)\)"
-    )
+    color_re = re.compile(r"(?:^|[;{\s])color\s*:\s*var\(--wp--preset--color--([a-z0-9-]+)\)")
+    bg_re = re.compile(r"\bbackground(?:-color)?\s*:\s*var\(--wp--preset--color--([a-z0-9-]+)\)")
     bg_unrecognised_re = re.compile(
         r"\bbackground(?:-color)?\s*:\s*(?!var\(--wp--preset--color--)([^;}]+)"
     )
@@ -1908,9 +1883,7 @@ def check_hover_state_legibility() -> Result:
             r.fail(f)
         return r
 
-    r.details.append(
-        f"{checked} hover/focus state rule(s) verified at ≥3:1 contrast"
-    )
+    r.details.append(f"{checked} hover/focus state rule(s) verified at ≥3:1 contrast")
     return r
 
 
@@ -2032,7 +2005,13 @@ def check_wc_card_surfaces_padded() -> Result:
         sel_list = [s.strip() for s in selectors_blob.split(",")]
         for surface in CARD_SURFACES:
             for sel in sel_list:
-                if sel == surface or sel.startswith(surface + " ") or sel.endswith(" " + surface) or sel.startswith(surface + ":") or sel.startswith(surface + "."):
+                if (
+                    sel == surface
+                    or sel.startswith(surface + " ")
+                    or sel.endswith(" " + surface)
+                    or sel.startswith(surface + ":")
+                    or sel.startswith(surface + ".")
+                ):
                     if sel != surface:
                         # Only the *bare* selector (no descendant /
                         # state suffix) describes the panel itself; a
@@ -2040,10 +2019,13 @@ def check_wc_card_surfaces_padded() -> Result:
                         # .wp-block-heading` is internal type, not the
                         # panel.
                         continue
-                    has_bg = re.search(
-                        r"\bbackground(?:-color)?\s*:\s*(?!transparent\b|none\b|inherit\b|initial\b|unset\b)[^;}]+",
-                        body,
-                    ) is not None
+                    has_bg = (
+                        re.search(
+                            r"\bbackground(?:-color)?\s*:\s*(?!transparent\b|none\b|inherit\b|initial\b|unset\b)[^;}]+",
+                            body,
+                        )
+                        is not None
+                    )
                     if has_bg:
                         bg_surfaces.add(surface)
                     token = _padding_token(body)
@@ -2085,10 +2067,7 @@ def check_wc_card_surfaces_padded() -> Result:
             r.fail(f)
         return r
 
-    r.details.append(
-        f"{len(bg_surfaces)} painted card surface(s) — all use "
-        f"≥xl internal padding"
-    )
+    r.details.append(f"{len(bg_surfaces)} painted card surface(s) — all use ≥xl internal padding")
     return r
 
 
@@ -2155,9 +2134,7 @@ def check_wc_totals_blocks_padded() -> Result:
     See AGENTS.md "WooCommerce panel surfaces" rule for the broader
     context.
     """
-    r = Result(
-        "WC totals blocks (cart + checkout) have ≥xl internal padding"
-    )
+    r = Result("WC totals blocks (cart + checkout) have ≥xl internal padding")
 
     theme_json = ROOT / "theme.json"
     if not theme_json.exists():
@@ -2257,8 +2234,7 @@ def check_wc_totals_blocks_padded() -> Result:
         return r
 
     r.details.append(
-        f"{len(TOTALS_SELECTORS)} totals block(s) — all carry ≥xl "
-        f"internal padding (Phase H)"
+        f"{len(TOTALS_SELECTORS)} totals block(s) — all carry ≥xl internal padding (Phase H)"
     )
     return r
 
@@ -2389,9 +2365,145 @@ def check_wc_notices_styled() -> Result:
         )
         return r
 
+    r.details.append(f"Phase L block present + {len(required)} surface restyles + snackbar covered")
+    return r
+
+
+def check_navigation_overlay_opaque() -> Result:
+    """Fail if any `core/navigation` block in `parts/` (or `templates/`)
+    opens a mobile overlay menu without explicit `overlayBackgroundColor`
+    and `overlayTextColor` attributes pointing at palette tokens.
+
+    Why this exists:
+      WordPress core's mobile navigation overlay (the modal that opens
+      when the hamburger is tapped) ships with `background-color: inherit`
+      as the default paint. When the surrounding header is also a
+      transparent or `inherit`-colored container, the modal renders
+      transparent — the underlying page (heading, hero image, etc.)
+      bleeds straight through behind the menu items, leaving the user
+      staring at a stack of unreadable links floating over a `Lookbook`
+      hero. The fix is to set `overlayBackgroundColor` (and a paired
+      `overlayTextColor`) directly on the `core/navigation` block so the
+      block emits its own `--navigation-overlay-background-color` /
+      `--navigation-overlay-text-color` custom properties at the right
+      specificity. WP core then paints the modal opaquely on every
+      breakpoint with no theme.json shim required.
+
+      A regression on this surface is invisible during normal desktop
+      browsing (the modal only opens on mobile / when `overlayMenu`
+      kicks in), so the static gate has to enforce the attributes
+      directly. Without this check, anyone hand-editing `parts/header.html`
+      (or copy-pasting a nav block from another part) ships a header
+      whose mobile menu silently reverts to the bleed-through default,
+      and the regression only shows up the next time someone opens the
+      site on a phone.
+
+    What this check enforces:
+      For every `core/navigation` block found in `parts/*.html` and
+      `templates/*.html` whose `overlayMenu` attribute is set to anything
+      other than `"never"` (i.e. `"mobile"` or `"always"` — the two
+      values WP supports that actually open the modal):
+        - `overlayBackgroundColor` MUST be present and resolve to a
+          palette slug declared in `settings.color.palette`.
+        - `overlayTextColor` MUST be present and resolve to a palette slug
+          declared in `settings.color.palette`.
+
+      Custom hex colors via `style.color.background` / `style.color.text`
+      are intentionally rejected — palette tokens keep the overlay
+      brand-coherent across light/dark mode and palette swaps. If a theme
+      genuinely needs a one-off color, add it to the palette first.
+    """
+    r = Result("Navigation overlay menus paint with palette tokens")
+
+    theme_json = ROOT / "theme.json"
+    if not theme_json.exists():
+        r.skip("theme.json missing")
+        return r
+    try:
+        data = json.loads(theme_json.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        r.fail(f"theme.json: invalid JSON ({exc}).")
+        return r
+    palette = ((data.get("settings") or {}).get("color") or {}).get("palette") or []
+    palette_slugs = {p.get("slug") for p in palette if isinstance(p, dict)}
+
+    candidates: list[Path] = []
+    for sub in ("parts", "templates"):
+        d = ROOT / sub
+        if d.is_dir():
+            candidates.extend(sorted(d.glob("*.html")))
+
+    if not candidates:
+        r.skip("no parts/ or templates/ to scan")
+        return r
+
+    nav_open_re = re.compile(r"<!--\s*wp:navigation\s+(\{.*?\})\s*(/?)-->", re.DOTALL)
+    failures: list[str] = []
+    nav_blocks_seen = 0
+
+    for path in candidates:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for match in nav_open_re.finditer(text):
+            attrs_raw = match.group(1)
+            try:
+                attrs = json.loads(attrs_raw)
+            except json.JSONDecodeError:
+                failures.append(
+                    f"{path.relative_to(ROOT)}: `core/navigation` block has "
+                    f"un-parseable JSON attrs near offset {match.start()}."
+                )
+                continue
+            nav_blocks_seen += 1
+            overlay_mode = attrs.get("overlayMenu", "mobile")
+            if overlay_mode == "never":
+                continue
+            rel = path.relative_to(ROOT)
+            bg = attrs.get("overlayBackgroundColor")
+            fg = attrs.get("overlayTextColor")
+            if not bg:
+                failures.append(
+                    f'{rel}: `core/navigation` (overlayMenu="{overlay_mode}") '
+                    f"is missing `overlayBackgroundColor`. Without it WP core "
+                    f"paints the mobile modal `background-color: inherit`, so "
+                    f"the page bleeds through behind the menu items. Set it to "
+                    f'a palette slug, e.g. `"overlayBackgroundColor":"base"`.'
+                )
+            elif bg not in palette_slugs:
+                failures.append(
+                    f"{rel}: `core/navigation` `overlayBackgroundColor` "
+                    f"=`{bg}` is not a slug in `settings.color.palette`. "
+                    f"Use a palette token so the overlay survives palette "
+                    f"swaps and dark mode."
+                )
+            if not fg:
+                failures.append(
+                    f'{rel}: `core/navigation` (overlayMenu="{overlay_mode}") '
+                    f"is missing `overlayTextColor`. Pair it with "
+                    f"`overlayBackgroundColor` so the menu text reads against "
+                    f'the modal paint, e.g. `"overlayTextColor":"contrast"`.'
+                )
+            elif fg not in palette_slugs:
+                failures.append(
+                    f"{rel}: `core/navigation` `overlayTextColor`=`{fg}` "
+                    f"is not a slug in `settings.color.palette`. Use a "
+                    f"palette token so the menu text inherits the theme's "
+                    f"voice."
+                )
+
+    if failures:
+        for f in failures:
+            r.fail(f)
+        return r
+
+    if nav_blocks_seen == 0:
+        r.skip("no core/navigation blocks found")
+        return r
+
     r.details.append(
-        f"Phase L block present + {len(required)} surface restyles + "
-        f"snackbar covered"
+        f"{nav_blocks_seen} `core/navigation` block(s) carry palette-token overlay paint"
     )
     return r
 
@@ -2448,9 +2560,7 @@ def check_wc_card_padding_not_zeroed() -> Result:
         longer zeros padding (and what to do if WC's percentage
         paddings ever leak back).
     """
-    r = Result(
-        "WC painted card surfaces don't get horizontal padding zeroed"
-    )
+    r = Result("WC painted card surfaces don't get horizontal padding zeroed")
 
     theme_json = ROOT / "theme.json"
     if not theme_json.exists():
@@ -2518,9 +2628,7 @@ def check_wc_card_padding_not_zeroed() -> Result:
         sel_list = [s.strip() for s in selectors_blob.split(",")]
         # Find every selector that targets a painted card surface.
         offending_selectors = [
-            s
-            for s in sel_list
-            if any(f".{cls}" in s for cls in _CARD_SURFACE_CLASSES)
+            s for s in sel_list if any(f".{cls}" in s for cls in _CARD_SURFACE_CLASSES)
         ]
         if not offending_selectors:
             continue
@@ -2672,7 +2780,7 @@ def _has_per_theme_override(css: str, theme_slug: str, target_selector: str) -> 
             sel_norm = _normspace(raw_sel)
             if not sel_norm.startswith(prefix):
                 continue
-            rest = sel_norm[len(prefix):]
+            rest = sel_norm[len(prefix) :]
             if not rest.startswith("."):
                 # Prefix must be followed by a descendant combinator
                 # (which gets normalised away); a bare `body.theme-X` rule
@@ -2774,7 +2882,8 @@ def check_distinctive_chrome() -> Result:
             # Cluster of 2+ themes sharing one base body. Each theme in
             # the cluster must provide its OWN per-theme override.
             offenders = [
-                slug for slug in slugs
+                slug
+                for slug in slugs
                 if not _has_per_theme_override(theme_css[slug], slug, selector)
             ]
             if len(offenders) < 2:
@@ -2859,14 +2968,19 @@ def check_archive_sort_dropdown_styled() -> Result:
     """
     r = Result("Catalog-sorting <select> styled in top-level styles.css")
 
-    template_paths = sorted(
-        (ROOT / "templates").glob("archive-product*.html")
-    ) if (ROOT / "templates").exists() else []
+    template_paths = (
+        sorted((ROOT / "templates").glob("archive-product*.html"))
+        if (ROOT / "templates").exists()
+        else []
+    )
     triggering = next(
         (
-            p for p in template_paths
-            if re.search(r"<!--\s*wp:woocommerce/catalog-sorting(?:\s|/|-->)",
-                         p.read_text(encoding="utf-8", errors="replace"))
+            p
+            for p in template_paths
+            if re.search(
+                r"<!--\s*wp:woocommerce/catalog-sorting(?:\s|/|-->)",
+                p.read_text(encoding="utf-8", errors="replace"),
+            )
         ),
         None,
     )
@@ -2895,15 +3009,15 @@ def check_archive_sort_dropdown_styled() -> Result:
         r.fail(
             f"{triggering.relative_to(ROOT).as_posix()} renders "
             f"`wp:woocommerce/catalog-sorting` (a bare `<select "
-            f"class=\"orderby\">`) but top-level `styles.css` never "
+            f'class="orderby">`) but top-level `styles.css` never '
             f"targets `.wp-block-woocommerce-catalog-sorting select.orderby` "
             f"or `.woocommerce-ordering select.orderby`. Shoppers see the "
-            f"OS-native dropdown — the loudest \"default WooCommerce theme\" "
+            f'OS-native dropdown — the loudest "default WooCommerce theme" '
             f"tell on a shop archive. Add a rule like "
             f"`.wp-block-woocommerce-catalog-sorting select.orderby,"
             f".woocommerce-ordering select.orderby {{ appearance:none; "
             f"-webkit-appearance:none; ... }}` to top-level `styles.css`. "
-            f"Block-scoped `styles.blocks[\"woocommerce/catalog-sorting\"]"
+            f'Block-scoped `styles.blocks["woocommerce/catalog-sorting"]'
             f".css` does NOT win against the UA select chrome — see "
             f"check_wc_overrides_styled for the specificity story."
         )
@@ -2921,15 +3035,17 @@ def check_archive_sort_dropdown_styled() -> Result:
         return r
 
     if not (has_block_sel and has_legacy_sel):
-        missing = "legacy `.woocommerce-ordering`" if has_block_sel else "block `.wp-block-woocommerce-catalog-sorting`"
+        missing = (
+            "legacy `.woocommerce-ordering`"
+            if has_block_sel
+            else "block `.wp-block-woocommerce-catalog-sorting`"
+        )
         r.details.append(
             f"WARNING: only one selector root present; consider also "
             f"covering the {missing} root so shortcode-driven catalogs "
             f"render the same dropdown."
         )
-    r.details.append(
-        "matched dropdown selector + `appearance:none` in top-level styles.css"
-    )
+    r.details.append("matched dropdown selector + `appearance:none` in top-level styles.css")
     return r
 
 
@@ -3020,30 +3136,31 @@ def check_cart_checkout_pages_are_wide() -> Result:
         # No inlined wo-configure.php means the blueprint either uses a
         # different content-seeding strategy or hasn't been synced. Either
         # way this rule cannot validate the checkout block markup.
-        r.skip(
-            "no inlined wo-configure.php in blueprint (run "
-            "bin/sync-playground.py)"
-        )
+        r.skip("no inlined wo-configure.php in blueprint (run bin/sync-playground.py)")
         return r
 
     required = [
-        (cart_src,
-         'wp:woocommerce/cart {"align":"wide"}',
-         "patterns/cart-page.php",
-         "Cart root block (`wp:woocommerce/cart`) is missing "
-         "`{\"align\":\"wide\"}` in patterns/cart-page.php. Without it "
-         "the cart inherits `contentSize:prose` (~560px) from "
-         "`templates/page.html` and the sidebar collapses on desktop, "
-         "producing per-letter text wrapping in the totals column."),
-        (cfg_data,
-         'wp:woocommerce/checkout {"align":"wide"}',
-         "playground/wo-configure.php (inlined into blueprint)",
-         "Checkout root block (`wp:woocommerce/checkout`) is missing "
-         "`{\"align\":\"wide\"}` in inlined wo-configure.php. Without it "
-         "the checkout inherits `contentSize:prose` (~560px) from "
-         "`templates/page.html` and the order-summary sidebar collapses "
-         "on desktop, producing per-letter wraps of product names like "
-         "'Artisanal Silence'."),
+        (
+            cart_src,
+            'wp:woocommerce/cart {"align":"wide"}',
+            "patterns/cart-page.php",
+            "Cart root block (`wp:woocommerce/cart`) is missing "
+            '`{"align":"wide"}` in patterns/cart-page.php. Without it '
+            "the cart inherits `contentSize:prose` (~560px) from "
+            "`templates/page.html` and the sidebar collapses on desktop, "
+            "producing per-letter text wrapping in the totals column.",
+        ),
+        (
+            cfg_data,
+            'wp:woocommerce/checkout {"align":"wide"}',
+            "playground/wo-configure.php (inlined into blueprint)",
+            "Checkout root block (`wp:woocommerce/checkout`) is missing "
+            '`{"align":"wide"}` in inlined wo-configure.php. Without it '
+            "the checkout inherits `contentSize:prose` (~560px) from "
+            "`templates/page.html` and the order-summary sidebar collapses "
+            "on desktop, producing per-letter wraps of product names like "
+            "'Artisanal Silence'.",
+        ),
     ]
     for src, needle, where, message in required:
         if src and needle not in src:
@@ -3057,18 +3174,22 @@ def check_cart_checkout_pages_are_wide() -> Result:
     # correctly, but the seeded source must already match so first
     # paint is correct.
     div_required = [
-        (cart_src,
-         'wp-block-woocommerce-cart alignwide',
-         "patterns/cart-page.php",
-         "Cart wrapper div is missing the `alignwide` class. The wrapper "
-         "must read `<div class=\"wp-block-woocommerce-cart alignwide is-loading\">` "
-         "to match the `align:wide` block attribute on first render."),
-        (cfg_data,
-         'wp-block-woocommerce-checkout alignwide',
-         "playground/wo-configure.php (inlined into blueprint)",
-         "Checkout wrapper div is missing the `alignwide` class. The wrapper "
-         "must read `<div class=\"wp-block-woocommerce-checkout alignwide wc-block-checkout is-loading\">` "
-         "to match the `align:wide` block attribute on first render."),
+        (
+            cart_src,
+            "wp-block-woocommerce-cart alignwide",
+            "patterns/cart-page.php",
+            "Cart wrapper div is missing the `alignwide` class. The wrapper "
+            'must read `<div class="wp-block-woocommerce-cart alignwide is-loading">` '
+            "to match the `align:wide` block attribute on first render.",
+        ),
+        (
+            cfg_data,
+            "wp-block-woocommerce-checkout alignwide",
+            "playground/wo-configure.php (inlined into blueprint)",
+            "Checkout wrapper div is missing the `alignwide` class. The wrapper "
+            'must read `<div class="wp-block-woocommerce-checkout alignwide wc-block-checkout is-loading">` '
+            "to match the `align:wide` block attribute on first render.",
+        ),
     ]
     for src, needle, where, message in div_required:
         if src and needle not in src:
@@ -3257,7 +3378,7 @@ def check_blueprint_landing_page() -> Result:
     if landing is None:
         r.fail(
             "playground/blueprint.json: missing `landingPage`. Set it to "
-            "`\"/\"` so the bare blueprint opens the designed homepage "
+            '`"/"` so the bare blueprint opens the designed homepage '
             "(not WP's default `/wp-admin/` landing). The docs/<theme>/ "
             "redirector forces `&url=/` already, but the blueprint is "
             "consumed standalone too (drag-and-drop, blueprint editor, "
@@ -3266,7 +3387,7 @@ def check_blueprint_landing_page() -> Result:
     elif landing != "/":
         r.fail(
             f"playground/blueprint.json: `landingPage` is "
-            f"`{json.dumps(landing)}`, expected `\"/\"`. The repo's "
+            f'`{json.dumps(landing)}`, expected `"/"`. The repo\'s '
             f"homepage card on demo.regionallyfamous.com claims the "
             f"blueprint lands on the home page; keep them in sync. If "
             f"you really do want a different default, update PAGES[0] in "
@@ -3307,9 +3428,7 @@ def check_front_page_unique_layout() -> Result:
         other_fp_path = other / "templates" / "front-page.html"
         if not other_fp_path.exists():
             continue
-        other_fp = _front_page_fingerprint(
-            other_fp_path.read_text(encoding="utf-8")
-        )
+        other_fp = _front_page_fingerprint(other_fp_path.read_text(encoding="utf-8"))
         if other_fp == my_fp:
             conflicts.append((other.name, other_fp))
 
@@ -3395,7 +3514,7 @@ def check_pdp_has_image() -> Result:
         if not any(b in text for b in image_blocks):
             r.fail(
                 f"{rel} renders no product image block. PDPs without an "
-                f"image are the loudest \"this site is broken\" tell on "
+                f'image are the loudest "this site is broken" tell on '
                 f"the demo. Add one of: `wp:post-featured-image` "
                 f"(preferred — server-rendered, no JS dependency), "
                 f"`wp:woocommerce/product-image-gallery` (legacy — "
@@ -3498,13 +3617,33 @@ def _normalize_heading(s: str) -> str:
 # Generic wayfinding headings every store needs. These appear on every
 # theme by design and should NOT trip the "shared microcopy" check.
 # Anything outside this allowlist is treated as voice / brand copy.
-SHARED_HEADING_ALLOWLIST = frozenset({
-    "shop", "categories", "cart", "checkout", "account", "my account",
-    "log in", "register", "search results", "404", "page not found",
-    "shop by category", "featured products", "new arrivals", "on sale",
-    "related products", "you may also like", "your cart", "order summary",
-    "billing", "shipping", "payment", "order details",
-})
+SHARED_HEADING_ALLOWLIST = frozenset(
+    {
+        "shop",
+        "categories",
+        "cart",
+        "checkout",
+        "account",
+        "my account",
+        "log in",
+        "register",
+        "search results",
+        "404",
+        "page not found",
+        "shop by category",
+        "featured products",
+        "new arrivals",
+        "on sale",
+        "related products",
+        "you may also like",
+        "your cart",
+        "order summary",
+        "billing",
+        "shipping",
+        "payment",
+        "order details",
+    }
+)
 
 
 def _extract_template_headings(theme_dir: Path) -> dict[str, set[str]]:
@@ -3598,7 +3737,7 @@ def check_pattern_microcopy_distinct() -> Result:
                 r.fail(
                     f"patterns/{fname}: ships microcopy verbatim shared "
                     f"with {other_slug}/patterns/{fname} — "
-                    f"\"{short}\" — rewrite in {theme_slug}'s voice"
+                    f'"{short}" — rewrite in {theme_slug}\'s voice'
                 )
 
     # HEADING-vs-HEADING: pairwise across every other theme. We compare
@@ -3625,7 +3764,7 @@ def check_pattern_microcopy_distinct() -> Result:
                         "?",
                     )
                     r.fail(
-                        f"{rel}: ships heading \"{h}\" shared verbatim "
+                        f'{rel}: ships heading "{h}" shared verbatim '
                         f"with {other_slug} — rewrite in {theme_slug}'s "
                         f"voice (every theme on the demo browse should "
                         f"speak in its own voice end-to-end)"
@@ -3651,9 +3790,9 @@ def check_pattern_microcopy_distinct() -> Result:
                             "?",
                         )
                         r.fail(
-                            f"{rel}: heading \"{h}\" shares the phrase "
-                            f"\"{shared}\" with {other_slug}'s heading "
-                            f"\"{o}\" — pick a phrase no other theme is "
+                            f'{rel}: heading "{h}" shares the phrase '
+                            f'"{shared}" with {other_slug}\'s heading '
+                            f'"{o}" — pick a phrase no other theme is '
                             f"already using"
                         )
                         break
@@ -3697,14 +3836,14 @@ def check_pattern_microcopy_distinct() -> Result:
 ALL_TEXT_MIN_CHARS = 12
 
 ALL_TEXT_BLOCK_DELIMITER_RE = re.compile(
-    r'<!--\s*wp:(?:heading|paragraph|button|list-item|verse|pullquote|preformatted)\s+'
+    r"<!--\s*wp:(?:heading|paragraph|button|list-item|verse|pullquote|preformatted)\s+"
     r'(\{[^}]*?"content"\s*:\s*"((?:\\.|[^"\\])*)"[^}]*?\})\s*/?-->',
     re.DOTALL,
 )
 
 ALL_TEXT_INNER_HTML_RE = re.compile(
-    r'<(?:h[1-6]|p|li|figcaption|blockquote|button|a)[^>]*>([^<]{4,})'
-    r'</(?:h[1-6]|p|li|figcaption|blockquote|button|a)>'
+    r"<(?:h[1-6]|p|li|figcaption|blockquote|button|a)[^>]*>([^<]{4,})"
+    r"</(?:h[1-6]|p|li|figcaption|blockquote|button|a)>"
 )
 
 ALL_TEXT_PHP_TX_RE = re.compile(
@@ -3716,28 +3855,85 @@ ALL_TEXT_PHP_TX_RE = re.compile(
 # Generic wayfinding / system text every store needs end-to-end. Each
 # entry must already be normalised (lowercased, whitespace collapsed,
 # trailing punctuation stripped) — see `_normalize_for_text_audit`.
-ALL_TEXT_ALLOWLIST = frozenset({
-    # short imperatives + nav (most are <12 chars and won't reach the
-    # check anyway, but we list them defensively)
-    "shop", "cart", "checkout", "account", "my account", "log in",
-    "login", "register", "search", "menu", "home", "about", "contact",
-    "blog", "journal", "read more", "view all", "view cart",
-    "add to cart", "shop all", "shop now", "learn more", "all", "next",
-    "previous", "back", "close", "open", "submit", "subscribe",
-    "newsletter", "instagram", "twitter", "facebook", "pinterest",
-    "tiktok", "returns", "shipping", "help", "faq", "support", "press",
-    "careers", "company", "product", "products", "collection",
-    "collections", "categories", "category",
-    # 404 / search empty states
-    "page not found", "search results", "no results", "no posts",
-    # cart / checkout system labels
-    "continue shopping", "order summary", "subtotal", "total", "tax",
-    "discount", "view details", "see details", "read the journal",
-    "read the story",
-    # short attribute / image labels often shared by design (alt-text,
-    # status pills, etc.)
-    "in stock", "out of stock", "free", "sold out", "on sale",
-})
+ALL_TEXT_ALLOWLIST = frozenset(
+    {
+        # short imperatives + nav (most are <12 chars and won't reach the
+        # check anyway, but we list them defensively)
+        "shop",
+        "cart",
+        "checkout",
+        "account",
+        "my account",
+        "log in",
+        "login",
+        "register",
+        "search",
+        "menu",
+        "home",
+        "about",
+        "contact",
+        "blog",
+        "journal",
+        "read more",
+        "view all",
+        "view cart",
+        "add to cart",
+        "shop all",
+        "shop now",
+        "learn more",
+        "all",
+        "next",
+        "previous",
+        "back",
+        "close",
+        "open",
+        "submit",
+        "subscribe",
+        "newsletter",
+        "instagram",
+        "twitter",
+        "facebook",
+        "pinterest",
+        "tiktok",
+        "returns",
+        "shipping",
+        "help",
+        "faq",
+        "support",
+        "press",
+        "careers",
+        "company",
+        "product",
+        "products",
+        "collection",
+        "collections",
+        "categories",
+        "category",
+        # 404 / search empty states
+        "page not found",
+        "search results",
+        "no results",
+        "no posts",
+        # cart / checkout system labels
+        "continue shopping",
+        "order summary",
+        "subtotal",
+        "total",
+        "tax",
+        "discount",
+        "view details",
+        "see details",
+        "read the journal",
+        "read the story",
+        # short attribute / image labels often shared by design (alt-text,
+        # status pills, etc.)
+        "in stock",
+        "out of stock",
+        "free",
+        "sold out",
+        "on sale",
+    }
+)
 
 
 def _normalize_for_text_audit(s: str) -> str:
@@ -3889,7 +4085,7 @@ def check_all_rendered_text_distinct_across_themes() -> Result:
             shown = norm if len(norm) <= 100 else norm[:97] + "..."
             r.fail(
                 f"{my_rel}: ships rendered text shared verbatim with "
-                f"{other_slug}/{other_rel} — \"{shown}\" — rewrite in "
+                f'{other_slug}/{other_rel} — "{shown}" — rewrite in '
                 f"{theme_slug}'s voice (or add to ALL_TEXT_ALLOWLIST "
                 f"if it's truly system / wayfinding copy)"
             )
@@ -3911,11 +4107,7 @@ def _longest_shared_phrase(a: list[str], b: list[str]) -> str:
     for i in range(len(a)):
         for j in range(len(b)):
             k = 0
-            while (
-                i + k < len(a)
-                and j + k < len(b)
-                and a[i + k] == b[j + k]
-            ):
+            while i + k < len(a) and j + k < len(b) and a[i + k] == b[j + k]:
                 k += 1
             if k > 0:
                 phrase = " ".join(a[i : i + k])
@@ -3972,8 +4164,8 @@ def check_no_default_wc_strings() -> Result:
             "functions.php has no `// === BEGIN wc microcopy === ... "
             "// === END wc microcopy ===` block. The live demo will "
             "paint with WC's default strings (\"Showing 1-16 of 55 "
-            "results\", \"Default sorting\", \"Estimated total\", "
-            "\"Proceed to Checkout\", \"Lost your password?\"). Append "
+            'results", "Default sorting", "Estimated total", '
+            '"Proceed to Checkout", "Lost your password?"). Append '
             "the canonical block to `functions.php` (see obel/functions.php "
             "for the reference shape) — it MUST live in the theme so the "
             "overrides ship when the theme is dropped into wp-content/themes/."
@@ -3989,19 +4181,20 @@ def check_no_default_wc_strings() -> Result:
     # splits the filter into multiple closures still works as long as
     # the displaced string still gets replaced.
     required = [
-        ("woocommerce_blocks_cart_totals_label",
-         "\"Estimated total\" cart totals label"),
-        ("woocommerce_order_button_text",
-         "\"Proceed to Checkout\" / \"Place order\" button text"),
-        ("woocommerce_default_catalog_orderby_options",
-         "\"Default sorting\" catalog-sorting first option"),
-        ("Lost your password?",
-         "\"Lost your password?\" account login link"),
-        ("render_block_woocommerce/product-results-count",
-         "\"Showing 1-16 of 55 results\" loop result count "
-         "(rewritten in place via render_block filter — a "
-         "woocommerce_before_shop_loop echo would produce a duplicate "
-         "floating count inside wp:woocommerce/product-collection)"),
+        ("woocommerce_blocks_cart_totals_label", '"Estimated total" cart totals label'),
+        ("woocommerce_order_button_text", '"Proceed to Checkout" / "Place order" button text'),
+        (
+            "woocommerce_default_catalog_orderby_options",
+            '"Default sorting" catalog-sorting first option',
+        ),
+        ("Lost your password?", '"Lost your password?" account login link'),
+        (
+            "render_block_woocommerce/product-results-count",
+            '"Showing 1-16 of 55 results" loop result count '
+            "(rewritten in place via render_block filter — a "
+            "woocommerce_before_shop_loop echo would produce a duplicate "
+            "floating count inside wp:woocommerce/product-collection)",
+        ),
     ]
     for needle, label in required:
         if needle not in block:
@@ -4139,9 +4332,7 @@ def check_no_brand_filters_in_playground() -> Result:
         scrubbed = re.sub(r"/\*[\s\S]*?\*/", "", scrubbed)
         for match in register_re.finditer(scrubbed):
             hook = match.group(1)
-            denied = hook in forbidden_exact or any(
-                hook.startswith(p) for p in forbidden_prefix
-            )
+            denied = hook in forbidden_exact or any(hook.startswith(p) for p in forbidden_prefix)
             if not denied:
                 continue
             # Allowlist: if the call sits inside a `defined('WO_*')`
@@ -4188,8 +4379,8 @@ def check_no_brand_filters_in_playground() -> Result:
             "playground/*.php registers brand-affecting filters; the "
             "release theme will paint with WC default strings because "
             "the mu-plugin doesn't ship with it. See AGENTS.md root-rule "
-            "\"Shopper-facing brand lives in the theme, not in "
-            "playground/\":\n" + "\n".join(failures)
+            '"Shopper-facing brand lives in the theme, not in '
+            'playground/":\n' + "\n".join(failures)
         )
     else:
         r.details.append(
@@ -4249,8 +4440,7 @@ def check_theme_ships_cart_page_pattern() -> Result:
     src = pattern_path.read_text(encoding="utf-8")
 
     # 1. Block Types header.
-    if not re.search(r"^\s*\*\s*Block Types:\s*woocommerce/cart\s*$",
-                     src, re.MULTILINE):
+    if not re.search(r"^\s*\*\s*Block Types:\s*woocommerce/cart\s*$", src, re.MULTILINE):
         r.fail(
             "patterns/cart-page.php: header is missing "
             "`Block Types: woocommerce/cart`. Without that line the "
@@ -4376,8 +4566,7 @@ def check_wc_microcopy_distinct_across_themes() -> Result:
             continue
         map_body = map_match.group(1)
         per_theme[theme_dir.name] = {
-            php_unquote(k): php_unquote(v)
-            for k, v in pair_re.findall(map_body)
+            php_unquote(k): php_unquote(v) for k, v in pair_re.findall(map_body)
         }
 
     if len(per_theme) < 2:
@@ -4418,8 +4607,7 @@ def check_wc_microcopy_distinct_across_themes() -> Result:
             f"WC microcopy maps share translations across themes "
             f"(checked {pairs_checked} per-key translations across "
             f"{len(per_theme)} themes; see the allowlist at "
-            f"bin/wc_microcopy_universal.json for genuine universals):\n"
-            + "\n".join(failures)
+            f"bin/wc_microcopy_universal.json for genuine universals):\n" + "\n".join(failures)
         )
     else:
         r.details.append(
@@ -4524,10 +4712,7 @@ def check_playground_content_seeded() -> Result:
         return r
 
     asset_count = len(on_disk)
-    r.details.append(
-        f"content.xml + products.csv present; "
-        f"{asset_count} image asset(s) on disk"
-    )
+    r.details.append(f"content.xml + products.csv present; {asset_count} image asset(s) on disk")
     return r
 
 
@@ -4630,7 +4815,9 @@ def check_no_unpushed_commits() -> Result:
     # `bin/check.py`, pre-commit) leaves the env var unset and gets
     # the full check.
     if os.environ.get("FIFTY_SKIP_UNPUSHED_CHECK") == "1":
-        r.skip("FIFTY_SKIP_UNPUSHED_CHECK=1 (set by .githooks/pre-commit + pre-push to avoid in-flight-commit deadlock)")
+        r.skip(
+            "FIFTY_SKIP_UNPUSHED_CHECK=1 (set by .githooks/pre-commit + pre-push to avoid in-flight-commit deadlock)"
+        )
         return r
     if not shutil.which("git"):
         r.skip("git not available on PATH")
@@ -4737,6 +4924,7 @@ def run_checks_for(theme_root: Path, offline: bool) -> int:
         check_wc_card_surfaces_padded(),
         check_wc_totals_blocks_padded(),
         check_wc_notices_styled(),
+        check_navigation_overlay_opaque(),
         check_wc_card_padding_not_zeroed(),
         check_hover_state_legibility(),
         check_distinctive_chrome(),
@@ -4763,10 +4951,14 @@ def run_checks_for(theme_root: Path, offline: bool) -> int:
 
     print()
     if failed:
-        print(f"{RED}FAILED{RESET}: {len(failed)} of {len(results)} checks failed for {theme_root.name}.")
+        print(
+            f"{RED}FAILED{RESET}: {len(failed)} of {len(results)} checks failed for {theme_root.name}."
+        )
         return 1
     if skipped:
-        print(f"{GREEN}OK{RESET}: all checks passed for {theme_root.name} ({len(skipped)} skipped).")
+        print(
+            f"{GREEN}OK{RESET}: all checks passed for {theme_root.name} ({len(skipped)} skipped)."
+        )
     else:
         print(f"{GREEN}OK{RESET}: all {len(results)} checks passed for {theme_root.name}.")
     return 0
@@ -4872,14 +5064,16 @@ def main() -> int:
         # plain `shoot --quick` (no diff/report); use `--visual-scope
         # =changed` for the gated path.
         target_theme = args.theme if not args.all else "obel"
-        print(f"Running quick visual smoke "
-              f"(`bin/snap.py shoot {target_theme} --quick`)...\n")
+        print(f"Running quick visual smoke (`bin/snap.py shoot {target_theme} --quick`)...\n")
         snap_cmd = [sys.executable, snap_path, "shoot", target_theme, "--quick"]
     else:
-        print(f"Running visual snapshot diff "
-              f"(`bin/snap.py check --scope={args.visual_scope}`)...\n")
+        print(
+            f"Running visual snapshot diff (`bin/snap.py check --scope={args.visual_scope}`)...\n"
+        )
         snap_cmd = [
-            sys.executable, snap_path, "check",
+            sys.executable,
+            snap_path,
+            "check",
             f"--threshold={args.visual_threshold}",
         ]
         if args.visual_scope == "changed":
