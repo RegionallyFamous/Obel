@@ -1,0 +1,124 @@
+name: brand
+
+# Cloud-side regenerator for the docs/ brand asset set (favicons,
+# Apple touch icon, ICO bundle, Open Graph share card). Mirrors the
+# `regenerate-gallery` mode in `visual.yml` but for the rasterised
+# derivatives of `docs/favicon.svg` + the OG HTML template embedded
+# in `bin/build-brand-assets.py`.
+#
+# Why a separate workflow:
+#   * The brand pipeline needs Chrome (for the OG image) but does NOT
+#     need Playwright/Playground/seeded WC content. Splitting it from
+#     visual.yml means brand re-runs are seconds instead of minutes,
+#     and a brand-only edit doesn't trigger a 25-minute snap shoot.
+#   * Auto-commit-back of binary artefacts is cleanly scoped to
+#     `docs/*.png`, `docs/*.ico`, `docs/assets/og-default.png` —
+#     same target tree as a human running the script locally.
+#
+# Trigger model:
+#   * `workflow_dispatch` — manual button. The common case. Use
+#     after editing `docs/favicon.svg` or the OG HTML template.
+#   * `pull_request` (paths-filtered) — auto-regenerate when a PR
+#     touches the SVG or the script. Saves the author the local
+#     `python3 bin/build-brand-assets.py && git add docs/` round-trip
+#     (and the headless-Chrome heat that comes with it). Only runs
+#     for branches inside this repo (forks can't push back).
+#
+# A companion drift gate in `check.yml` (`brand-assets-drift`) makes
+# sure no PR can ship `docs/favicon.svg` edits without the matching
+# raster regeneration — it runs `bin/build-brand-assets.py --check`
+# and fails the PR if anything would change.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - docs/favicon.svg
+      - bin/build-brand-assets.py
+      - .github/workflows/brand.yml
+
+concurrency:
+  group: brand-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write   # auto-commit regenerated docs/ binaries back to the PR branch
+
+jobs:
+  regenerate:
+    name: bin/build-brand-assets.py
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Skip the auto-commit branch entirely on fork PRs (they can't push
+    # back to the head ref anyway). Same-repo branches and dispatched
+    # runs proceed normally.
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          # Same-repo PR runs check out a detached HEAD by default; we
+          # need the actual branch ref to push the regenerated binaries
+          # back, so pull the head ref directly.
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install Pillow
+        # Pillow is the one external dep `bin/build-brand-assets.py`
+        # genuinely needs (PNG/ICO encoding + image cropping). Other
+        # imports are stdlib so this single line covers the runtime.
+        run: python3 -m pip install Pillow
+
+      - name: Install Chromium
+        # `bin/build-brand-assets.py` shells out to a Chrome/Chromium
+        # binary at one of the paths in `_find_chrome()`; the apt
+        # package lands at `/usr/bin/chromium-browser`, which is in
+        # that candidate list. We don't need Playwright's Chromium
+        # here — the OG render only needs `--headless=new` +
+        # `--screenshot=` + `--virtual-time-budget`, which the apt
+        # build supports.
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y chromium-browser
+          which chromium-browser
+
+      - name: Regenerate brand assets
+        run: python3 bin/build-brand-assets.py
+
+      - name: Commit regenerated brand assets
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # The asset set lives under docs/ at the top level (favicons +
+          # ICO) and under docs/assets/ (OG image). Stage both.
+          git add \
+            docs/favicon-16.png \
+            docs/favicon-32.png \
+            docs/apple-touch-icon.png \
+            docs/favicon.ico \
+            docs/assets/og-default.png
+
+          if git diff --cached --quiet; then
+            echo "No brand asset changes to commit; tree is identical."
+            exit 0
+          fi
+
+          # `[skip ci]` so the bot's commit doesn't re-trigger this
+          # workflow (which would loop forever on the SVG path). The
+          # static gates in check.yml are not affected by binary diffs
+          # under docs/, so skipping CI here is safe.
+          target_ref="${{ github.event.pull_request.head.ref || github.ref_name }}"
+          msg="brand: regenerate docs/ assets via cloud workflow [skip ci]
+
+          Auto-generated by .github/workflows/brand.yml run #${{ github.run_id }}
+          Trigger: ${{ github.event_name }}
+          "
+          git commit -m "$msg"
+          git push origin "HEAD:$target_ref"

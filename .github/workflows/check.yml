@@ -2,21 +2,23 @@ name: check
 
 # Authoritative server-side gate for the regression-prevention stack.
 #
-# Five parallel jobs, one concern each, so a red CI tells you exactly
+# Seven parallel jobs, one concern each, so a red CI tells you exactly
 # what broke:
 #
-#   theme-gate        bin/check.py --all --offline (the original gate)
-#   drift-check       bin/append-wc-overrides.py  must be a no-op
-#   tooling-tests     pytest tests/ (Phase B + C unit + integration tests)
-#   validator-smoke   tests/validator/ (Node editor-parity validator)
-#   lint-format       ruff + mypy (Phase E)
+#   theme-gate              bin/check.py --all --offline (the original gate)
+#   drift-check             bin/append-wc-overrides.py  must be a no-op
+#   playground-sync-drift   bin/sync-playground.py      must be a no-op
+#   brand-assets-drift      bin/build-brand-assets.py --check must pass
+#   tooling-tests           pytest tests/ (Phase B + C unit + integration tests)
+#   validator-smoke         tests/validator/ (Node editor-parity validator)
+#   lint-format             ruff + mypy (Phase E)
 #
 # Jobs run in parallel; a single job failure still surfaces the
 # full picture in the checks list on the PR page. None of the jobs
 # depend on any other (the theme gate doesn't need pytest to have
 # passed to be meaningful).
 #
-# All five are required for merge; see `bin/setup-branch-protection.sh`.
+# All seven are required for merge; see `bin/setup-branch-protection.sh`.
 
 on:
   push:
@@ -69,6 +71,81 @@ jobs:
             echo "         from the committed theme.json files. Run"
             echo "         \`python3 bin/append-wc-overrides.py\` locally"
             echo "         and commit the diff."
+            exit 1
+          fi
+
+  brand-assets-drift:
+    name: build-brand-assets.py --check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install Pillow
+        # build-brand-assets.py needs Pillow to render the favicon set
+        # and to hash-compare the existing PNG/ICO/OG bytes against
+        # what it would write. Same single-dep install as brand.yml.
+        run: python3 -m pip install Pillow
+      - name: Install Chromium
+        # The OG image render shells out to a Chrome/Chromium binary
+        # at one of the paths in `_find_chrome()`. The apt build lands
+        # at `/usr/bin/chromium-browser`, which is in that candidate
+        # list. We install it even for `--check` because the script
+        # currently re-renders to a temp file to compute the hash, so
+        # Chrome is on the hot path either way.
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y chromium-browser
+      - name: Verify brand assets match the SVG + OG template
+        run: |
+          # `--check` exits non-zero if any output PNG/ICO byte-differs
+          # from what `bin/build-brand-assets.py` would produce now.
+          # Trip the gate => someone edited `docs/favicon.svg`, the OG
+          # HTML template inside the script, or the palette constants
+          # without re-running the script. Run the cloud regenerator
+          # via `gh workflow run brand.yml` to fix.
+          if ! python3 bin/build-brand-assets.py --check; then
+            echo
+            echo "::error::Brand assets drifted from their source. Either"
+            echo "         run \`python3 bin/build-brand-assets.py\` locally"
+            echo "         and commit, or trigger the cloud regenerator:"
+            echo "         \`gh workflow run brand.yml --ref \$BRANCH\`"
+            exit 1
+          fi
+
+  playground-sync-drift:
+    name: sync-playground.py is a no-op
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Verify each blueprint.json matches its inlined playground/*.php
+        run: |
+          # bin/sync-playground.py inlines the shared playground/*.php
+          # scripts into every theme's playground/blueprint.json (so
+          # raw.githubusercontent.com cache + Playground's resource
+          # cache can't serve a stale script body against a fresh
+          # blueprint). It must be re-run after any edit to
+          # playground/*.php; this gate catches the case where someone
+          # forgot.
+          #
+          # The script writes in place, so the drift check is just "run
+          # it, then `git diff --exit-code` the blueprint files". A
+          # non-zero diff means the committed blueprints are out of
+          # sync with the source PHP and someone needs to re-run the
+          # script locally.
+          python3 bin/sync-playground.py
+          if ! git diff --quiet -- '*/playground/blueprint.json'; then
+            echo
+            echo "::error::sync-playground.py would rewrite committed"
+            echo "         blueprint.json files. The inlined PHP is out"
+            echo "         of date vs playground/*.php. Run"
+            echo "         \`python3 bin/sync-playground.py\` locally"
+            echo "         and commit the diff. The pending changes:"
+            git --no-pager diff --stat -- '*/playground/blueprint.json'
             exit 1
           fi
 
