@@ -296,6 +296,26 @@ def _encode_thumb(src_png: Path, dst_jpg: Path, *, force: bool) -> bool:
 # ---------------------------------------------------------------------------
 
 
+# Brand-asset link tags injected verbatim into every snap-gallery <head>.
+# Identical to the constant of the same name in bin/build-redirects.py —
+# kept duplicated rather than imported because both build scripts run
+# standalone (no package import path) and the duplication is small enough
+# that drift is caught by `bin/build-brand-assets.py --check` flagging
+# any binary file mismatch + a `git grep BRAND_HEAD_TAGS` review.
+BRAND_HEAD_TAGS = """\
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="/favicon.ico" sizes="16x16 32x32" type="image/x-icon">
+<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="/favicon-16.png" sizes="16x16" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180">
+<meta property="og:image" content="https://demo.regionallyfamous.com/assets/og-default.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="fifty. \u2014 a quarterly of WordPress block themes, set as a magazine cover with a giant serif headline and a cobalt accent.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://demo.regionallyfamous.com/assets/og-default.png">"""
+
+
 SHARED_CSS = """\
 /* ========================================================================
    Snap gallery — magazine-cover system
@@ -561,6 +581,7 @@ def _render_theme_page(theme: str, cells: list[Cell], source_label: str) -> str:
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="Every snap PNG for the {_esc(theme)} block theme, grouped by viewport. Source: {_esc(source_label)}.">
 <meta name="robots" content="noindex">
+{BRAND_HEAD_TAGS}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Serif+Text:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -639,6 +660,7 @@ def _render_index_page(theme_summaries: list[dict]) -> str:
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="Every theme's snap PNGs at a glance — no Playground boot required.">
 <meta name="robots" content="noindex">
+{BRAND_HEAD_TAGS}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Serif+Text:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap">

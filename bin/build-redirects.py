@@ -142,6 +142,35 @@ def theme_display_name(theme_dir: Path) -> str:
     return slug[:1].upper() + slug[1:].lower()
 
 
+# Brand-asset link tags injected verbatim into every <head> on the site.
+# Each derivative is regenerated from docs/favicon.svg + the OG template
+# in bin/build-brand-assets.py — never hand-edit the .png/.ico files.
+#
+# Why so many <link rel="icon"> entries: every browser-era picks a
+# different one to honor.
+#   - Modern (Chrome, Firefox, Safari, Edge): pick the SVG (vector, themed
+#     light/dark in the future if we add @media (prefers-color-scheme)).
+#   - Old IE / Outlook web previews: only ever look at /favicon.ico, which
+#     is bundled at the root for them and contains a 16+32 multi-frame.
+#   - Legacy non-SVG-aware Chrome (<80) / FF (<41): fall through to the
+#     PNG variants by sized hint.
+#   - iOS / iPadOS home-screen install: read apple-touch-icon (180x180).
+# The OG meta tags use absolute https://demo.regionallyfamous.com/ URLs
+# (not paths) because Facebook + LinkedIn require absolute URLs in
+# og:image — relative URLs are silently rewritten or dropped.
+BRAND_HEAD_TAGS = """\t<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+\t<link rel="alternate icon" href="/favicon.ico" sizes="16x16 32x32" type="image/x-icon">
+\t<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+\t<link rel="icon" href="/favicon-16.png" sizes="16x16" type="image/png">
+\t<link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180">
+\t<meta property="og:image" content="https://demo.regionallyfamous.com/assets/og-default.png">
+\t<meta property="og:image:width" content="1200">
+\t<meta property="og:image:height" content="630">
+\t<meta property="og:image:alt" content="fifty. \u2014 a quarterly of WordPress block themes, set as a magazine cover with a giant serif headline and a cobalt accent.">
+\t<meta name="twitter:card" content="summary_large_image">
+\t<meta name="twitter:image" content="https://demo.regionallyfamous.com/assets/og-default.png">"""
+
+
 # Magazine-cover styled redirector. Inline `<style>` is gone — every page
 # loads /assets/style.css (served from the GH Pages root), so the visual
 # system is shared with the landing page, the concept queue, and the snap
@@ -160,6 +189,7 @@ REDIRECT_TEMPLATE = """<!doctype html>
 \t<meta property="og:title" content="{title}">
 \t<meta property="og:description" content="{description}">
 \t<meta property="og:url" content="{short_url_html}">
+{brand_head_tags}
 \t<link rel="preconnect" href="https://fonts.googleapis.com">
 \t<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 \t<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Serif+Text:ital@1&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -211,6 +241,7 @@ def render_redirector(
         short_url_html=html_escape(short_url),
         deeplink_html=html_escape(deeplink),
         deeplink_json=json.dumps(deeplink),
+        brand_head_tags=BRAND_HEAD_TAGS,
     )
 
 
@@ -229,6 +260,7 @@ INDEX_HEAD = """<!doctype html>
 \t<meta property="og:title" content="Fifty — WordPress Block Theme Variants">
 \t<meta property="og:description" content="A monorepo of opinionated WordPress block themes. Each one boots in WordPress Playground — no install, runs entirely in your browser.">
 \t<meta property="og:url" content="{base_url}">
+{brand_head_tags}
 \t<link rel="preconnect" href="https://fonts.googleapis.com">
 \t<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 \t<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Serif+Text:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -317,6 +349,7 @@ def render_index(themes_html: list[str], unbuilt_count: int, shipped_count: int)
         unbuilt_words=html_escape(_spell_number(unbuilt_count)),
         shipped_words=html_escape(_spell_number(shipped_count)),
         issue_html=html_escape(issue),
+        brand_head_tags=BRAND_HEAD_TAGS,
     )
     foot = INDEX_FOOT.format(
         org=html_escape(GITHUB_ORG),
@@ -445,6 +478,7 @@ CONCEPTS_HEAD = """<!doctype html>
 \t<meta property="og:title" content="Concept queue — Fifty">
 \t<meta property="og:description" content="WordPress block-theme concepts on the bench, waiting to be built. Click any to claim it.">
 \t<meta property="og:url" content="{base_url}concepts/">
+{brand_head_tags}
 \t<link rel="preconnect" href="https://fonts.googleapis.com">
 \t<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 \t<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Serif+Text:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -533,6 +567,7 @@ def render_concepts_page(unbuilt: list[dict], built: list[dict]) -> str:
         base_url=html_escape(GH_PAGES_BASE_URL),
         unbuilt_count=len(unbuilt),
         built_count=len(built),
+        brand_head_tags=BRAND_HEAD_TAGS,
     )
     foot = CONCEPTS_FOOT.format(
         org=html_escape(GITHUB_ORG),
@@ -601,29 +636,47 @@ def build(*, dry_run: bool = False) -> int:
         print("error: no themes found in monorepo", file=sys.stderr)
         return 1
 
-    # Wipe and recreate docs/ so deleting a theme actually removes its short
-    # URL on the next deploy. The CNAME file (if any) is preserved across
-    # rebuilds so a custom domain doesn't drop on every regeneration. The
-    # shared stylesheet (assets/style.css) is preserved the same way: it's
-    # the canonical edit point for the visual system, owned by humans, not
-    # by this script. The snap gallery's own assets/ folder lives at
-    # docs/snaps/assets/ so it's wiped + re-emitted by bin/build-snap-
-    # gallery.py and is unaffected here.
-    cname = DOCS_DIR / "CNAME"
-    cname_contents: str | None = None
-    if cname.exists():
-        cname_contents = cname.read_text()
+    # Wipe and recreate docs/ so deleting a theme actually removes its
+    # short URL on the next deploy. A small allowlist of human-owned or
+    # separately-built artifacts is preserved across rebuilds:
+    #
+    #   CNAME                         GitHub Pages custom domain mapping
+    #                                 — would cost a DNS propagation cycle
+    #                                 to recover if dropped, so never wipe.
+    #   assets/style.css              Magazine-cover design system —
+    #                                 hand-edited, the source of truth for
+    #                                 every visual rule on the site.
+    #   favicon.svg                   Hand-authored vector mark.
+    #   favicon-16/32.png             Generated by bin/build-brand-assets.py.
+    #   favicon.ico                   Same — multi-size legacy bundle.
+    #   apple-touch-icon.png          Same — iOS home-screen icon.
+    #   assets/og-default.png         Same — Open Graph share card.
+    #
+    # Each generated brand asset is treated as a checked-in binary: this
+    # script never *creates* them, but it never *destroys* them either,
+    # so a contributor running `bin/build-redirects.py` without first
+    # running `bin/build-brand-assets.py` still ships a site with a
+    # working favicon.
+    #
+    # Snap gallery (`docs/snaps/`) is preserved as a directory tree, since
+    # it's emitted by an independent script (`bin/build-snap-gallery.py`)
+    # and shouldn't vanish whenever this script runs.
+    PRESERVED_FILES = [
+        Path("CNAME"),
+        Path("assets/style.css"),
+        Path("favicon.svg"),
+        Path("favicon-16.png"),
+        Path("favicon-32.png"),
+        Path("favicon.ico"),
+        Path("apple-touch-icon.png"),
+        Path("assets/og-default.png"),
+    ]
+    preserved: dict[Path, bytes] = {}
+    for rel in PRESERVED_FILES:
+        src = DOCS_DIR / rel
+        if src.is_file():
+            preserved[rel] = src.read_bytes()
 
-    style_css = DOCS_DIR / "assets" / "style.css"
-    style_contents: str | None = None
-    if style_css.exists():
-        style_contents = style_css.read_text()
-
-    # Same logic for the snap gallery: if a previous run already produced
-    # docs/snaps/, preserve it across this rebuild so we don't make the
-    # gallery vanish until bin/build-snap-gallery.py is re-run. The snap
-    # gallery is generated independently and shouldn't be coupled to this
-    # script's lifecycle.
     snaps_dir = DOCS_DIR / "snaps"
     preserved_snaps_tmp: Path | None = None
     if not dry_run and snaps_dir.is_dir():
@@ -637,16 +690,29 @@ def build(*, dry_run: bool = False) -> int:
 
     written: list[Path] = []
     write_file(DOCS_DIR / ".nojekyll", "", dry_run=dry_run, written=written)
-    if cname_contents is not None:
-        write_file(DOCS_DIR / "CNAME", cname_contents, dry_run=dry_run, written=written)
-    if style_contents is not None:
-        write_file(DOCS_DIR / "assets" / "style.css", style_contents, dry_run=dry_run, written=written)
-    else:
-        print(
-            "warn: docs/assets/style.css missing — landing page, concepts, "
-            "and redirectors will be unstyled until you restore it.",
-            file=sys.stderr,
-        )
+    for rel, payload in preserved.items():
+        dst = DOCS_DIR / rel
+        if not dry_run:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            dst.write_bytes(payload)
+        written.append(dst)
+    # Surface any still-missing brand assets so a contributor knows to run
+    # the brand-assets builder. The site degrades gracefully (just no
+    # favicon / OG card) but the warning is loud enough to be actioned.
+    expected_brand = {
+        Path("assets/style.css"): "landing page + concepts + redirectors will be unstyled",
+        Path("favicon.svg"): "modern browsers will fall back to no favicon",
+        Path("favicon.ico"): "legacy IE / Outlook previews will fall back to no favicon",
+        Path("apple-touch-icon.png"): "iOS home-screen install will use a generic icon",
+        Path("assets/og-default.png"): "social shares will not get a preview card",
+    }
+    for rel, consequence in expected_brand.items():
+        if rel not in preserved:
+            print(
+                f"warn: docs/{rel} missing \u2014 {consequence}. Run "
+                f"`python3 bin/build-brand-assets.py` to generate.",
+                file=sys.stderr,
+            )
     if preserved_snaps_tmp is not None and not dry_run:
         shutil.move(str(preserved_snaps_tmp), str(snaps_dir))
 

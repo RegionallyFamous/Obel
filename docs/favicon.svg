@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Fifty">
+  <!--
+    Fifty  magazine-cover favicon mark.
+    Distills "fifty." down to its single recognizable atom: a serif lowercase
+    "f" in pure black on pure white, with the brand's cobalt period set as a
+    solid square in the bottom-right (a square, not a dot, so it survives
+    16x16 rendering without disappearing into a single antialiased pixel).
+    Same palette as docs/assets/style.css: --paper #fff, --ink #000,
+    --accent #1f4fe0. Font stack mirrors --serif-display so any browser that
+    has DM Serif Display (or Bodoni Moda, or system Bodoni) installed locally
+    gets the canonical look; everyone else falls back through Georgia to
+    plain serif. The PNG/ICO derivatives at docs/favicon-{16,32}.png +
+    docs/apple-touch-icon.png are rendered from this SVG by
+    bin/build-brand-assets.py so they all stay byte-identical to the master.
+  -->
+  <rect width="32" height="32" fill="#ffffff"/>
+  <text x="6" y="26" font-family="DM Serif Display, GT Sectra, Bodoni Moda, Bodoni 72, Georgia, serif" font-weight="400" font-size="30" fill="#000000">f</text>
+  <rect x="22" y="22" width="5" height="5" fill="#1f4fe0"/>
+</svg>

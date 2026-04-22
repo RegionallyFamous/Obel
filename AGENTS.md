@@ -483,7 +483,8 @@ fifty/
 How it works:
 
 - `bin/build-redirects.py` walks `_lib.iter_themes()`, reads each theme's `playground/blueprint.json` URL via `_lib.theme_blueprint_raw_url(slug)`, and emits one HTML file per `(theme, page)` pair under `docs/`. Every redirector ships both a `<meta http-equiv="refresh">` (works without JS / on link previews) and a `<script>location.replace(…)</script>` (no flash, faster). The page list lives in the script as `PAGES`; add a row there if a new entry point becomes interesting.
-- The script wipes and rewrites `docs/` from scratch on every run, **except** for `docs/CNAME` which is preserved so a custom domain doesn't drop on every regeneration. If you delete a theme, its `docs/<theme>/` folder disappears on the next run.
+- The script wipes and rewrites `docs/` from scratch on every run, **except** for the allowlist of human-owned / brand-asset files inside `PRESERVED_FILES` (currently: `CNAME`, `assets/style.css`, `favicon.svg`, `favicon-{16,32}.png`, `favicon.ico`, `apple-touch-icon.png`, `assets/og-default.png`). The snap gallery directory `docs/snaps/` is also preserved — it's owned by `bin/build-snap-gallery.py`. If you delete a theme, its `docs/<theme>/` folder disappears on the next run; brand assets survive untouched.
+- Brand assets (favicon set + Open Graph share card) are produced by a third script: `bin/build-brand-assets.py`. It rasterizes `docs/favicon.svg` to PNG/ICO via Pillow and renders `docs/assets/og-default.png` (1200×630) by screenshotting an HTML template through headless Chrome with Google Fonts. The output binaries are checked in; re-run the script (and commit) any time you change `docs/favicon.svg` or the magazine-cover palette in `docs/assets/style.css`. `bin/build-brand-assets.py --check` exits non-zero if the on-disk derivatives drift from the sources — useful as a CI gate.
 - One-time GH Pages setup (already done for the canonical repo): repo settings → Pages → Source "Deploy from a branch", Branch `main`, Folder `/docs`. Pushes to `main` propagate within ~1 minute.
 
 When you must re-run `bin/build-redirects.py`:
@@ -492,6 +493,12 @@ When you must re-run `bin/build-redirects.py`:
 - After deleting a theme.
 - After changing the `PAGES` list inside `build-redirects.py`.
 - After changing `_lib.GITHUB_ORG` / `GITHUB_REPO` / `GITHUB_BRANCH` (also re-run `bin/sync-playground.py` because both consumers read from the same source of truth).
+
+When you must re-run `bin/build-brand-assets.py`:
+
+- After hand-editing `docs/favicon.svg` (the canonical mark).
+- After changing the magazine-cover palette in `docs/assets/style.css` (so favicons + OG card match the new ink/paper/accent values).
+- After editing the `OG_TEMPLATE` literal inside `bin/build-brand-assets.py` itself.
 
 You should **not** edit any file under `docs/` by hand. The whole tree is generated; manual edits are wiped on the next `build-redirects.py` run. If you need a redirector that isn't reachable from `(theme, page)` shape (e.g. a top-level alias), add it to `build-redirects.py` so the next run still produces it.
 
