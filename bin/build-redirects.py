@@ -307,8 +307,8 @@ def _issue_strings() -> tuple[str, str]:
     bumps automatically as the repo grows; the date pulls from the build
     machine's clock (close enough for a magazine that exists only on the
     web)."""
-    from datetime import datetime, timezone
-    now = datetime.now(timezone.utc)
+    from datetime import UTC, datetime
+    now = datetime.now(UTC)
     issue_num = sum(1 for _ in iter_themes())
     issue = f"Vol. 01 · Issue {issue_num:02d} · {now.strftime('%b %Y')}"
     footer_label = now.strftime('%b %Y')

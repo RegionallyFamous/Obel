@@ -189,15 +189,15 @@ def _draw_favicon(size: int) -> Image.Image:
     # Empirically-tuned sizing. The "f" sits left of center; the cobalt
     # square hugs the bottom-right corner. These ratios were tested at
     # 16, 32, and 180 and produce visually balanced marks at all three.
-    f_size = int(round(size * 0.95))
-    accent_size = max(2, int(round(size * 0.22)))
-    accent_pad = max(1, int(round(size * 0.10)))
-    f_x = max(1, int(round(size * 0.18)))
+    f_size = round(size * 0.95)
+    accent_size = max(2, round(size * 0.22))
+    accent_pad = max(1, round(size * 0.10))
+    f_x = max(1, round(size * 0.18))
     # Vertical baseline: pull "f" down so its top serif aligns with the
     # top of the cell. We render via anchor="ls" (left baseline) which
     # makes the math straightforward — we just need to land the baseline
     # near the bottom of the visible character.
-    f_baseline_y = int(round(size * 0.86))
+    f_baseline_y = round(size * 0.86)
 
     font = _load_serif(f_size)
     draw.text((f_x, f_baseline_y), "f", fill=INK, font=font, anchor="ls")
