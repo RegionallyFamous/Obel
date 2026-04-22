@@ -19,7 +19,7 @@ name: visual
 #     the pull_request trigger).
 #   * `pull_request` — only when theme files change. Keeps docs-only
 #     or tooling-only PRs from paying the 10-minute Playwright cost.
-#   * `workflow_dispatch` — manual run with two modes:
+#   * `workflow_dispatch` — manual run with three modes:
 #       - `check-changed` (default for PR/push): re-shoot only changed
 #         themes and gate against the baseline. Same as before.
 #       - `regenerate-gallery`: nuke `tmp/snaps/`, run a full
@@ -30,6 +30,14 @@ name: visual
 #         the laptop-overheating cost of shooting locally. The auto
 #         commit message contains `[skip ci]` so it does not trigger
 #         another visual.yml run.
+#       - `rebaseline`: same shoot as `regenerate-gallery`, but the
+#         resulting PNGs are promoted into `tests/visual-baseline/`
+#         via `bin/snap.py baseline`, and `<theme>/screenshot.png`
+#         is regenerated from the new home shot via
+#         `bin/build-theme-screenshots.py`. The auto-commit then
+#         carries the baseline diff for human PR review — this is
+#         the cloud-side equivalent of the manual "shoot locally,
+#         eyeball, copy to baseline, commit" rebaseline ritual.
 #
 # Warn-only rollout:
 #   For the first week after this workflow lands, the final `snap.py
@@ -71,6 +79,7 @@ on:
         options:
           - check-changed
           - regenerate-gallery
+          - rebaseline
         default: regenerate-gallery
       themes:
         description: 'Space-separated theme slugs (blank = all)'
@@ -143,32 +152,53 @@ jobs:
       - name: Determine job mode
         id: scope
         run: |
-          # Resolve the (mode, themes) tuple used by every step below.
+          # Resolve the (mode, themes, do_full_shoot) tuple used by
+          # every step below.
           #
           # `mode` is one of:
           #   * `regenerate-gallery` — workflow_dispatch only. Wipe
           #     `tmp/snaps/`, run a full shoot, rebuild the committed
           #     gallery, and push `docs/snaps/` back to the branch.
+          #   * `rebaseline`         — workflow_dispatch only. Same
+          #     full shoot as `regenerate-gallery`, but the resulting
+          #     PNGs are promoted into `tests/visual-baseline/` and
+          #     the per-theme `<theme>/screenshot.png` is
+          #     regenerated from the new home shot. Pushed back as a
+          #     reviewable diff (no `[skip ci]` — the baseline
+          #     change MUST go through the static + visual gates).
           #   * `check-manual`       — workflow_dispatch with explicit
-          #     theme list. Re-shoot just those themes and gate.
+          #     theme list and mode=check-changed. Re-shoot just those
+          #     themes and gate.
           #   * `check-changed`      — push / pull_request (default).
           #     Run `snap.py check --changed` against origin/main.
           #
           # `themes` is a space-separated list. Empty string means
-          # "all themes" (only valid in `regenerate-gallery` mode).
+          # "all themes" (only valid in regenerate-gallery / rebaseline).
+          #
+          # `do_full_shoot` is "true" for the two modes that need a
+          # nuke-and-reshoot of `tmp/snaps/`. Used to gate the shared
+          # wipe + shoot steps below.
           input_mode="${{ github.event.inputs.mode }}"
           input_themes="${{ github.event.inputs.themes }}"
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] \
               && [ "$input_mode" = "regenerate-gallery" ]; then
-            echo "mode=regenerate-gallery" >> "$GITHUB_OUTPUT"
-            echo "themes=$input_themes" >> "$GITHUB_OUTPUT"
+            echo "mode=regenerate-gallery"  >> "$GITHUB_OUTPUT"
+            echo "themes=$input_themes"     >> "$GITHUB_OUTPUT"
+            echo "do_full_shoot=true"       >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ] \
+              && [ "$input_mode" = "rebaseline" ]; then
+            echo "mode=rebaseline"          >> "$GITHUB_OUTPUT"
+            echo "themes=$input_themes"     >> "$GITHUB_OUTPUT"
+            echo "do_full_shoot=true"       >> "$GITHUB_OUTPUT"
           elif [ -n "$input_themes" ]; then
-            echo "mode=check-manual" >> "$GITHUB_OUTPUT"
-            echo "themes=$input_themes" >> "$GITHUB_OUTPUT"
+            echo "mode=check-manual"        >> "$GITHUB_OUTPUT"
+            echo "themes=$input_themes"     >> "$GITHUB_OUTPUT"
+            echo "do_full_shoot=false"      >> "$GITHUB_OUTPUT"
           else
-            echo "mode=check-changed" >> "$GITHUB_OUTPUT"
-            echo "themes=" >> "$GITHUB_OUTPUT"
+            echo "mode=check-changed"       >> "$GITHUB_OUTPUT"
+            echo "themes="                  >> "$GITHUB_OUTPUT"
+            echo "do_full_shoot=false"      >> "$GITHUB_OUTPUT"
           fi
 
       # ------------------------------------------------------------
@@ -178,7 +208,7 @@ jobs:
       # `continue-on-error` off once the baselines have stabilised.
       - name: Run snap check
         id: snap
-        if: steps.scope.outputs.mode != 'regenerate-gallery'
+        if: steps.scope.outputs.do_full_shoot != 'true'
         continue-on-error: true
         run: |
           if [ "${{ steps.scope.outputs.mode }}" = "check-manual" ]; then
@@ -193,30 +223,26 @@ jobs:
           fi
 
       # ------------------------------------------------------------
-      # regenerate-gallery path (workflow_dispatch only)
+      # Shared shoot (regenerate-gallery + rebaseline)
       # ------------------------------------------------------------
-      # Full retina shoot of every (or specified) theme, gallery rebuild,
-      # then commit `docs/snaps/` back to the triggering branch. We do
-      # NOT run `bin/snap.py check`/`diff` here because the goal is "give
-      # me a fresh batch of pixels for human review", not "gate against
-      # the baseline" — the gate is what `check-changed` does on the
-      # follow-up PR commits.
+      # Both heavy modes need an identical full retina shoot first —
+      # they only diverge in what they do with the resulting PNGs.
       - name: Wipe stale tmp/snaps before full shoot
-        if: steps.scope.outputs.mode == 'regenerate-gallery'
+        if: steps.scope.outputs.do_full_shoot == 'true'
         run: |
           rm -rf tmp/snaps
           mkdir -p tmp/snaps
 
       - name: Full retina shoot
         id: shoot
-        if: steps.scope.outputs.mode == 'regenerate-gallery'
+        if: steps.scope.outputs.do_full_shoot == 'true'
         run: |
           themes="${{ steps.scope.outputs.themes }}"
           if [ -n "$themes" ]; then
-            echo ">> regenerate-gallery: shooting themes=$themes"
+            echo ">> ${{ steps.scope.outputs.mode }}: shooting themes=$themes"
             args="$themes"
           else
-            echo ">> regenerate-gallery: shooting --all themes"
+            echo ">> ${{ steps.scope.outputs.mode }}: shooting --all themes"
             args="--all"
           fi
           # concurrency=2 is the safe ceiling on a 4-vCPU ubuntu-latest
@@ -225,6 +251,13 @@ jobs:
           # flakiness (we hit that locally at concurrency=3).
           python3 bin/snap.py shoot $args --concurrency 2
 
+      # ------------------------------------------------------------
+      # regenerate-gallery: rebuild docs/snaps/ + auto-commit
+      # ------------------------------------------------------------
+      # We do NOT run `bin/snap.py check`/`diff` here because the goal
+      # is "give me a fresh batch of pixels for human review", not
+      # "gate against the baseline" — the gate is what `check-changed`
+      # does on the follow-up PR commits.
       - name: Rebuild gallery
         if: steps.scope.outputs.mode == 'regenerate-gallery'
         run: python3 bin/build-snap-gallery.py
@@ -255,6 +288,77 @@ jobs:
           Auto-generated by .github/workflows/visual.yml run #${{ github.run_id }}
           Mode: regenerate-gallery
           Themes: ${{ steps.scope.outputs.themes || 'all' }}
+          "
+          git commit -m "$msg"
+          git push origin "HEAD:${{ github.ref_name }}"
+
+      # ------------------------------------------------------------
+      # rebaseline: promote new snaps to tests/visual-baseline + auto-commit
+      # ------------------------------------------------------------
+      # Replaces the manual "shoot locally → eyeball → cp tmp/snaps/...
+      # tests/visual-baseline/... → commit" rebaseline ritual. The
+      # commit deliberately does NOT carry `[skip ci]` because the
+      # baseline diff MUST run through the visual gate on the next
+      # push (the bot's commit will re-trigger visual.yml under
+      # `mode=check-changed`, which is the desired feedback).
+      - name: Promote snaps to baseline
+        if: steps.scope.outputs.mode == 'rebaseline'
+        run: |
+          themes="${{ steps.scope.outputs.themes }}"
+          if [ -n "$themes" ]; then
+            for t in $themes; do
+              python3 bin/snap.py baseline "$t"
+            done
+          else
+            python3 bin/snap.py baseline
+          fi
+
+      - name: Regenerate per-theme screenshot.png
+        if: steps.scope.outputs.mode == 'rebaseline'
+        # `<theme>/screenshot.png` is a Pillow-cropped derivative of the
+        # newly promoted `tests/visual-baseline/<theme>/desktop/home.png`,
+        # so it MUST be regenerated whenever the baseline changes or the
+        # admin Themes screen will drift back to the prior hero shot.
+        # Pillow is already installed by the "Install Python dependencies"
+        # step above, so this is a free ride.
+        run: |
+          themes="${{ steps.scope.outputs.themes }}"
+          if [ -n "$themes" ]; then
+            for t in $themes; do
+              python3 bin/build-theme-screenshots.py "$t"
+            done
+          else
+            python3 bin/build-theme-screenshots.py
+          fi
+
+      - name: Commit rebaselined snaps + screenshots
+        if: steps.scope.outputs.mode == 'rebaseline'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # tests/visual-baseline/ holds the promoted PNGs; */screenshot.png
+          # holds the per-theme admin-card crops. Both are derivatives of
+          # the same shoot so they ride in the same commit.
+          git add tests/visual-baseline */screenshot.png
+
+          if git diff --cached --quiet; then
+            echo "No baseline changes to commit; tree is identical."
+            exit 0
+          fi
+
+          # Intentionally NO `[skip ci]` — the new baseline must be
+          # gated by the next visual.yml run on this branch.
+          msg="snap: rebaseline via cloud workflow
+
+          Auto-generated by .github/workflows/visual.yml run #${{ github.run_id }}
+          Mode: rebaseline
+          Themes: ${{ steps.scope.outputs.themes || 'all' }}
+
+          The new baseline will be re-gated by the visual.yml
+          check-changed pass triggered by this commit. Review the diff
+          carefully before merging — every changed PNG is a deliberate
+          visual change you are signing off on.
           "
           git commit -m "$msg"
           git push origin "HEAD:${{ github.ref_name }}"
