@@ -2862,9 +2862,9 @@ def check_cart_checkout_pages_are_wide() -> Result:
         cart_src = cart_pattern_path.read_text(encoding="utf-8")
     else:
         r.fail(
-            f"patterns/cart-page.php missing — wo-configure.php § 11d "
-            f"reads this file via include + ob_start to seed the Cart "
-            f"page. Without it the demo Cart renders WC default chrome."
+            "patterns/cart-page.php missing — wo-configure.php § 11d "
+            "reads this file via include + ob_start to seed the Cart "
+            "page. Without it the demo Cart renders WC default chrome."
         )
 
     # Checkout side: still inlined in wo-configure.php. sync-playground.py

@@ -94,9 +94,7 @@ def test_paragraph_with_raw_wo_empty_class_fails(minimal_theme, bind_check_root)
     assert any("wo-empty__" in d for d in result.details)
 
 
-def test_paragraph_with_wo_empty_in_className_attr_passes(
-    minimal_theme, bind_check_root
-):
+def test_paragraph_with_wo_empty_in_className_attr_passes(minimal_theme, bind_check_root):
     """`className` declares the class -> preserved on round-trip -> pass."""
     check = bind_check_root(minimal_theme)
     _write(
