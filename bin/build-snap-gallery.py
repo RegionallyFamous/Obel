@@ -92,12 +92,17 @@ def _require_pillow():
         sys.exit(2)
     return Image
 
-# Re-encoding knobs. 600px wide is the smallest size where the desktop
-# checkout layout is still legible at thumbnail scale; q=80 hits the
-# bytes-per-cell sweet spot (~50-100KB per JPEG; full gallery commit
-# ~25MB across all 5 themes). Bump WIDTH_PX if you need finer detail
-# (every theme's pixel-perfect spacing audit will want 1024 instead).
-THUMB_WIDTH_PX = 600
+# Re-encoding knobs. 1280px is the natural retina width for the
+# gallery's ~640px CSS slot (2x physical density on the typical retina
+# monitor): downsampling a 2x-DPR source PNG (snap.py captures at
+# device_scale_factor=2 so a desktop shot lands on disk as 2560px-wide)
+# to 1280px hits the sharpness sweet spot without upscaling. q=80
+# keeps bytes-per-cell reasonable (~150-300KB per JPEG; full gallery
+# commit ~75MB across all 5 themes). Drop back to 600 if disk pressure
+# ever becomes a concern; the trade-off is a visibly soft thumbnail
+# when reviewing on retina hardware (which is, in practice, every
+# reviewer's hardware).
+THUMB_WIDTH_PX = 1280
 THUMB_MAX_HEIGHT_PX = 4000  # cap full-page screenshots so Pillow doesn't OOM
 JPEG_QUALITY = 80
 
