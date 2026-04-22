@@ -68,9 +68,36 @@ def test_group_without_border_color_passes(minimal_theme, bind_check_root):
 
 
 # ---------------------------------------------------------------------------
-# Invariant 2: core/paragraph must not carry legacy wo-empty__* classes.
+# Invariant 2: core/paragraph may only carry legacy `wo-empty__*` classes
+# when they are declared via the `className` block attribute. Raw classes
+# inlined into `<p class="...">` without a matching `className` get
+# scrubbed by core/paragraph save() on the next editor round-trip; the
+# `className` attribute is the canonical custom-class store and is
+# faithfully re-emitted, so the same class survives. The cart-page.php
+# pattern relies on this: the empty-cart-block's eyebrow / lede paragraphs
+# carry `"className":"wo-empty__eyebrow"` etc. so the per-theme empty-cart
+# CSS hooks are stable.
 # ---------------------------------------------------------------------------
-def test_paragraph_with_wo_empty_class_fails(minimal_theme, bind_check_root):
+def test_paragraph_with_raw_wo_empty_class_fails(minimal_theme, bind_check_root):
+    """Class on `<p>` but NOT in `className` -> dropped on round-trip -> fail."""
+    check = bind_check_root(minimal_theme)
+    _write(
+        minimal_theme / "templates" / "404.html",
+        """\
+        <!-- wp:paragraph {"align":"center"} -->
+        <p class="has-text-align-center wo-empty__eyebrow">Page missing</p>
+        <!-- /wp:paragraph -->
+        """,
+    )
+    result = check.check_block_markup_anti_patterns()
+    assert not result.passed
+    assert any("wo-empty__" in d for d in result.details)
+
+
+def test_paragraph_with_wo_empty_in_className_attr_passes(
+    minimal_theme, bind_check_root
+):
+    """`className` declares the class -> preserved on round-trip -> pass."""
     check = bind_check_root(minimal_theme)
     _write(
         minimal_theme / "templates" / "404.html",
@@ -80,9 +107,7 @@ def test_paragraph_with_wo_empty_class_fails(minimal_theme, bind_check_root):
         <!-- /wp:paragraph -->
         """,
     )
-    result = check.check_block_markup_anti_patterns()
-    assert not result.passed
-    assert any("wo-empty__" in d for d in result.details)
+    assert check.check_block_markup_anti_patterns().passed
 
 
 def test_paragraph_with_normal_class_passes(minimal_theme, bind_check_root):

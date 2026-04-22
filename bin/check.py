@@ -853,15 +853,42 @@ def check_block_markup_anti_patterns() -> Result:
                 f"is missing the `has-border-color` class. Add it to the class list."
             )
 
-        # Invariant 2: paragraph legacy wo-empty__ class
+        # Invariant 2: paragraph legacy wo-empty__ class.
+        # core/paragraph save() drops unknown classes from the rendered
+        # class list UNLESS they were declared in the `className` block
+        # attribute -- the editor uses that attribute as the canonical
+        # custom class store and re-emits it on every save. So a
+        # `wp:paragraph {"className":"wo-empty__eyebrow"}` keeps the
+        # class on round-trip (the cart-page.php pattern relies on this
+        # for empty-cart-block CSS hooks); only raw classes injected
+        # straight into the `<p>` tag without a matching className attr
+        # get silently scrubbed by the editor.
         for m in para_block_re.finditer(text):
-            tag = m.group(2)
-            if 'wo-empty__' in tag:
-                lineno = text.count("\n", 0, m.start(2)) + 1
-                r.fail(
-                    f"{rel}:{lineno}: core/paragraph carries a legacy `wo-empty__*` class. "
-                    f"Remove it -- core/paragraph doesn't preserve unknown classes through save()."
-                )
+            json_part, tag = m.group(1), m.group(2)
+            if 'wo-empty__' not in tag:
+                continue
+            classname_attr = re.search(r'"className"\s*:\s*"([^"]*)"', json_part)
+            preserved = set()
+            if classname_attr:
+                preserved = {c for c in classname_attr.group(1).split() if c}
+            tag_classes = re.search(r'\sclass="([^"]*)"', tag)
+            tag_class_set = set(tag_classes.group(1).split()) if tag_classes else set()
+            unsupported = {
+                c for c in tag_class_set
+                if c.startswith('wo-empty__') and c not in preserved
+            }
+            if not unsupported:
+                continue
+            lineno = text.count("\n", 0, m.start(2)) + 1
+            r.fail(
+                f"{rel}:{lineno}: core/paragraph carries legacy `wo-empty__*` "
+                f"class(es) {sorted(unsupported)} that are NOT mirrored in "
+                f"the block's `className` attribute. core/paragraph save() "
+                f"only preserves classes declared via `className`; raw "
+                f"classes inlined into `<p>` are dropped on the next editor "
+                f"round-trip. Add them to `\"className\":\"...\"` in the "
+                f"`wp:paragraph` JSON, or remove them."
+            )
 
         # Invariant 3: button shadow on outer wrapper
         for m in button_outer_shadow_re.finditer(text):
@@ -2795,16 +2822,23 @@ def check_cart_checkout_pages_are_wide() -> Result:
         to prevent. CSS alone could not fix it because the container
         itself is the wrong width.
 
-    Fix is in `playground/wo-configure.php`: both root blocks carry
-    `{"align":"wide"}` so they opt out of the prose contentSize and
-    use the theme's wideSize (1280px) instead. At 1280px the
-    1fr / minmax(300px,360px) grid breathes correctly: ~880px form,
-    ~360px sidebar.
+    Fix lives in two places now:
+      * Cart root block: `<theme>/patterns/cart-page.php`
+        (`Block Types: woocommerce/cart`). `wo-configure.php`
+        `include`s the pattern with output buffering so its
+        translated block tree becomes the Cart page `post_content`.
+      * Checkout root block: still inlined in `wo-configure.php`
+        (no per-theme microcopy on Checkout — the brand work lives
+        on the Cart page).
 
-    This rule asserts the marker is present in the `wo-configure.php`
-    that ships in `theme.json`-adjacent code paths -- specifically the
-    inlined copy in each theme's `playground/blueprint.json` (which is
-    what the live demos actually run).
+    Both root blocks carry `{"align":"wide"}` so they opt out of the
+    prose contentSize and use the theme's wideSize (1280px) instead.
+    At 1280px the 1fr / minmax(300px,360px) grid breathes correctly:
+    ~880px form, ~360px sidebar.
+
+    This rule asserts the markers are present in the per-theme cart
+    pattern (Cart) and in the inlined `wo-configure.php` of the
+    theme's `playground/blueprint.json` (Checkout).
     """
     r = Result("Cart/Checkout root blocks are align:wide")
     bp_path = ROOT / "playground" / "blueprint.json"
@@ -2817,9 +2851,25 @@ def check_cart_checkout_pages_are_wide() -> Result:
         r.fail(f"playground/blueprint.json: invalid JSON ({exc}).")
         return r
 
-    # Find the inlined wo-configure.php content. sync-playground.py emits
-    # it as a `writeFile` step at `wp-content/mu-plugins/wo-configure.php`.
-    target_data: str | None = None
+    # Cart side: read the per-theme pattern file directly. The pattern
+    # is the source of truth for the cart block tree (wo-configure.php
+    # `include`s it via output buffering; see § 11d). Reading the file
+    # rather than re-parsing the blueprint lets the gate fire even if
+    # the blueprint hasn't been re-synced after a pattern edit.
+    cart_pattern_path = ROOT / "patterns" / "cart-page.php"
+    cart_src = ""
+    if cart_pattern_path.is_file():
+        cart_src = cart_pattern_path.read_text(encoding="utf-8")
+    else:
+        r.fail(
+            f"patterns/cart-page.php missing — wo-configure.php § 11d "
+            f"reads this file via include + ob_start to seed the Cart "
+            f"page. Without it the demo Cart renders WC default chrome."
+        )
+
+    # Checkout side: still inlined in wo-configure.php. sync-playground.py
+    # emits it as a `writeFile` step at `wp-content/mu-plugins/wo-configure.php`.
+    cfg_data: str | None = None
     for step in bp.get("steps", []) or []:
         if not isinstance(step, dict):
             continue
@@ -2830,59 +2880,72 @@ def check_cart_checkout_pages_are_wide() -> Result:
             continue
         data = step.get("data")
         if isinstance(data, str):
-            target_data = data
+            cfg_data = data
             break
 
-    if target_data is None:
+    if cfg_data is None:
         # No inlined wo-configure.php means the blueprint either uses a
         # different content-seeding strategy or hasn't been synced. Either
-        # way this rule cannot validate the cart/checkout block markup.
-        r.skip("no inlined wo-configure.php in blueprint (run bin/sync-playground.py)")
+        # way this rule cannot validate the checkout block markup.
+        r.skip(
+            "no inlined wo-configure.php in blueprint (run "
+            "bin/sync-playground.py)"
+        )
         return r
 
     required = [
-        ('wp:woocommerce/cart {"align":"wide"}',
+        (cart_src,
+         'wp:woocommerce/cart {"align":"wide"}',
+         "patterns/cart-page.php",
          "Cart root block (`wp:woocommerce/cart`) is missing "
-         "`{\"align\":\"wide\"}`. Without it the cart inherits "
-         "`contentSize:prose` (~560px) from `templates/page.html` and "
-         "the sidebar collapses on desktop, producing per-letter text "
-         "wrapping in the totals column."),
-        ('wp:woocommerce/checkout {"align":"wide"}',
+         "`{\"align\":\"wide\"}` in patterns/cart-page.php. Without it "
+         "the cart inherits `contentSize:prose` (~560px) from "
+         "`templates/page.html` and the sidebar collapses on desktop, "
+         "producing per-letter text wrapping in the totals column."),
+        (cfg_data,
+         'wp:woocommerce/checkout {"align":"wide"}',
+         "playground/wo-configure.php (inlined into blueprint)",
          "Checkout root block (`wp:woocommerce/checkout`) is missing "
-         "`{\"align\":\"wide\"}`. Without it the checkout inherits "
-         "`contentSize:prose` (~560px) from `templates/page.html` and "
-         "the order-summary sidebar collapses on desktop, producing "
-         "per-letter wraps of product names like 'Artisanal Silence'."),
+         "`{\"align\":\"wide\"}` in inlined wo-configure.php. Without it "
+         "the checkout inherits `contentSize:prose` (~560px) from "
+         "`templates/page.html` and the order-summary sidebar collapses "
+         "on desktop, producing per-letter wraps of product names like "
+         "'Artisanal Silence'."),
     ]
-    for needle, message in required:
-        if needle not in target_data:
-            r.fail(message)
+    for src, needle, where, message in required:
+        if src and needle not in src:
+            r.fail(f"{where}: {message}")
 
     # Belt and suspenders: the rendered wrapper div must also carry
     # `alignwide` so the front-end CSS picks up the wide-width rules.
-    # WordPress derives the class from the block attribute, but our
-    # heredoc writes the wrapper div by hand; if the editor ever
-    # re-saves the page the class will be regenerated correctly, but
-    # the seeded source must already match so first paint is correct.
+    # WordPress derives the class from the block attribute, but the
+    # cart pattern + checkout heredoc write the wrapper div by hand;
+    # if the editor ever re-saves the page the class will be regenerated
+    # correctly, but the seeded source must already match so first
+    # paint is correct.
     div_required = [
-        ('wp-block-woocommerce-cart alignwide',
+        (cart_src,
+         'wp-block-woocommerce-cart alignwide',
+         "patterns/cart-page.php",
          "Cart wrapper div is missing the `alignwide` class. The wrapper "
          "must read `<div class=\"wp-block-woocommerce-cart alignwide is-loading\">` "
          "to match the `align:wide` block attribute on first render."),
-        ('wp-block-woocommerce-checkout alignwide',
+        (cfg_data,
+         'wp-block-woocommerce-checkout alignwide',
+         "playground/wo-configure.php (inlined into blueprint)",
          "Checkout wrapper div is missing the `alignwide` class. The wrapper "
          "must read `<div class=\"wp-block-woocommerce-checkout alignwide wc-block-checkout is-loading\">` "
          "to match the `align:wide` block attribute on first render."),
     ]
-    for needle, message in div_required:
-        if needle not in target_data:
-            r.fail(message)
+    for src, needle, where, message in div_required:
+        if src and needle not in src:
+            r.fail(f"{where}: {message}")
 
     if r.passed and not r.skipped:
         r.details.append(
-            "verified `align:wide` on cart + checkout root blocks AND "
-            "matching `alignwide` class on wrapper divs in inlined "
-            "wo-configure.php"
+            "verified `align:wide` on cart root block + wrapper div in "
+            "patterns/cart-page.php, and on checkout root block + "
+            "wrapper div in inlined wo-configure.php"
         )
     return r
 
@@ -3910,11 +3973,15 @@ def check_no_brand_filters_in_playground() -> Result:
     )
 
     # Marker classes that only ever appear inside theme-shipped paint
-    # callbacks. If they reappear in a `playground/*-mu.php` file (i.e.
-    # at runtime, not seeded into the DB by `wo-configure.php`) the
-    # mu-plugin is shadowing the theme — fail loudly. Comments are
-    # already stripped from the source by the scrubber below so the
-    # HISTORICAL NOTE blocks in the gutted mu-plugins are safe.
+    # callbacks or theme-shipped patterns. If they reappear in any
+    # `playground/*.php` file the brand surface is leaking out of the
+    # theme directory: at runtime via a mu-plugin, or at seed time via
+    # an inline HEREDOC inside `wo-configure.php` (the previous home of
+    # the branded empty-cart-block before it migrated to each theme's
+    # `patterns/cart-page.php`, which `wo-configure.php` now reads via
+    # `include` + output buffering). Comments are stripped from the
+    # source by the scrubber below so HISTORICAL NOTE blocks in the
+    # gutted mu-plugins are safe.
     forbidden_markers = (
         "wo-empty",
         "wo-account-",
@@ -3960,25 +4027,28 @@ def check_no_brand_filters_in_playground() -> Result:
                 f"if it really is demo-only)."
             )
 
-        # Marker scan: only mu-plugins (files whose name ends in
-        # `-mu.php`) are runtime; `wo-configure.php` and `wo-import.php`
-        # are one-shot install seeders that legitimately HEREDOC brand
-        # block markup into the DB and would false-positive here.
-        if php_path.name.endswith("-mu.php"):
-            for marker in forbidden_markers:
-                idx = scrubbed.find(marker)
-                if idx == -1:
-                    continue
-                line_no = scrubbed.count("\n", 0, idx) + 1
-                failures.append(
-                    f"  playground/{php_path.name}:{line_no}: contains "
-                    f"`{marker}` marker — that class is part of a "
-                    f"per-theme paint callback (see "
-                    f"`<theme>/functions.php` `// === BEGIN <slug> ===` "
-                    f"sentinels). A mu-plugin painting it from "
-                    f"`playground/` would shadow the theme in the demo "
-                    f"and vanish on a real install."
-                )
+        # Marker scan: every `playground/*.php` source. Mu-plugins paint
+        # at runtime; `wo-configure.php` paints via post_content seed —
+        # both leak shopper-facing brand outside the theme directory if
+        # they hardcode a `wo-*` marker. `wo-configure.php` previously
+        # HEREDOC'd the branded empty-cart-block; that markup now comes
+        # from `<theme>/patterns/cart-page.php` via `include` + output
+        # buffering, so the marker stays scoped to the theme directory
+        # and the gate can scan the seed script too.
+        for marker in forbidden_markers:
+            idx = scrubbed.find(marker)
+            if idx == -1:
+                continue
+            line_no = scrubbed.count("\n", 0, idx) + 1
+            failures.append(
+                f"  playground/{php_path.name}:{line_no}: contains "
+                f"`{marker}` marker — that class is part of a per-theme "
+                f"paint callback or pattern (see `<theme>/functions.php` "
+                f"`// === BEGIN <slug> ===` sentinels and "
+                f"`<theme>/patterns/cart-page.php`). Painting it from "
+                f"`playground/` would shadow the theme in the demo and "
+                f"vanish on a real install."
+            )
 
     if failures:
         r.fail(
@@ -3992,6 +4062,101 @@ def check_no_brand_filters_in_playground() -> Result:
         r.details.append(
             f"scanned {files_scanned} playground/*.php file(s); no "
             f"brand-affecting filter registrations"
+        )
+    return r
+
+
+def check_theme_ships_cart_page_pattern() -> Result:
+    """Forbid a theme from missing `patterns/cart-page.php`.
+
+    The Cart page's `post_content` is seeded by `playground/wo-configure.php`
+    § 11d via `include` + output buffering of the active theme's
+    `<theme>/patterns/cart-page.php`. Reading the pattern means the
+    branded `wp:woocommerce/empty-cart-block` (with `wo-empty` /
+    `wo-empty__title` / `wo-empty__lede` classes + per-theme microcopy
+    + per-theme CTA labels) lives inside the theme directory and ships
+    with it on a real install — a Proprietor who picks the Cart pattern
+    from the editor's Cart-block placeholder dropdown gets exactly the
+    same chrome as the Playground demo. Root rule: "Shopper-facing
+    brand lives in the theme, not in playground/".
+
+    The check enforces three guarantees per theme:
+
+      1. The file `<theme>/patterns/cart-page.php` exists. Without it,
+         the seed step in wo-configure.php silently leaves the Cart
+         page on its default WC empty-cart text and the demo regresses
+         to a generic "Your cart is currently empty!" line.
+
+      2. The pattern header carries `Block Types: woocommerce/cart`,
+         which is what surfaces the pattern in the editor's Cart-block
+         placeholder picker on a real install (a Proprietor inserts
+         the WC Cart block on a fresh page and the pattern dropdown
+         offers this pre-built version). Without the header the file
+         is invisible to the editor and a real install never gets the
+         branded chrome even if wo-configure has run.
+
+      3. The pattern body contains the branded `wo-empty` markers
+         (eyebrow + title + lede + CTA buttons). Without them the
+         pattern would seed an unstyled WC empty-cart-block and the
+         per-theme empty-cart paint never reaches the shopper.
+    """
+    r = Result("Each theme ships patterns/cart-page.php with woocommerce/cart Block Types")
+    pattern_path = ROOT / "patterns" / "cart-page.php"
+    if not pattern_path.is_file():
+        r.fail(
+            "patterns/cart-page.php missing — `wo-configure.php` § 11d "
+            "reads this file via `include` + `ob_start` to seed the "
+            "Cart page `post_content`. Without the file the demo Cart "
+            "regresses to WC's default empty-cart text and a real "
+            "install never gets the branded chrome via the Cart-block "
+            "placeholder picker."
+        )
+        return r
+
+    src = pattern_path.read_text(encoding="utf-8")
+
+    # 1. Block Types header.
+    if not re.search(r"^\s*\*\s*Block Types:\s*woocommerce/cart\s*$",
+                     src, re.MULTILINE):
+        r.fail(
+            "patterns/cart-page.php: header is missing "
+            "`Block Types: woocommerce/cart`. Without that line the "
+            "pattern is invisible to the editor's Cart-block placeholder "
+            "picker, so a Proprietor on a real install never sees this "
+            "pattern offered when they insert a WC Cart block."
+        )
+
+    # 2. Branded empty-cart markers.
+    required_markers = (
+        "wo-empty wo-empty--cart",
+        "wo-empty__eyebrow",
+        "wo-empty__title",
+        "wo-empty__lede",
+    )
+    missing = [m for m in required_markers if m not in src]
+    if missing:
+        r.fail(
+            "patterns/cart-page.php: missing branded empty-cart "
+            f"markers {missing}. The pattern's empty-cart-block must "
+            "carry the same `wo-empty` / `wo-empty__eyebrow` / "
+            "`wo-empty__title` / `wo-empty__lede` classes the theme's "
+            "`// === BEGIN empty-states ===` callback uses, so the "
+            "seeded Cart page picks up the per-theme empty-cart CSS."
+        )
+
+    # 3. Sanity: the cart root block must be present at all.
+    if "<!-- wp:woocommerce/cart" not in src:
+        r.fail(
+            "patterns/cart-page.php: contains no `wp:woocommerce/cart` "
+            "block — the file is in the right place but doesn't render "
+            "a Cart block, so wo-configure.php would seed garbage into "
+            "post_content."
+        )
+
+    if r.passed and not r.skipped:
+        r.details.append(
+            "cart-page.php present with `Block Types: woocommerce/cart` "
+            "and the four `wo-empty*` markers"
         )
     return r
 
@@ -4449,6 +4614,7 @@ def run_checks_for(theme_root: Path, offline: bool) -> int:
         check_all_rendered_text_distinct_across_themes(),
         check_no_default_wc_strings(),
         check_no_brand_filters_in_playground(),
+        check_theme_ships_cart_page_pattern(),
         check_wc_microcopy_distinct_across_themes(),
         check_playground_content_seeded(),
         check_theme_screenshots_distinct(),

@@ -9,7 +9,7 @@ Read this file at the start of any LLM session to discover the project's structu
 ## At a glance
 
 - 25 templates, 8 parts
-- 11 starter patterns
+- 12 starter patterns
 - 3 style variations
 - 156 block style entries in `theme.json` (85 core, 71 woocommerce)
 
@@ -35,6 +35,7 @@ Read this file at the start of any LLM session to discover the project's structu
 |   `-- product-meta.html
 |-- patterns/
 |   |-- brand-story.php
+|   |-- cart-page.php
 |   |-- category-tiles.php
 |   |-- cta-banner.php
 |   |-- faq-accordion.php
@@ -219,6 +220,14 @@ Read this file at the start of any LLM session to discover the project's structu
 - **Categories:** selvedge
 - **Keywords:** about, brand, story, two-column, media-text
 - **Description:** Two-column section pairing a brand photo with a short story. Replace the image and text.
+
+### `patterns/cart-page.php`
+
+- **Slug:** `selvedge/cart-page`
+- **Title:** Cart page
+- **Categories:** selvedge, woo-commerce
+- **Keywords:** cart, bag, woocommerce, empty-cart, checkout
+- **Description:** Controlled WC Cart block tree for the storefront Cart page. Removes the default "Customers also bought" cross-sells inner block (a hard generic-WC tell that does not match a workshop storefront), keeps the cart-totals + accepted-payment-methods sidebar, and replaces the default empty-cart-block content with a workshop eyebrow + display heading + 2 CTAs in Selvedge's voice. Targets `woocommerce/cart` so the Cart block placeholder picker offers it; also drives the seeded Cart page in `playground/wo-configure.php` so the demo and a real install (Proprietor inserts the pattern in the editor) render the same chrome.
 
 ### `patterns/category-tiles.php`
 

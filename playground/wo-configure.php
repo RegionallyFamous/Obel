@@ -852,80 +852,59 @@ if ( ! get_option( '_wo_product_images_seeded' ) ) {
 // Idempotency: stored under `_wo_cart_checkout_seeded_v{N}`. The version
 // suffix lets us force a re-seed when the block markup changes in a way
 // that existing demos must pick up (e.g. adding `align:wide` to escape
-// the 560px prose contentSize from page.html). Bump the integer in BOTH
-// the option name and update_option() call below to trigger a re-seed
-// on next boot. Running the blueprint a second time on the same version
-// skips this section, so re-boots do not nuke post-import editor edits.
-if ( ! get_option( '_wo_cart_checkout_seeded_v3' ) ) {
+// the 560px prose contentSize from page.html, or — at v4 — moving the
+// branded empty-cart inner block out of an inline HEREDOC and into each
+// theme's `<theme>/patterns/cart-page.php` so a real Proprietor inherits
+// the same chrome via the editor's Cart-block placeholder picker). Bump
+// the integer in BOTH the option name and update_option() call below to
+// trigger a re-seed on next boot. Running the blueprint a second time on
+// the same version skips this section, so re-boots do not nuke post-
+// import editor edits.
+if ( ! get_option( '_wo_cart_checkout_seeded_v4' ) ) {
 	$cart_id     = (int) get_option( 'woocommerce_cart_page_id' );
 	$checkout_id = (int) get_option( 'woocommerce_checkout_page_id' );
 
 	// Cart: filled state (no cross-sells), explicit empty state.
+	//
+	// Source of truth is the active theme's `patterns/cart-page.php`
+	// pattern (`Block Types: woocommerce/cart`), included with output
+	// buffering so its `esc_html_e()` translation calls execute and the
+	// pattern's `<!-- wp:woocommerce/cart -->` block tree comes out as
+	// a string we can stuff into `post_content`. Reading the pattern
+	// instead of inlining a HEREDOC means a real Proprietor who picks
+	// the Cart pattern from the editor's placeholder dropdown gets
+	// exactly the same Cart page chrome as the demo (root rule
+	// "Shopper-facing brand lives in the theme, not in playground/").
+	//
 	// The page.html template constrains `wp:post-content` to
 	// `contentSize:var(--wp--custom--layout--prose)` (~560px). Without
-	// `align:wide` on the root cart/checkout blocks, the entire two-column
-	// layout would render inside a 560px container at every viewport
-	// width. On desktop that collapses the right column to ~300px and
-	// per-letter wraps the totals/order-summary content. `align:wide`
-	// opts the block out of the prose constraint and uses the theme's
-	// wideSize (1280px) instead, which is the only width at which a
-	// 1fr / minmax(300px,360px) grid breathes properly.
+	// `align:wide` on the root cart/checkout blocks, the entire two-
+	// column layout would render inside a 560px container at every
+	// viewport width. On desktop that collapses the right column to
+	// ~300px and per-letter wraps the totals/order-summary content.
+	// `align:wide` opts the block out of the prose constraint and uses
+	// the theme's wideSize (1280px) instead, which is the only width
+	// at which a 1fr / minmax(300px,360px) grid breathes properly.
 	//
-	// `bin/check.py::check_cart_checkout_pages_are_wide` enforces this on
-	// every run by parsing the actual `post_content` of the WC pages.
-	$cart_blocks = <<<'CART'
-<!-- wp:woocommerce/cart {"align":"wide"} -->
-<div class="wp-block-woocommerce-cart alignwide is-loading"><!-- wp:woocommerce/filled-cart-block -->
-<div class="wp-block-woocommerce-filled-cart-block"><!-- wp:woocommerce/cart-items-block -->
-<div class="wp-block-woocommerce-cart-items-block"><!-- wp:woocommerce/cart-line-items-block -->
-<div class="wp-block-woocommerce-cart-line-items-block"></div>
-<!-- /wp:woocommerce/cart-line-items-block --></div>
-<!-- /wp:woocommerce/cart-items-block -->
-
-<!-- wp:woocommerce/cart-totals-block -->
-<div class="wp-block-woocommerce-cart-totals-block"><!-- wp:woocommerce/cart-order-summary-block -->
-<div class="wp-block-woocommerce-cart-order-summary-block"></div>
-<!-- /wp:woocommerce/cart-order-summary-block -->
-
-<!-- wp:woocommerce/cart-express-payment-block -->
-<div class="wp-block-woocommerce-cart-express-payment-block"></div>
-<!-- /wp:woocommerce/cart-express-payment-block -->
-
-<!-- wp:woocommerce/proceed-to-checkout-block -->
-<div class="wp-block-woocommerce-proceed-to-checkout-block"></div>
-<!-- /wp:woocommerce/proceed-to-checkout-block -->
-
-<!-- wp:woocommerce/cart-accepted-payment-methods-block -->
-<div class="wp-block-woocommerce-cart-accepted-payment-methods-block"></div>
-<!-- /wp:woocommerce/cart-accepted-payment-methods-block --></div>
-<!-- /wp:woocommerce/cart-totals-block --></div>
-<!-- /wp:woocommerce/filled-cart-block -->
-
-<!-- wp:woocommerce/empty-cart-block -->
-<div class="wp-block-woocommerce-empty-cart-block wo-empty wo-empty--cart"><!-- wp:paragraph {"align":"center","fontSize":"xs","textColor":"secondary","style":{"typography":{"textTransform":"uppercase","letterSpacing":"var:custom|letter-spacing|wider"},"spacing":{"margin":{"bottom":"0"}}}} -->
-<p class="has-text-align-center has-secondary-color has-text-color has-xs-font-size wo-empty__eyebrow" style="text-transform:uppercase;letter-spacing:var(--wp--custom--letter-spacing--wider);margin-bottom:0">Cart</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:heading {"textAlign":"center","level":1,"content":"Your cart is empty.","fontSize":"3xl","style":{"typography":{"letterSpacing":"var:custom|letter-spacing|tight"},"spacing":{"margin":{"top":"0","bottom":"0"}}}} -->
-<h1 class="wp-block-heading has-text-align-center has-3-xl-font-size wo-empty__title" style="margin-top:0;margin-bottom:0;letter-spacing:var(--wp--custom--letter-spacing--tight)">Your cart is empty.</h1>
-<!-- /wp:heading -->
-
-<!-- wp:paragraph {"align":"center","textColor":"secondary"} -->
-<p class="has-text-align-center has-secondary-color has-text-color wo-empty__lede">Browse the shop or pick up where you left off.</p>
-<!-- /wp:paragraph -->
-
-<!-- wp:buttons {"layout":{"type":"flex","justifyContent":"center"},"style":{"spacing":{"margin":{"top":"var:preset|spacing|md"}}}} -->
-<div class="wp-block-buttons" style="margin-top:var(--wp--preset--spacing--md)"><!-- wp:button -->
-<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="/shop/">Continue shopping</a></div>
-<!-- /wp:button -->
-
-<!-- wp:button {"className":"is-style-outline"} -->
-<div class="wp-block-button is-style-outline"><a class="wp-block-button__link wp-element-button" href="/journal/">Read the journal</a></div>
-<!-- /wp:button --></div>
-<!-- /wp:buttons --></div>
-<!-- /wp:woocommerce/empty-cart-block --></div>
-<!-- /wp:woocommerce/cart -->
-CART;
+	// `bin/check.py::check_cart_checkout_pages_are_wide` enforces this
+	// on every run by parsing the actual `post_content` of the WC
+	// pages, and `check_themes_have_cart_page_pattern` enforces that
+	// every theme ships the pattern so this section never fails over
+	// to the empty-string fallback.
+	$cart_blocks  = '';
+	$pattern_path = trailingslashit( get_stylesheet_directory() ) . 'patterns/cart-page.php';
+	if ( is_readable( $pattern_path ) ) {
+		ob_start();
+		include $pattern_path; // phpcs:ignore WordPressVIPMinimum.Files.IncludingFile
+		$cart_blocks = trim( (string) ob_get_clean() );
+	}
+	if ( '' === $cart_blocks ) {
+		WP_CLI::warning(
+			'Cart page seed: pattern not found at ' . $pattern_path
+			. ' — Cart page post_content left untouched. Each theme must ship '
+			. 'patterns/cart-page.php with `Block Types: woocommerce/cart`.'
+		);
+	}
 
 	// Checkout: standard fields tree (no order-note duplication, no
 	// promotional banners), single order-summary on the right column.
@@ -994,7 +973,7 @@ CART;
 CHECKOUT;
 
 	$cc_updated = 0;
-	if ( $cart_id > 0 ) {
+	if ( $cart_id > 0 && '' !== $cart_blocks ) {
 		// kses + slashing match what wp_insert_post() would do for editor input.
 		wp_update_post(
 			array(
@@ -1003,7 +982,7 @@ CHECKOUT;
 			)
 		);
 		++$cc_updated;
-	} else {
+	} elseif ( $cart_id <= 0 ) {
 		WP_CLI::warning( 'Cart page id missing — woocommerce_cart_page_id option is empty.' );
 	}
 	if ( $checkout_id > 0 ) {
@@ -1018,7 +997,7 @@ CHECKOUT;
 		WP_CLI::warning( 'Checkout page id missing — woocommerce_checkout_page_id option is empty.' );
 	}
 
-	update_option( '_wo_cart_checkout_seeded_v3', '1' );
+	update_option( '_wo_cart_checkout_seeded_v4', '1' );
 	WP_CLI::log( "Cart/Checkout: {$cc_updated} pages reseeded with controlled WC Blocks tree." );
 }
 
