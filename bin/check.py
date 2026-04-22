@@ -4525,21 +4525,23 @@ def check_no_brand_filters_in_playground() -> Result:
         "woocommerce_show_page_title",
         "woocommerce_order_button_text",
         "woocommerce_order_button_html",
-        # Page-level brand surfaces migrated out of wo-pages-mu.php and
-        # wo-swatches-mu.php into per-theme `<theme>/functions.php` blocks
-        # (see HISTORICAL NOTE in each gutted mu-plugin). Re-registering
-        # any of these from `playground/` would silently double-paint
-        # in the demo and disappear entirely on a real install.
+        # Page-level brand surfaces migrated out of the now-deleted
+        # `playground/wo-pages-mu.php` and `playground/wo-swatches-mu.php`
+        # into per-theme `<theme>/functions.php` blocks between
+        # `// === BEGIN <slug> ===` sentinels. Re-registering any of these
+        # from `playground/` would silently double-paint in the demo and
+        # disappear entirely on a real install.
         "woocommerce_before_customer_login_form",
         "woocommerce_after_customer_login_form",
         "woocommerce_cart_is_empty",
         "woocommerce_no_products_found",
         "woocommerce_before_main_content",
         "woocommerce_dropdown_variation_attribute_options_html",
-        # `body_class` once carried the `theme-<slug>` filter from
-        # `wo-pages-mu.php`. Each theme now hardcodes its own slug in the
-        # `// === BEGIN body-class ===` block; playground has no business
-        # touching frontend body classes.
+        # `body_class` once carried the `theme-<slug>` filter from the
+        # now-deleted `playground/wo-pages-mu.php`. Each theme now
+        # hardcodes its own slug in the `// === BEGIN body-class ===`
+        # block; playground has no business touching frontend body
+        # classes.
         "body_class",
     }
     forbidden_prefix = (

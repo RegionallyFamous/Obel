@@ -447,8 +447,11 @@ CSS_PHASE_B = f"""{SENTINEL_OPEN_PHASE_B}
 #   6. Quantity selector    — drops the spinner-default look in favor of
 #                             a typography-driven [-  3  +] tri-cell.
 #   7. Payment-icons strip  — styles the .wo-payment-icons container that
-#                             wo-payment-icons-mu.php injects below the
-#                             Place Order button on cart + checkout.
+#                             each theme's `// === BEGIN payment-icons ===`
+#                             block in `<theme>/functions.php` injects via
+#                             `wp_footer` below the Place Order button on
+#                             cart + checkout (migrated from the deleted
+#                             `playground/wo-payment-icons-mu.php`).
 SENTINEL_OPEN_PHASE_C = "/* wc-tells-phase-c-premium */"
 SENTINEL_CLOSE_PHASE_C = "/* /wc-tells-phase-c-premium */"
 CSS_PHASE_C = f"""{SENTINEL_OPEN_PHASE_C}
@@ -495,10 +498,13 @@ table.variations td.label{{font-family:var(--wp--preset--font-family--sans);font
 # Phase D: Branded WC pages — account, empty states, archive header,
 # order-confirmation polish.
 # ---------------------------------------------------------------------------
-# Pairs with the page-level injections in wo-pages-mu.php and the new
+# Pairs with the page-level injections in each theme's
+# `// === BEGIN my-account / empty-states / archive-hero ===` blocks
+# (migrated from the deleted `playground/wo-pages-mu.php`) and the
 # templates in <theme>/templates/{order-confirmation,404}.html. Each
-# block here is keyed to a CSS class produced by the mu-plugin or the
-# template, never relies on WC core selectors that might change shape.
+# block here is keyed to a CSS class produced by the per-theme callback
+# or the template, never relies on WC core selectors that might change
+# shape.
 #
 #   1. wo-account-intro / wo-account-help — branded login intro panel
 #      and trailing help text injected around the WC login form.
@@ -571,7 +577,9 @@ CSS_PHASE_D_FOOTER = f"""{SENTINEL_OPEN_PHASE_D_FOOTER}
 # ---------------------------------------------------------------------------
 # Phase E: per-theme distinctive polish.
 # ---------------------------------------------------------------------------
-# Scoped via the `body.theme-<slug>` class injected by wo-pages-mu.php.
+# Scoped via the `body.theme-<slug>` class injected by each theme's
+# `// === BEGIN body-class ===` block in `<theme>/functions.php`
+# (migrated from the deleted `playground/wo-pages-mu.php`).
 # These are the rules that should make the four demos read as four
 # different storefronts even when looking only at the cart, PDP, or
 # archive — the parts where a generic WC build looks identical across

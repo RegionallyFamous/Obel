@@ -523,8 +523,10 @@ INSPECT_SELECTORS: dict[str, list[str]] = {
     "category": [
         ".wp-block-woocommerce-product-template",
         ".wp-block-term-description",
-        # Phase D: editorial archive header strip injected by
-        # wo-pages-mu.php on category / tag / shop archives.
+        # Phase D: editorial archive header strip injected by each
+        # theme's `// === BEGIN archive-hero ===` block in
+        # `<theme>/functions.php` on category / tag / shop archives
+        # (migrated from the deleted `playground/wo-pages-mu.php`).
         ".wo-archive-hero",
         ".wo-archive-hero__title",
     ],

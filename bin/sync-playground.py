@@ -75,33 +75,20 @@ MAPPINGS: dict[str, Path] = {
         MONOREPO_ROOT / "playground" / "wo-configure.php",
     "/wordpress/wp-content/mu-plugins/wo-cart-mu.php":
         MONOREPO_ROOT / "playground" / "wo-cart-mu.php",
-    # NOTE: wo-microcopy-mu.php was deleted in the theme-shipped microcopy
-    # refactor. Every shopper-facing WC override (gettext map, result count,
-    # sort labels, WC Blocks button text, required-field marker) now ships
-    # in each theme's <theme>/functions.php between the
-    # `// === BEGIN wc microcopy ===` sentinels so the overrides travel
-    # with the theme on a real install. The boundary is enforced by
+    # NOTE: wo-microcopy-mu.php, wo-swatches-mu.php, wo-payment-icons-mu.php,
+    # and wo-pages-mu.php were all deleted as part of the theme-shipped
+    # brand refactor. Every shopper-facing WC override they once registered
+    # now ships in each theme's <theme>/functions.php between the
+    # `// === BEGIN <slug> ===` sentinels (`wc microcopy`, `swatches`,
+    # `payment-icons`, `my-account`, `empty-states`, `archive-hero`,
+    # `body-class`) so the overrides travel with the theme on a real
+    # install. The boundary is enforced by
     # check_no_brand_filters_in_playground in bin/check.py — do not add a
-    # brand-affecting filter back into playground/.
-    # Variation-swatches mu-plugin. Replaces WC's default variation
-    # `<select>` with a button-group of color/size swatches by filtering
-    # `woocommerce_dropdown_variation_attribute_options_html`. The
-    # underlying select is kept hidden in the DOM so WC's variation_form
-    # JS continues to drive price/stock/image swap. See
-    # playground/wo-swatches-mu.php for filter wiring + footer JS shim.
-    "/wordpress/wp-content/mu-plugins/wo-swatches-mu.php":
-        MONOREPO_ROOT / "playground" / "wo-swatches-mu.php",
-    # Accepted-payments strip. Injects a "We accept: Visa MC Amex Apple
-    # Pay G Pay" wordmark row after the Place Order button on the cart
-    # and checkout. Cart/checkout-only via wp_footer + DOM idempotency
-    # check; observes the body so it re-injects if WC Blocks re-renders.
-    "/wordpress/wp-content/mu-plugins/wo-payment-icons-mu.php":
-        MONOREPO_ROOT / "playground" / "wo-payment-icons-mu.php",
-    # Branded WC pages: account-login intro, empty cart, no-products,
-    # editorial archive header. All four are filter/action injections
-    # (no template forks), styled by Phase D CSS in append-wc-overrides.
-    "/wordpress/wp-content/mu-plugins/wo-pages-mu.php":
-        MONOREPO_ROOT / "playground" / "wo-pages-mu.php",
+    # brand-affecting filter back into playground/, and do not re-add a
+    # writeFile step for any of those mu-plugins to a blueprint (the
+    # blueprints were stripped of those steps when the source files were
+    # deleted; running this sync against a re-introduced step would warn
+    # `source not found` and skip).
 }
 
 # Targets that should receive the WO_* constants block at the top.

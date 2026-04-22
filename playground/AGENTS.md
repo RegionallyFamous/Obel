@@ -15,9 +15,6 @@ playground/                          # SHARED — no content lives here
   wo-import.php                      # generic WC catalogue importer (reads URLs from constants)
   wo-configure.php                   # generic WP/WC configurator (reads URLs from constants)
   wo-cart-mu.php                     # mu-plugin: pre-fills cart on ?demo=cart
-  wo-pages-mu.php                    # RETIRED stub (was: branded my-account + archive header)
-  wo-payment-icons-mu.php            # RETIRED stub (was: payment-method icons in checkout)
-  wo-swatches-mu.php                 # RETIRED stub (was: variation <select> -> swatches)
 
 <theme>/playground/                  # PER-THEME — content + assets + blueprint
   blueprint.json                     # auto-synced by bin/sync-playground.py
@@ -37,9 +34,15 @@ playground/                          # SHARED — no content lives here
 | `wo-import.php` | `wp eval-file` | yes (constants) | Imports the per-theme `products.csv` into WooCommerce, sideloads images from `WO_CONTENT_BASE_URL`. |
 | `wo-configure.php` | `wp eval-file` | yes (constants) | Sets WP/WC options (permalinks, store address, shipping, payment methods, `show_on_front`, blogname / tagline), seeds 5 sample orders, 12 reviews, the customer account. § 11d seeds the Cart page `post_content` by `include`-ing the active theme's `<theme>/patterns/cart-page.php` (`Block Types: woocommerce/cart`) with output buffering, so the branded empty-cart-block ships from the theme directory rather than from this playground script. |
 | `wo-cart-mu.php` | mu-plugin | no | Pre-fills the cart with two products when the URL contains `?demo=cart`. Drives the cart / checkout demo screenshots. |
-| `wo-pages-mu.php` | mu-plugin | no | **RETIRED.** The five hooks this once registered (My Account login chrome, empty cart, no-products, archive hero, body class) all painted shopper-facing brand from `playground/`, which violates the boundary. Each is now in per-theme blocks in `<theme>/functions.php` between `// === BEGIN <slug> ===` sentinels. The file remains as a stub HISTORICAL NOTE so blueprint inlining doesn't break and so future regressions can find the rationale. |
-| `wo-payment-icons-mu.php` | mu-plugin | no | **RETIRED.** Same migration: the cart/checkout payment-icons strip now ships in each theme's `// === BEGIN payment-icons ===` block. Stub kept for blueprint inlining. |
-| `wo-swatches-mu.php` | mu-plugin | no | **RETIRED.** Same migration: variation swatches (filter on `woocommerce_dropdown_variation_attribute_options_html` + footer JS shim) now ship in each theme's `// === BEGIN swatches ===` block, with a per-theme color map. Stub kept for blueprint inlining. |
+
+**Deleted in the brand-in-theme migration** (do not re-add — `check_no_brand_filters_in_playground` will fail):
+
+| Removed file | Replaced by | Migration sentinel |
+| --- | --- | --- |
+| `wo-microcopy-mu.php` | per-theme `gettext` / sort-label / pagination / WC Blocks button-text filters | `// === BEGIN wc microcopy ===` in each `<theme>/functions.php` |
+| `wo-pages-mu.php` | per-theme login-intro panel, empty cart, no-products, archive hero, body-class slug | `// === BEGIN my-account / empty-states / archive-hero / body-class ===` in each `<theme>/functions.php` |
+| `wo-payment-icons-mu.php` | per-theme cart + checkout `wp_footer` injection of the SVG payment-method strip | `// === BEGIN payment-icons ===` in each `<theme>/functions.php` |
+| `wo-swatches-mu.php` | per-theme variation swatches (filter + footer JS shim, per-theme color map) | `// === BEGIN swatches ===` in each `<theme>/functions.php` |
 
 The mu-plugins (`*-mu.php`) ship as `writeFile` steps in every blueprint that drop them into `wp-content/mu-plugins/` — no theme activation needed. The two `wp eval-file` scripts (`wo-import.php`, `wo-configure.php`) are inlined by `bin/sync-playground.py` with the per-theme constants block prepended.
 
@@ -120,14 +123,16 @@ array and:
    with the current source from `playground/wo-*.php`. Only the two
    `wp eval-file` scripts (`wo-import.php`, `wo-configure.php`) get the
    per-theme constants block prepended (the set lives in
-   `bin/sync-playground.py::TARGETS_NEEDING_CONSTANTS`); every mu-plugin
-   (`wo-cart-mu.php`, `wo-pages-mu.php`, `wo-payment-icons-mu.php`,
-   `wo-swatches-mu.php`) is inlined verbatim because it doesn't need
-   theme-specific values. (Note: WC microcopy used to live here as
-   `wo-microcopy-mu.php`; it now ships in each theme's `functions.php`
-   between the `// === BEGIN wc microcopy ===` sentinels — see root
-   `AGENTS.md` rules #10 and #16. Don't reintroduce a shared microcopy
-   mu-plugin here; `check_no_brand_filters_in_playground` will fail.)
+   `bin/sync-playground.py::TARGETS_NEEDING_CONSTANTS`); the remaining
+   mu-plugin (`wo-cart-mu.php`) is inlined verbatim because it doesn't
+   need theme-specific values. (Historical note: WC microcopy, swatches,
+   payment-icons and the branded WC pages all used to live here as
+   shared mu-plugins. They were migrated into per-theme blocks in each
+   `<theme>/functions.php` between `// === BEGIN <slug> ===` sentinels
+   so the overrides travel with the theme on a real install — see root
+   `AGENTS.md` rules #10, #11, #16. Don't reintroduce any shared brand
+   mu-plugin here; `check_no_brand_filters_in_playground` will fail on
+   both the hook denylist and the marker-class scanner.)
 2. **`importWxr` step** — rewrites `file.url` to point at
    `<WO_CONTENT_BASE_URL>content/content.xml`.
 
