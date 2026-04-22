@@ -40,7 +40,7 @@ Hit reload in the WordPress site editor and the entire storefront re-skins live.
 
 When you've got something you like, ship it the same way you ship any other WordPress theme: drop the `mybrand/` directory into `wp-content/themes/` on a real site and activate it. Fifty themes are completely standard WordPress + WooCommerce — every block, every template, every WC hook is the official one. You're not locked into a framework or a page builder. You're not paying anyone a license fee. The entire project is GPL-2.0+, fork it and sell it.
 
-The full nine-step walkthrough lives in [Adding a Theme](https://github.com/RegionallyFamous/fifty/wiki/Adding-a-Theme).
+The full walkthrough — clone, brand, seed, snap, screenshot, ship — lives in [Adding a Theme](https://github.com/RegionallyFamous/fifty/wiki/Adding-a-Theme).
 
 ## What you get when you clone Obel
 
