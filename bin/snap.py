@@ -104,6 +104,7 @@ from pathlib import Path
 # file from the repo root (the most common invocation).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from snap_config import (
+    A11Y_SUPPRESSIONS,
     BUDGETS,
     INSPECT_SELECTORS,
     INTERACTIONS,
@@ -113,6 +114,7 @@ from snap_config import (
     ROUTES,
     THEME_ORDER,
     VIEWPORTS,
+    A11ySuppression,
     Interaction,
     Route,
     Viewport,
@@ -980,20 +982,81 @@ def _run_axe(page, axe_source: str) -> dict:
     return result if isinstance(result, dict) else {"violations": []}
 
 
-def _axe_to_findings(axe_result: dict) -> list[dict]:
-    """Translate an axe report's violations into our finding format."""
+def _node_is_suppressed(
+    rule: str,
+    route_slug: str,
+    node: dict,
+) -> A11ySuppression | None:
+    """Return the matching suppression for `node`, or None.
+
+    Match strategy: substring scan over the node's joined target CSS
+    path AND its outerHTML snippet. axe's `target` is the canonical
+    element address (used in review.md), `html` carries the offending
+    element's classes/attributes. Substring across both lets a
+    suppression key on either selector or attribute (e.g. an `id="email"`
+    fragment) without the entry needing to know which axis axe used.
+
+    Suppressions with `routes=()` apply to every route; otherwise the
+    route slug must appear verbatim in `routes`. We do not partial-match
+    route slugs because flow names like `cart-filled.line-remove` need
+    to be opt-in distinct from the static `cart-filled` cell.
+    """
+    target_str = " > ".join(str(t) for t in (node.get("target") or []))
+    html_str = node.get("html") or ""
+    haystack = target_str + "\n" + html_str
+    for s in A11Y_SUPPRESSIONS:
+        if s.rule != rule:
+            continue
+        if s.routes and route_slug not in s.routes:
+            continue
+        if s.selector_contains in haystack:
+            return s
+    return None
+
+
+def _axe_to_findings(axe_result: dict, route_slug: str) -> list[dict]:
+    """Translate an axe report's violations into our finding format.
+
+    `A11Y_SUPPRESSIONS` is consulted per node: matching nodes are
+    dropped from the violation's node list. If every node for a
+    violation is suppressed the violation is omitted entirely; if some
+    nodes survive, the surviving count is reported and the suppression
+    is recorded under `axe_suppressed` so review.md can surface that
+    we knowingly accept N upstream-WC instances.
+    """
     out: list[dict] = []
     for v in axe_result.get("violations", []) or []:
         impact = (v.get("impact") or "minor").lower()
         sev = _AXE_IMPACT_TO_SEVERITY.get(impact, "info")
         rule = v.get("id", "unknown")
         nodes = v.get("nodes", []) or []
+
+        # Partition nodes into kept vs suppressed. Suppressed nodes are
+        # tallied per-suppression-rule so the JSON artifact carries an
+        # auditable breakdown ("we ignored 1 mini-cart drawer + 1 skeleton
+        # because of the matching A11Y_SUPPRESSIONS entries").
+        kept_nodes: list[dict] = []
+        suppressed: dict[str, int] = {}
+        for n in nodes:
+            hit = _node_is_suppressed(rule, route_slug, n)
+            if hit is None:
+                kept_nodes.append(n)
+            else:
+                key = hit.selector_contains
+                suppressed[key] = suppressed.get(key, 0) + 1
+
+        if not kept_nodes:
+            # All instances of this violation are upstream noise. Drop
+            # the finding entirely; the raw count still lives in the
+            # untouched .a11y.json artifact next to the screenshot.
+            continue
+
         # axe can flag dozens of nodes for the same rule (e.g.
         # color-contrast on a list of links). Collapse to a single
-        # finding per rule with the count + first 3 selectors so the
-        # review stays scannable.
+        # finding per rule with the surviving count + first 3 selectors
+        # so the review stays scannable.
         first_selectors = []
-        for n in nodes[:3]:
+        for n in kept_nodes[:3]:
             target = n.get("target", [])
             if target:
                 first_selectors.append(" > ".join(map(str, target[0:1])))
@@ -1001,13 +1064,14 @@ def _axe_to_findings(axe_result: dict) -> list[dict]:
             "severity": sev,
             "kind": f"a11y-{rule}",
             "message": (
-                f"{v.get('help', rule)} ({len(nodes)} node(s))"
+                f"{v.get('help', rule)} ({len(kept_nodes)} node(s))"
                 + (f" — first: {first_selectors[0]}" if first_selectors else "")
             ),
             "axe_help_url": v.get("helpUrl", ""),
             "axe_impact": impact,
-            "axe_node_count": len(nodes),
+            "axe_node_count": len(kept_nodes),
             "axe_first_selectors": first_selectors,
+            "axe_suppressed": suppressed,  # {} when nothing was suppressed
         })
     return out
 
@@ -1153,7 +1217,7 @@ def _capture_cell(
     axe_findings: list[dict] = []
     if axe_source is not None:
         axe_result = _run_axe(page, axe_source)
-        axe_findings = _axe_to_findings(axe_result)
+        axe_findings = _axe_to_findings(axe_result, route_slug=slug)
         try:
             a11y_path.write_text(
                 json.dumps(axe_result, indent=2), encoding="utf-8"

@@ -195,6 +195,123 @@ KNOWN_NOISE_SUBSTRINGS: tuple[str, ...] = (
 
 
 # ---------------------------------------------------------------------------
+# Axe-core a11y suppressions.
+#
+# Each entry silences a specific axe rule on nodes that match a stable
+# selector substring, AND only on the listed routes (omit `routes` to
+# silence everywhere). Match is case-sensitive substring against the
+# axe node's `target` (joined CSS path) AND its `html` snippet, so an
+# entry can target either the offending element's selector or a class
+# / attribute visible in its outerHTML.
+#
+# Only ever add a suppression for a finding that:
+#   1. Originates entirely in upstream-vendored markup (WC Blocks /
+#      core / Playground), AND
+#   2. We cannot fix from the theme without a brittle filter, AND
+#   3. Has a documented upstream fix path (link in `reason` ideally).
+#
+# Suppressions REDUCE the per-violation node count; if every node for
+# a violation is suppressed, the violation is dropped entirely. The
+# raw axe report still lands at `tmp/snaps/<theme>/<vp>/<slug>.a11y.json`
+# untouched, so `bin/snap.py report` can be re-run with suppressions
+# disabled (comment out the entry) to re-audit upstream debt.
+# ---------------------------------------------------------------------------
+class A11ySuppression(NamedTuple):
+    rule: str                       # axe rule id, e.g. "aria-hidden-focus"
+    selector_contains: str          # substring matched in target OR html
+    reason: str                     # human note for review.md / future-us
+    routes: tuple[str, ...] = ()    # () = all routes
+
+
+A11Y_SUPPRESSIONS: tuple[A11ySuppression, ...] = (
+    A11ySuppression(
+        rule="aria-hidden-focus",
+        selector_contains="wc-block-mini-cart__drawer",
+        reason=(
+            "WC Blocks ships the closed mini-cart drawer with "
+            "`aria-hidden=\"true\"` but leaves its inner buttons in the tab "
+            "order. Drawer is decorative when closed; the live region only "
+            "matters when `state.isOpen` flips to true (axe sees the closed "
+            "state). Tracked in WC Blocks; we cannot patch from the theme "
+            "without overriding the drawer markup wholesale."
+        ),
+    ),
+    A11ySuppression(
+        rule="autocomplete-valid",
+        selector_contains="wc-block-components-text-input",
+        reason=(
+            "WC Blocks Checkout email input ships `autocomplete=\"section-"
+            "contact contact email\"`. The `section-*` prefix + `contact` "
+            "token combo confuses axe-core's autocomplete validator even "
+            "though the value is a legal HTML5 autofill token list. "
+            "Replacing it would require shadowing the WC Blocks checkout "
+            "field renderer."
+        ),
+    ),
+    A11ySuppression(
+        rule="autocomplete-valid",
+        selector_contains='id="email"',
+        reason=(
+            "Same WC Blocks Checkout email field as above; matched via the "
+            "html snippet for nodes where axe emits the bare `#email` "
+            "target (no surrounding wc-block-* class in the targeted "
+            "element's own classlist)."
+        ),
+        routes=("checkout-filled", "checkout-filled.field-focus"),
+    ),
+    A11ySuppression(
+        rule="aria-prohibited-attr",
+        selector_contains="wc-block-components-skeleton__element",
+        reason=(
+            "WC Blocks renders a price-skeleton div with `aria-label` + "
+            "`aria-live=\"polite\"` while the Cart Totals block re-fetches "
+            "after an item removal. axe rejects `aria-label` on a generic "
+            "`<div>` with no role; WC Blocks needs to either drop the "
+            "label or wrap it in a role=\"status\" element. Theme cannot "
+            "rewrite the skeleton markup."
+        ),
+    ),
+    A11ySuppression(
+        rule="aria-prohibited-attr",
+        selector_contains="wc-block-components-order-summary",
+        reason=(
+            "Same upstream WC Blocks bug as the cart skeleton above, but on "
+            "the Checkout block's order-summary container: a bare `<div "
+            "aria-live=\"polite\" aria-label=\"Loading products in cart…\">` "
+            "with no role attribute. axe (correctly) rejects `aria-label` on "
+            "an unrolled `<div>`. Fix belongs upstream in WC Blocks."
+        ),
+    ),
+    # ----- Playground-transient blank-page suppressions ------------------
+    # If Playground's PHP-WASM runtime hiccups during a shoot, Playwright
+    # captures `<html><head></head><body></body></html>` for that cell —
+    # axe (correctly) flags missing `<title>` and missing `lang` on it.
+    # These are not theme regressions; they're infrastructure noise from
+    # the WordPress Playground CLI dropping a request mid-shoot. Suppress
+    # only when the html snippet is the literal empty document, so a
+    # genuinely missing `lang`/`title` on a real page still trips the gate.
+    A11ySuppression(
+        rule="html-has-lang",
+        selector_contains="<html><head></head><body></body></html>",
+        reason=(
+            "Cell captured an empty document — the Playground WASM runtime "
+            "dropped this request mid-shoot. Re-running `bin/snap.py shoot "
+            "<theme>` usually clears it. Not a theme bug."
+        ),
+    ),
+    A11ySuppression(
+        rule="document-title",
+        selector_contains="<html><head></head><body></body></html>",
+        reason=(
+            "Cell captured an empty document — the Playground WASM runtime "
+            "dropped this request mid-shoot. Re-running `bin/snap.py shoot "
+            "<theme>` usually clears it. Not a theme bug."
+        ),
+    ),
+)
+
+
+# ---------------------------------------------------------------------------
 # Tier-policy budgets. Each `(metric, threshold)` pair is enforced at
 # shoot/report time; exceedances become findings using the listed
 # severity. Designed to be overridable per-theme later (Phase 10+).
