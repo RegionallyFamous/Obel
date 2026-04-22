@@ -817,9 +817,11 @@ CSS_PHASE_H = f"""{SENTINEL_OPEN_PHASE_H}
 SENTINEL_OPEN_PHASE_I = "/* wc-tells-phase-i-form-input-chrome */"
 SENTINEL_CLOSE_PHASE_I = "/* /wc-tells-phase-i-form-input-chrome */"
 CSS_PHASE_I = f"""{SENTINEL_OPEN_PHASE_I}
-body .wc-block-components-text-input,body .wc-block-components-text-input input,body .wc-block-components-select,body .wc-block-components-select select,body .wc-block-components-textarea,body .wc-block-components-textarea textarea{{background:var(--wp--preset--color--surface);color:var(--wp--preset--color--contrast);}}
-body .wc-block-components-text-input label,body .wc-block-components-select label,body .wc-blocks-components-select__label,body .wc-block-components-textarea label{{color:var(--wp--preset--color--secondary);}}
-body .wc-block-components-text-input input::placeholder,body .wc-block-components-textarea textarea::placeholder{{color:var(--wp--preset--color--secondary);opacity:1;}}
+body .wc-block-components-text-input.wc-block-components-text-input input[type],body .wc-block-components-select.wc-block-components-select select,body .wc-blocks-components-select.wc-blocks-components-select select,body .wc-block-components-textarea.wc-block-components-textarea textarea{{background:var(--wp--preset--color--surface);color:var(--wp--preset--color--contrast);border:1px solid var(--wp--preset--color--border);}}
+body .wc-block-components-text-input.wc-block-components-text-input label,body .wc-block-components-select.wc-block-components-select label,body .wc-blocks-components-select.wc-blocks-components-select label,body .wc-blocks-components-select.wc-blocks-components-select .wc-blocks-components-select__label,body .wc-block-components-textarea.wc-block-components-textarea label{{color:var(--wp--preset--color--contrast);background:var(--wp--preset--color--surface);}}
+body .wc-block-components-text-input.wc-block-components-text-input input[type]::placeholder,body .wc-block-components-textarea.wc-block-components-textarea textarea::placeholder{{color:var(--wp--preset--color--contrast);opacity:0.7;}}
+body .wc-block-components-text-input.wc-block-components-text-input input[type]:focus,body .wc-block-components-select.wc-block-components-select select:focus,body .wc-blocks-components-select.wc-blocks-components-select select:focus,body .wc-block-components-textarea.wc-block-components-textarea textarea:focus{{outline:none;border-color:var(--wp--preset--color--contrast);box-shadow:0 0 0 3px var(--wp--preset--color--accent-soft,var(--wp--preset--color--border));}}
+body .wc-block-components-checkbox .wc-block-components-checkbox__input{{background:var(--wp--preset--color--surface);border:1px solid var(--wp--preset--color--border);}}
 {SENTINEL_CLOSE_PHASE_I}"""
 
 
@@ -1019,6 +1021,72 @@ body .wc-block-components-snackbar-notice .wc-block-components-button:hover,body
 {SENTINEL_CLOSE_PHASE_L}"""
 
 
+# ---------------------------------------------------------------------------
+# PHASE M -- a11y contrast tweaks for upstream-WC component states that
+# rely on per-theme palette tokens and happen to land on insufficient-
+# contrast combos in one or more themes.
+#
+# Each block is body-class-scoped so the intent (and the affected theme)
+# is documented inline; using the `body.theme-<slug>` namespace also
+# means a future palette swap on one theme cannot accidentally re-break
+# the other four. The three offenders this chunk addresses, in the order
+# they fail axe-core 4.10's `color-contrast` rule on a fresh
+# `bin/snap.py shoot --all`:
+#
+#   M1. `.single_add_to_cart_button.disabled,
+#         .single_add_to_cart_button:disabled`
+#       Variable-product PDPs ship the button disabled until a variation
+#       is picked. Without an explicit disabled-state rule the browser
+#       drops the `body.theme-<slug>` paint and falls back to its UA
+#       greyed-out chrome (a flat ~#7B7974 / ~#8A8987 background under
+#       the theme's `--base` text). Ratios land at 3.20-4.42 across
+#       chonk / lysholm / obel / selvedge -- all below the 4.5:1 AA
+#       threshold for body text. We restate the same `--contrast` ground
+#       + `--base` ink the active state uses, set `opacity:1` so the
+#       cursor change carries the disabled affordance instead of fading
+#       the label, and add `cursor:not-allowed` so pointer users still
+#       perceive the disabled state.
+#
+#   M2. `.wp-block-comment-reply-link a, .comment-reply-link`
+#       chonk / lysholm / obel paint the comment Reply link in their
+#       editorial accent (chonk #FFE600 yellow, lysholm #C9A97C sand,
+#       obel #C07241 terracotta) on the cream/off-white page. Ratios
+#       land at 1.12 / 2.04 / 3.50 -- way below the 4.5:1 floor for body
+#       text. Use `--contrast` for the resting color (high ratio against
+#       cream backgrounds) and keep the editorial accent on hover so the
+#       brand voice survives where contrast requirements relax for
+#       interactive states.
+#
+#   M3. `body.theme-selvedge .wc-block-cart-items .is-disabled .wc-block-cart-item__product`
+#       (and the matching `__total` sibling chain). WC Blocks adds
+#       `.is-disabled` to a cart-item row during the brief loading flash
+#       between `Remove` click and DOM swap. The default rule reduces
+#       opacity, which flattens selvedge's `--secondary` (#B09878) text
+#       to an effective ~#82796B against the `--base` (#160F08) cart-
+#       sidebar background -- 4.42:1, just shy of 4.5. We restate the
+#       muted color at full opacity so the skeleton state stays legible
+#       while preserving the visual "this row is busy" affordance via
+#       the WC Blocks-supplied skeleton placeholders.
+#
+# (M2 and M3 deliberately ship per-theme: aero already passes thanks to
+# its high-contrast accent + light-on-dark cart palette; selvedge passes
+# the M2 case because its accent is darker than the others. Adding
+# unscoped rules would silently re-paint surfaces those themes have
+# already tuned.)
+# ---------------------------------------------------------------------------
+SENTINEL_OPEN_PHASE_M = "/* wc-tells-phase-m-a11y-contrast */"
+SENTINEL_CLOSE_PHASE_M = "/* /wc-tells-phase-m-a11y-contrast */"
+CSS_PHASE_M = f"""{SENTINEL_OPEN_PHASE_M}
+body.theme-chonk .single_add_to_cart_button.disabled,body.theme-chonk .single_add_to_cart_button:disabled,body.theme-chonk .single_add_to_cart_button.wc-variation-selection-needed{{background:var(--wp--preset--color--contrast) !important;color:var(--wp--preset--color--base) !important;border-color:var(--wp--preset--color--contrast) !important;opacity:1 !important;cursor:not-allowed;}}
+body.theme-lysholm .single_add_to_cart_button.disabled,body.theme-lysholm .single_add_to_cart_button:disabled,body.theme-lysholm .single_add_to_cart_button.wc-variation-selection-needed{{background:var(--wp--preset--color--contrast) !important;color:var(--wp--preset--color--base) !important;border-color:var(--wp--preset--color--contrast) !important;opacity:1 !important;cursor:not-allowed;}}
+body.theme-obel .single_add_to_cart_button.disabled,body.theme-obel .single_add_to_cart_button:disabled,body.theme-obel .single_add_to_cart_button.wc-variation-selection-needed{{background:var(--wp--preset--color--contrast) !important;color:var(--wp--preset--color--base) !important;border-color:var(--wp--preset--color--contrast) !important;opacity:1 !important;cursor:not-allowed;}}
+body.theme-selvedge .single_add_to_cart_button.disabled,body.theme-selvedge .single_add_to_cart_button:disabled,body.theme-selvedge .single_add_to_cart_button.wc-variation-selection-needed{{background:var(--wp--preset--color--contrast) !important;color:var(--wp--preset--color--base) !important;border-color:var(--wp--preset--color--contrast) !important;opacity:1 !important;cursor:not-allowed;}}
+body.theme-chonk .wp-block-comment-reply-link a,body.theme-chonk .comment-reply-link,body.theme-lysholm .wp-block-comment-reply-link a,body.theme-lysholm .comment-reply-link,body.theme-obel .wp-block-comment-reply-link a,body.theme-obel .comment-reply-link{{color:var(--wp--preset--color--contrast) !important;}}
+body.theme-chonk .wp-block-comment-reply-link a:hover,body.theme-chonk .comment-reply-link:hover,body.theme-lysholm .wp-block-comment-reply-link a:hover,body.theme-lysholm .comment-reply-link:hover,body.theme-obel .wp-block-comment-reply-link a:hover,body.theme-obel .comment-reply-link:hover{{text-decoration:underline !important;text-decoration-thickness:2px !important;text-underline-offset:3px !important;text-decoration-color:var(--wp--preset--color--accent) !important;}}
+body .wc-block-cart-items .is-disabled,body .wc-block-cart-items .is-disabled .wc-block-cart-item__product,body .wc-block-cart-items .is-disabled .wc-block-cart-item__total,body .wc-block-cart-items .is-disabled .wc-block-cart-item__product *,body .wc-block-cart-items .is-disabled .wc-block-cart-item__total *{{color:var(--wp--preset--color--contrast) !important;opacity:1 !important;}}
+{SENTINEL_CLOSE_PHASE_M}"""
+
+
 # Each entry: (sentinel_open, sentinel_close, raw_css, anchor_after).
 # `anchor_after` is the marker the chunk is spliced in after — for the
 # first chunk that's the canonical archive-page marker; for follow-ups
@@ -1132,6 +1200,12 @@ CHUNKS: list[tuple[str, str, str, str]] = [
         SENTINEL_CLOSE_PHASE_L,
         CSS_PHASE_L,
         SENTINEL_CLOSE_PHASE_K,
+    ),
+    (
+        SENTINEL_OPEN_PHASE_M,
+        SENTINEL_CLOSE_PHASE_M,
+        CSS_PHASE_M,
+        SENTINEL_CLOSE_PHASE_L,
     ),
 ]
 

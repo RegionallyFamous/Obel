@@ -203,6 +203,12 @@ IMPORTANT_ALLOWED_SENTINELS = (
     # entire chunk is body.theme-aero scoped so it's inert on every other
     # theme.
     ("/* wc-tells-phase-j-aero-iridescent */", "/* /wc-tells-phase-j-aero-iridescent */"),
+    # Phase M -- a11y contrast tweaks for upstream-WC component states.
+    # Uses !important to win over WC Blocks' own component CSS for the
+    # disabled add-to-cart button, the comment-reply-link accent paint,
+    # and the `.is-disabled` cart-item loading flash. The whole chunk is
+    # documented inline in `bin/append-wc-overrides.py` (PHASE_M block).
+    ("/* wc-tells-phase-m-a11y-contrast */", "/* /wc-tells-phase-m-a11y-contrast */"),
 )
 
 
@@ -4926,6 +4932,123 @@ def check_theme_screenshots_distinct() -> Result:
     return r
 
 
+def check_no_serious_axe_in_recent_snaps() -> Result:
+    """Fail if any `tmp/snaps/<theme>/<viewport>/*.findings.json` for the
+    current theme records a `severity: "error"` finding (axe-core
+    impact >= serious).
+
+    Why this exists:
+      `bin/snap.py` runs axe-core on every captured page and writes
+      its violations into a per-route `*.findings.json` payload, with
+      axe `serious`/`critical` mapped to our internal `error` severity
+      (see `_AXE_IMPACT_TO_SEVERITY` in `bin/snap.py`). The visual
+      gate (`bin/snap.py check`) already fails on those — but it's an
+      OPT-IN step (`bin/check.py --visual`) that pre-commit and the
+      default `--offline` CI loop don't invoke. The result is the
+      embarrassing failure mode this check exists to prevent: a real
+      axe-core violation (e.g. 1.27:1 placeholder contrast on
+      Selvedge's checkout) sits in `tmp/snaps/.../findings.json` for
+      hours, but the offline gate is green and pre-commit waves the
+      change through.
+
+      This check closes the loop without forcing every contributor to
+      pay the 2-5 minute Playground boot cost in `--offline`: if the
+      developer (or CI worker, or agent) HAS recently shot the theme,
+      the artifacts on disk are treated as evidence and any serious
+      finding fails the static gate. Re-shooting with the fix in
+      place clears the artifacts; deleting them with `rm -rf
+      tmp/snaps/<theme>` also clears the gate for contributors who
+      haven't run snap at all.
+
+    What this check enforces:
+      Walk `tmp/snaps/<theme>/**/findings.json`. For each file, parse
+      the top-level `findings: []` array and collect every entry
+      where `severity == "error"`. Group by `kind` (e.g.
+      `a11y-color-contrast`) so multiple repeated nodes of the same
+      axe rule report as one group with a node count. Fail with the
+      route+viewport coordinates so the offending page is one click
+      away.
+
+      Skips gracefully when:
+        * `tmp/snaps/<theme>/` doesn't exist (developer never ran snap)
+        * No `*.findings.json` exists under it (snap was interrupted)
+        * Every findings file parses but contains no error-severity
+          entries (theme is clean — the common path).
+    """
+    r = Result("Recent snaps carry no serious axe-core errors")
+    snaps_dir = MONOREPO_ROOT / "tmp" / "snaps" / ROOT.name
+    if not snaps_dir.is_dir():
+        r.skip(
+            f"no tmp/snaps/{ROOT.name}/ on disk (snap not run for this theme)"
+        )
+        return r
+
+    findings_files = sorted(snaps_dir.rglob("*.findings.json"))
+    if not findings_files:
+        r.skip(
+            f"tmp/snaps/{ROOT.name}/ exists but has no *.findings.json files"
+        )
+        return r
+
+    failures: list[str] = []
+    files_checked = 0
+    error_total = 0
+    for fp in findings_files:
+        try:
+            payload = json.loads(fp.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        findings = payload.get("findings") or []
+        if not isinstance(findings, list):
+            continue
+        files_checked += 1
+        # Collapse same-kind errors so the message stays compact:
+        # one entry per axe rule per route/viewport.
+        by_kind: dict[str, dict] = {}
+        for f in findings:
+            if not isinstance(f, dict):
+                continue
+            if f.get("severity") != "error":
+                continue
+            kind = f.get("kind", "unknown")
+            entry = by_kind.setdefault(
+                kind, {"count": 0, "first": None, "axe_url": None}
+            )
+            entry["count"] += 1
+            if entry["first"] is None:
+                entry["first"] = f.get("message", "")[:200]
+                entry["axe_url"] = f.get("axe_help_url")
+        if by_kind:
+            try:
+                rel = fp.relative_to(MONOREPO_ROOT)
+            except ValueError:
+                rel = fp
+            for kind, info in sorted(by_kind.items()):
+                error_total += info["count"]
+                msg = (
+                    f"  {rel}: {kind} x{info['count']} -- {info['first']}"
+                )
+                if info["axe_url"]:
+                    msg += f" (see {info['axe_url']})"
+                failures.append(msg)
+
+    if failures:
+        r.fail(
+            f"{error_total} severity:error finding(s) across snap "
+            f"artifacts for {ROOT.name}. Re-shoot with the fix in "
+            f"place (`python3 bin/snap.py shoot {ROOT.name}`) to "
+            f"clear, or `rm -rf tmp/snaps/{ROOT.name}` if you intend "
+            f"to drop the evidence:\n" + "\n".join(failures)
+        )
+        return r
+
+    r.details.append(
+        f"scanned {files_checked} findings file(s) under "
+        f"tmp/snaps/{ROOT.name}/; no severity:error entries"
+    )
+    return r
+
+
 def check_no_unpushed_commits() -> Result:
     """Fail if local HEAD has commits that haven't reached origin yet.
 
@@ -5089,6 +5212,7 @@ def run_checks_for(theme_root: Path, offline: bool) -> int:
         check_wc_microcopy_distinct_across_themes(),
         check_playground_content_seeded(),
         check_theme_screenshots_distinct(),
+        check_no_serious_axe_in_recent_snaps(),
         check_no_unpushed_commits(),
     ]
 
