@@ -101,6 +101,18 @@ THUMB_WIDTH_PX = 600
 THUMB_MAX_HEIGHT_PX = 4000  # cap full-page screenshots so Pillow doesn't OOM
 JPEG_QUALITY = 80
 
+# The top-level snap picker (docs/snaps/index.html) renders each theme as a
+# magazine-spread card whose hero shot occupies ~60% of a ~1100px content
+# column — i.e. ~660px wide and, on retina, ~1320px effective. Reusing the
+# 600px gallery thumbnail there means a 2x upscale that visibly softens
+# every type edge, so we encode a *separate* hero crop at the source PNG's
+# native width and crop it to a wide 16:10 frame from the top of the page
+# (matching the CSS object-position). 5 themes × ~250-400KB per file is a
+# ~2MB budget hit on the gallery commit — well worth the sharpness gain.
+HERO_WIDTH_PX = 1280  # native desktop snap width; never upscale
+HERO_ASPECT = (16, 10)
+HERO_QUALITY = 88
+
 DOCS_SNAPS = ROOT / "docs" / "snaps"
 TMP_SNAPS = ROOT / "tmp" / "snaps"
 BASELINE = ROOT / "tests" / "visual-baseline"
@@ -287,6 +299,38 @@ def _encode_thumb(src_png: Path, dst_jpg: Path, *, force: bool) -> bool:
         im.thumbnail((THUMB_WIDTH_PX, THUMB_MAX_HEIGHT_PX), Image.LANCZOS)
         im.convert("RGB").save(
             dst_jpg, "JPEG", quality=JPEG_QUALITY, optimize=True, progressive=True
+        )
+    return True
+
+
+def _encode_hero_card(src_png: Path, dst_jpg: Path, *, force: bool) -> bool:
+    """Encode the hero card image used on the top-level snap picker.
+
+    Unlike `_encode_thumb` (which downsamples aggressively for the dense
+    per-theme grid), this keeps the source PNG's native width and crops
+    to a wide 16:10 frame from the top — matching the CSS
+    `object-position: center top; object-fit: cover` used by the picker
+    so what gets shown in the browser is exactly what we encoded, with
+    no upscale and no fractional-pixel cropping at display time.
+    Returns True if the file was (re)written."""
+    dst_jpg.parent.mkdir(parents=True, exist_ok=True)
+    if not force and dst_jpg.is_file() and dst_jpg.stat().st_mtime >= src_png.stat().st_mtime:
+        return False
+    Image = _require_pillow()
+    with Image.open(src_png) as im:
+        # Step 1: clamp width to the hero target (only ever downsamples;
+        # if the source is narrower we leave it alone rather than upscale).
+        if im.width > HERO_WIDTH_PX:
+            new_h = round(im.height * (HERO_WIDTH_PX / im.width))
+            im = im.resize((HERO_WIDTH_PX, new_h), Image.LANCZOS)
+        # Step 2: crop to the hero aspect from the top of the page —
+        # the page header is always the most editorial part of the shot.
+        target_w = im.width
+        target_h = round(target_w * HERO_ASPECT[1] / HERO_ASPECT[0])
+        if target_h < im.height:
+            im = im.crop((0, 0, target_w, target_h))
+        im.convert("RGB").save(
+            dst_jpg, "JPEG", quality=HERO_QUALITY, optimize=True, progressive=True
         )
     return True
 
@@ -729,14 +773,23 @@ def build(themes: list[str], source: str, *, clean: bool) -> int:
         index_html = _render_theme_page(theme, cells, source_label)
         (theme_dir / "index.html").write_text(index_html, encoding="utf-8")
 
-        # Hero for the top-level card: prefer desktop/home; fall back to
-        # the first available cell. Path is relative to docs/snaps/index.html.
+        # Hero for the top-level card. Prefer desktop/home and re-encode
+        # it as a sharp 1280-wide 16:10 crop (`<theme>/hero.jpg`) so the
+        # large picker card doesn't 2x-upscale the dense gallery thumb.
+        # Falls back to the first available thumbnail if desktop/home
+        # isn't present (e.g. a theme that only shipped mobile cells).
+        # Path is relative to docs/snaps/index.html.
         hero_rel = ""
+        hero_src: Path | None = None
         for c in cells:
             if c.viewport == "desktop" and c.slug == "home":
-                hero_rel = f"{theme}/{c.thumb_rel}"
+                hero_src = c.src_png
                 break
-        if not hero_rel and cells:
+        if hero_src is not None:
+            hero_dst = theme_dir / "hero.jpg"
+            _encode_hero_card(hero_src, hero_dst, force=clean)
+            hero_rel = f"{theme}/hero.jpg"
+        elif cells:
             hero_rel = f"{theme}/{cells[0].thumb_rel}"
 
         err_total = sum(c.error_count or 0 for c in cells)
