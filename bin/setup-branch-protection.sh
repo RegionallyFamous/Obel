@@ -5,8 +5,9 @@
 # (GitHub's API PUT overwrites the ruleset rather than appending).
 #
 # What it does:
-#   1. Require the five CI checks from .github/workflows/check.yml
-#      (theme-gate, drift-check, tooling-tests, validator-smoke,
+#   1. Require the seven CI checks from .github/workflows/check.yml
+#      (theme-gate, drift-check, playground-sync-drift,
+#       brand-assets-drift, tooling-tests, validator-smoke,
 #       lint-format) to pass before a PR can be merged.
 #   2. Require branches to be up to date with main before merge.
 #   3. Require at least 1 approving review.
@@ -39,6 +40,8 @@ BRANCH="${BRANCH:-main}"
 REQUIRED_CHECKS=(
   "bin/check.py --all --offline"
   "append-wc-overrides.py is a no-op"
+  "sync-playground.py is a no-op"
+  "build-brand-assets.py --check"
   "pytest tests/"
   "node blocks-validator smoke"
   "ruff + mypy"
