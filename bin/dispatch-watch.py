@@ -32,6 +32,13 @@ What it runs
    (Phase 2's `bin/snap.py serve --shoot-on-demand` if it's running)
    and falls back to a cold `python3 bin/snap.py shoot <theme>` if
    the warm endpoint isn't reachable.
+3. Optionally, when `FIFTY_VISION_REVIEW=1`, run
+   `python3 bin/snap-vision-review.py <theme>` for each theme that
+   snapped cleanly AND ships a `<theme>/design-intent.md`. The
+   reviewer writes `vision:*` findings into the same
+   `*.findings.json` files that step 2 produced, so they appear in
+   the agent's next-actions list next to axe-core findings. Off by
+   default; flip on once the daily $ cap and prompt are tuned.
 
 What it writes
 --------------
@@ -56,6 +63,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import signal
 import subprocess
 import sys
@@ -251,19 +259,90 @@ def collect_findings_for(theme_slug: str) -> list[dict]:
         for finding in payload.get("findings") or []:
             if not isinstance(finding, dict):
                 continue
-            out.append(
-                {
-                    "theme": theme_slug,
-                    "route": route,
-                    "viewport": viewport,
-                    "kind": finding.get("kind"),
-                    "severity": finding.get("severity"),
-                    "message": (finding.get("message") or "")[:300],
-                    "axe_help_url": finding.get("axe_help_url"),
-                    "selector": (finding.get("selector") or "")[:200],
-                }
-            )
+            entry = {
+                "theme": theme_slug,
+                "route": route,
+                "viewport": viewport,
+                "kind": finding.get("kind"),
+                "severity": finding.get("severity"),
+                "message": (finding.get("message") or "")[:300],
+                "axe_help_url": finding.get("axe_help_url"),
+                "selector": (finding.get("selector") or "")[:200],
+            }
+            # Vision findings (source: "vision") carry pixel-derived
+            # context that the agent rule needs in order to find the
+            # annotated review.png and read the rubric the model
+            # consulted. Preserve those fields when present so they
+            # land in tmp/dispatch-state.json.
+            if finding.get("source") == "vision":
+                entry["source"] = "vision"
+                bbox = finding.get("bbox")
+                if isinstance(bbox, dict):
+                    entry["bbox"] = bbox
+                if finding.get("rationale"):
+                    entry["rationale"] = str(finding["rationale"])[:600]
+                if finding.get("remedy_hint"):
+                    entry["remedy_hint"] = str(finding["remedy_hint"])[:200]
+                # The agent rule (.cursor/rules/vision-findings.mdc)
+                # tells the agent it MUST open both the screenshot
+                # AND the annotated review.png before fixing. Emit
+                # both paths so it doesn't have to guess.
+                stem = fp.stem.removesuffix(".findings")
+                entry["screenshot_path"] = str(
+                    (fp.parent / f"{stem}.png").relative_to(MONOREPO_ROOT)
+                )
+                entry["review_png_path"] = str(
+                    (fp.parent / f"{stem}.review.png").relative_to(MONOREPO_ROOT)
+                )
+            out.append(entry)
     return out
+
+
+# ---------------------------------------------------------------------------
+# Vision review (post-snap, opt-in via FIFTY_VISION_REVIEW=1)
+# ---------------------------------------------------------------------------
+
+
+def vision_review_enabled() -> bool:
+    """The vision reviewer is OFF by default for the first cycle.
+
+    Per the smart-design-agent plan: land the wiring with the flag set so
+    we can dogfood it for ~3 days, then flip the default to ON in a
+    follow-up commit. Setting FIFTY_VISION_REVIEW=1 in the environment
+    enables it ahead of the default flip.
+    """
+    return os.environ.get("FIFTY_VISION_REVIEW", "0") == "1"
+
+
+def vision_review_themes(theme_slugs: list[str], log_to: Path) -> dict[str, int]:
+    """Run `bin/snap-vision-review.py <theme>` for each successfully-snapped
+    theme that has a `design-intent.md`. Returns per-theme exit codes.
+
+    Skips themes with no `design-intent.md` (the reviewer would refuse
+    to run anyway). Skips entirely if the env flag is not set.
+
+    The reviewer is responsible for its own caching, prefilter, and
+    daily $ cap; we do not duplicate that logic here. We just log the
+    invocation and return its exit code so the dispatcher can report
+    failures in the same channel as snap failures.
+    """
+    rcs: dict[str, int] = {}
+    if not vision_review_enabled():
+        return rcs
+    reviewer = MONOREPO_ROOT / "bin" / "snap-vision-review.py"
+    if not reviewer.is_file():
+        return rcs
+    for slug in theme_slugs:
+        intent = MONOREPO_ROOT / slug / "design-intent.md"
+        if not intent.is_file():
+            with log_to.open("a", encoding="utf-8") as fh:
+                fh.write(f"\n[vision-review] skip {slug}: no design-intent.md\n")
+            continue
+        rcs[slug] = run_logged(
+            ["python3", str(reviewer), slug],
+            log_to,
+        )
+    return rcs
 
 
 def load_remedies() -> list[dict]:
@@ -472,6 +551,28 @@ def main(argv: list[str]) -> int:
                         f"{log_path.relative_to(MONOREPO_ROOT)}",
                         flush=True,
                     )
+
+                # Vision review runs only for themes that snapped
+                # cleanly (rc==0). Themes whose snap failed have no
+                # fresh PNGs to review; running the reviewer against
+                # stale ones would produce findings the agent then
+                # tries to "fix" against unrelated source.
+                clean = [s for s, rc in rcs.items() if rc == 0]
+                if clean and vision_review_enabled():
+                    print(
+                        f"dispatch-watch: vision-review {clean} "
+                        f"(FIFTY_VISION_REVIEW=1)",
+                        flush=True,
+                    )
+                    vision_rcs = vision_review_themes(clean, log_path)
+                    vision_bad = [s for s, rc in vision_rcs.items() if rc != 0]
+                    if vision_bad:
+                        print(
+                            f"dispatch-watch: vision-review FAILED for "
+                            f"{vision_bad}; see "
+                            f"{log_path.relative_to(MONOREPO_ROOT)}",
+                            flush=True,
+                        )
 
             write_state(
                 started_at=started_at,
