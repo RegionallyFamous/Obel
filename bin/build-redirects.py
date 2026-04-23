@@ -85,6 +85,7 @@ from _lib import (
     GITHUB_ORG,
     GITHUB_REPO,
     MONOREPO_ROOT,
+    cache_bust_docs_html,
     gh_pages_short_url,
     iter_themes,
     playground_deeplink,
@@ -608,11 +609,19 @@ def render_concepts_page(unbuilt: list[dict], built: list[dict]) -> str:
 
 def write_file(path: Path, contents: str, *, dry_run: bool, written: list[Path]) -> None:
     """Write `contents` to `path` (mkdir -p the parent). Track every file
-    we touch so the caller can print a summary."""
+    we touch so the caller can print a summary.
+
+    HTML output gets the docs/assets/style.css cache-bust query appended
+    so deploys never serve stale CSS — see _lib.cache_bust_docs_html for
+    the full reasoning. Non-HTML files (we currently emit `.nojekyll`
+    via this helper) pass through untouched.
+    """
     if dry_run:
         written.append(path)
         return
     path.parent.mkdir(parents=True, exist_ok=True)
+    if path.suffix == ".html":
+        contents = cache_bust_docs_html(contents)
     path.write_text(contents)
     written.append(path)
 

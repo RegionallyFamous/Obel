@@ -73,6 +73,7 @@ from typing import NamedTuple
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "bin"))
 
+from _lib import cache_bust_docs_html  # noqa: E402
 from snap_config import INTERACTIONS, ROUTES, THEME_ORDER, VIEWPORTS  # noqa: E402
 
 
@@ -909,7 +910,9 @@ def build(themes: list[str], source: str, *, clean: bool) -> int:
                     shutil.copy2(src, crop_dst)
 
         index_html = _render_theme_page(theme, cells, source_label)
-        (theme_dir / "index.html").write_text(index_html, encoding="utf-8")
+        (theme_dir / "index.html").write_text(
+            cache_bust_docs_html(index_html), encoding="utf-8"
+        )
 
         # Hero for the top-level card. Prefer desktop/home and re-encode
         # it as a sharp 1280-wide 16:10 crop (`<theme>/hero.jpg`) so the
@@ -943,7 +946,9 @@ def build(themes: list[str], source: str, *, clean: bool) -> int:
         print(f"[{theme}] {len(cells)} cells; encoded {encoded}; source={source_label}")
 
     if summaries:
-        (DOCS_SNAPS / "index.html").write_text(_render_index_page(summaries), encoding="utf-8")
+        (DOCS_SNAPS / "index.html").write_text(
+            cache_bust_docs_html(_render_index_page(summaries)), encoding="utf-8"
+        )
 
     return len(summaries)
 

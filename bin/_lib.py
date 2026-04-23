@@ -14,6 +14,7 @@ list-tokens) to iterate every theme in the monorepo.
 """
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -113,6 +114,88 @@ def iter_themes(monorepo_root: Path = MONOREPO_ROOT) -> Iterable[Path]:
     for entry in sorted(monorepo_root.iterdir()):
         if entry.is_dir() and not entry.name.startswith(".") and (entry / "theme.json").is_file():
             yield entry
+
+
+def docs_assets_cache_stamp() -> str:
+    """Return a short, content-addressed cache-busting stamp for the
+    site-wide `docs/assets/style.css`.
+
+    Why this exists:
+        GitHub Pages serves assets with a long Cache-Control TTL we can't
+        override (Pages doesn't expose response headers). When we change
+        `docs/assets/style.css` without changing its URL, every visitor
+        whose browser cached the old bytes keeps seeing the old design
+        for hours/days — they end up opening incognito windows or
+        toggling DevTools "Disable cache" just to see fresh CSS after a
+        deploy. This is a real foot-gun for a site whose whole point is
+        to showcase visual work.
+
+        The fix is to append a query string (`?v=<stamp>`) to the link
+        href in the generated HTML. Browsers treat the URL with a
+        different query as a brand-new resource and refetch it, even if
+        a prior version is still in cache. As long as the stamp changes
+        whenever the stylesheet bytes change, deploys naturally
+        invalidate the CSS without manual cache-clearing.
+
+        The HTML pages that reference the stylesheet are themselves
+        served with a ~10-min TTL on Pages (Fastly), so they refresh
+        quickly and pick up the new query value within minutes of a
+        deploy.
+
+    Why content-hash and not git SHA:
+        We could stamp with the current commit SHA, but that
+        over-invalidates: a routine deploy that doesn't touch
+        `style.css` (e.g. fixing a typo in a redirector or a blueprint)
+        would still force every visitor to refetch the (unchanged)
+        stylesheet. Hashing the file contents means the stamp only
+        rolls over when the CSS actually moved, so the cache stays warm
+        across commits that don't affect visual output.
+
+    Returns:
+        A lowercase hex prefix of the SHA-1 of the stylesheet bytes
+        (10 chars — wide enough to be collision-free for any plausible
+        history of edits, short enough to keep generated HTML readable).
+        Returns "0" if the stylesheet doesn't exist on disk yet — in
+        that case we'd have nothing to bust anyway, and the caller's
+        warning path (`build-redirects.py` already prints "docs/
+        assets/style.css missing — landing page will be unstyled") will
+        surface the real problem.
+    """
+    css = MONOREPO_ROOT / "docs" / "assets" / "style.css"
+    try:
+        return hashlib.sha1(css.read_bytes()).hexdigest()[:10]
+    except OSError:
+        return "0"
+
+
+def cache_bust_docs_html(html: str, stamp: str | None = None) -> str:
+    """Append `?v=<stamp>` to every `assets/style.css` href in `html`.
+
+    Hits all three URL forms we use across the docs/ pages:
+        * `/assets/style.css`     — absolute, used by every page when
+                                    served from demo.regionallyfamous.com
+        * `../assets/style.css`   — used by per-theme snap pages so they
+                                    work when opened from the local
+                                    filesystem (snap PNG QA loop)
+        * `assets/style.css`      — used by `docs/snaps/index.html` for
+                                    the same local-filesystem reason
+
+    Only the site stylesheet is busted — fonts.googleapis.com is a
+    separate origin with its own caching that we don't (and shouldn't)
+    try to manage from here.
+
+    The replace is anchored on the trailing `"` so we don't double-bust
+    a URL that already has a query, and so we don't accidentally rewrite
+    occurrences of `assets/style.css` that appear in (e.g.) docstring
+    text inside the HTML — there are none today, but the trailing-quote
+    anchor is the cheapest insurance.
+    """
+    if stamp is None:
+        stamp = docs_assets_cache_stamp()
+    return html.replace(
+        'assets/style.css"',
+        f'assets/style.css?v={stamp}"',
+    )
 
 
 def add_theme_arg(parser) -> None:
