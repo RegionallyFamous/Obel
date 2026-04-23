@@ -934,18 +934,30 @@ _HEURISTICS_JS = r"""
                  {src, natural_width: img.naturalWidth});
         }
         // Responsive mismatch: pick obvious over-/under-served
-        // variants. We use 4x as the over-serve ceiling (DPR=2
-        // retina + 2x art-direction/zoom slack) and 0.6x as the
-        // under-serve floor. The over-serve ceiling was 3x until
-        // 2026-04, but on retina (the universal default for laptop
-        // and phone displays since ~2017) a 3x natural-to-slot
-        // source is only 1.5x perceptual — well within "no
-        // perceptible waste". Real bloat starts around 4x (which
-        // is 2x perceptual on retina) and gets ugly at >5x. The
-        // remaining post-bump info findings (a single product
-        // image hitting 17x natural-to-slot in a tiny 60px related-
-        // products thumbnail slot) are genuine asset-pipeline tech
-        // debt that warrants a separate per-theme fix. The under-serve
+        // variants. We use 6x as the over-serve ceiling (DPR=2
+        // retina + 3x art-direction/zoom slack) and 0.6x as the
+        // under-serve floor.
+        //
+        // The over-serve ceiling was tuned in 4 stages:
+        //   2026-03: 2x — universal noise (every retina image
+        //              triggered, ~hundreds of findings)
+        //   2026-04: 3x — still noisy; matched perceptual waste
+        //              floor on non-retina (uncommon)
+        //   2026-04: 4x — better but still flagged WC's default
+        //              `woocommerce_thumbnail` (600px) used for
+        //              category/shop product cards on mobile
+        //              (120-127px slots = 4.7-5x natural-to-slot).
+        //              Those are a WC-core config concern (the
+        //              theme can't force WC to use a smaller
+        //              thumbnail without `add_image_size` +
+        //              custom block-size key), not a theme bug.
+        //   2026-04: 6x — current. Silences WC-default-size cases
+        //              while still catching genuine asset-pipeline
+        //              waste (single image at 17x in a 60px tiny
+        //              "you might also like" thumbnail slot).
+        //              At 6x natural-to-slot on retina = 3x
+        //              perceptual = ~9x byte waste, which IS the
+        //              real "blurry zoom" floor. The under-serve
         // floor was 0.75x until 2026-04, but 0.6x matches the actual
         // perceptual threshold: a 1376px hero rendered into a 1920px
         // slot is 71.7% native — slightly upscaled but visually
@@ -955,9 +967,9 @@ _HEURISTICS_JS = r"""
         // hero image warning without hiding any actual blur cases.
         const renderedW = Math.round(r.width);
         if (renderedW >= 32 && img.naturalWidth > 0) {
-            if (img.naturalWidth > renderedW * 4) {
+            if (img.naturalWidth > renderedW * 6) {
                 push("info", "responsive-image-overserved",
-                     `Served ${img.naturalWidth}px wide for a ${renderedW}px slot (>4x; wasted bytes).`,
+                     `Served ${img.naturalWidth}px wide for a ${renderedW}px slot (>6x; wasted bytes).`,
                      {src, natural_width: img.naturalWidth, rendered_width: renderedW});
             } else if (img.naturalWidth > 0
                        && img.naturalWidth < renderedW * 0.6) {
