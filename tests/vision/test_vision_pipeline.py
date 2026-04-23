@@ -12,6 +12,7 @@ would burn budget on every run. Once `FIFTY_VISION_REVIEW=1` becomes
 default-on (PR 3 follow-up), we'll add `tests/vision/test_live_api.py`
 gated on `os.environ.get('ANTHROPIC_API_KEY')`.
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -48,18 +49,21 @@ def _load_reviewer_module():
 
 def test_estimate_cost_usd_input_only():
     import _vision_lib as vl
+
     cost = vl.estimate_cost_usd(1_000_000, 0, price_input_per_mtok=3.0, price_output_per_mtok=15.0)
     assert cost == pytest.approx(3.0)
 
 
 def test_estimate_cost_usd_combined():
     import _vision_lib as vl
+
     cost = vl.estimate_cost_usd(2000, 800, price_input_per_mtok=3.0, price_output_per_mtok=15.0)
     assert cost == pytest.approx(0.018)
 
 
 def test_fingerprint_is_stable_for_identical_inputs():
     import _vision_lib as vl
+
     a = vl.fingerprint_inputs(png_bytes=b"hello", intent_md="x", model="m1")
     b = vl.fingerprint_inputs(png_bytes=b"hello", intent_md="x", model="m1")
     assert a == b
@@ -88,6 +92,7 @@ def _make_png(width: int, height: int, fill=(128, 128, 128)) -> bytes:
 def test_prepare_image_passes_through_small_png():
     pytest.importorskip("PIL")
     import _vision_lib as vl
+
     png = _make_png(800, 600)
     out_bytes, media_type = vl._prepare_image_for_api(png)
     assert media_type == "image/png"
@@ -98,9 +103,9 @@ def test_prepare_image_resizes_oversized_dimensions():
     """An image taller than 8000px must be downscaled so neither
     dimension exceeds the 7500px safety margin."""
     pytest.importorskip("PIL")
-    import _vision_lib as vl
     from io import BytesIO
 
+    import _vision_lib as vl
     from PIL import Image
 
     png = _make_png(1080, 9000)
@@ -113,10 +118,10 @@ def test_prepare_image_falls_back_to_jpeg_when_too_large():
     """A photographic-style PNG that exceeds the byte budget even after
     resizing must come back as JPEG, not PNG."""
     pytest.importorskip("PIL")
-    import _vision_lib as vl
     from io import BytesIO
     from random import Random
 
+    import _vision_lib as vl
     from PIL import Image
 
     rng = Random(0xC0FFEE)
@@ -125,9 +130,7 @@ def test_prepare_image_falls_back_to_jpeg_when_too_large():
     buf = BytesIO()
     img.save(buf, format="PNG", optimize=False)
     big_png = buf.getvalue()
-    assert len(big_png) > vl.MAX_IMAGE_BYTES, (
-        "fixture too small to exercise the JPEG fallback"
-    )
+    assert len(big_png) > vl.MAX_IMAGE_BYTES, "fixture too small to exercise the JPEG fallback"
 
     out_bytes, media_type = vl._prepare_image_for_api(big_png)
     assert media_type == "image/jpeg"
@@ -136,6 +139,7 @@ def test_prepare_image_falls_back_to_jpeg_when_too_large():
 
 def test_fingerprint_changes_when_any_input_changes():
     import _vision_lib as vl
+
     base = vl.fingerprint_inputs(png_bytes=b"hello", intent_md="x", model="m1")
     assert vl.fingerprint_inputs(png_bytes=b"hellO", intent_md="x", model="m1") != base
     assert vl.fingerprint_inputs(png_bytes=b"hello", intent_md="X", model="m1") != base
@@ -145,6 +149,7 @@ def test_fingerprint_changes_when_any_input_changes():
 
 def test_parse_findings_happy_path():
     import _vision_lib as vl
+
     raw = json.dumps(
         {
             "findings": [
@@ -170,10 +175,16 @@ def test_parse_findings_happy_path():
 
 def test_parse_findings_drops_unknown_kinds():
     import _vision_lib as vl
+
     raw = json.dumps(
         {
             "findings": [
-                {"kind": "vision:hallucinated", "severity": "error", "message": "x", "rationale": "y"},
+                {
+                    "kind": "vision:hallucinated",
+                    "severity": "error",
+                    "message": "x",
+                    "rationale": "y",
+                },
                 {"kind": "vision:cta-buried", "severity": "warn", "message": "x", "rationale": "y"},
             ]
         }
@@ -184,8 +195,18 @@ def test_parse_findings_drops_unknown_kinds():
 
 def test_parse_findings_normalises_invalid_severity():
     import _vision_lib as vl
+
     raw = json.dumps(
-        {"findings": [{"kind": "vision:cta-buried", "severity": "URGENT", "message": "x", "rationale": "y"}]}
+        {
+            "findings": [
+                {
+                    "kind": "vision:cta-buried",
+                    "severity": "URGENT",
+                    "message": "x",
+                    "rationale": "y",
+                }
+            ]
+        }
     )
     out = vl.parse_findings_response(raw)
     assert out[0]["severity"] == "warn"
@@ -193,7 +214,14 @@ def test_parse_findings_normalises_invalid_severity():
 
 def test_parse_findings_strips_code_fence():
     import _vision_lib as vl
-    inner = json.dumps({"findings": [{"kind": "vision:cta-buried", "severity": "info", "message": "m", "rationale": "r"}]})
+
+    inner = json.dumps(
+        {
+            "findings": [
+                {"kind": "vision:cta-buried", "severity": "info", "message": "m", "rationale": "r"}
+            ]
+        }
+    )
     raw = f"```json\n{inner}\n```"
     out = vl.parse_findings_response(raw)
     assert len(out) == 1
@@ -201,6 +229,7 @@ def test_parse_findings_strips_code_fence():
 
 def test_parse_findings_returns_empty_on_garbage():
     import _vision_lib as vl
+
     assert vl.parse_findings_response("not json") == []
     assert vl.parse_findings_response("") == []
     assert vl.parse_findings_response('{"not": "the right shape"}') == []
@@ -208,11 +237,13 @@ def test_parse_findings_returns_empty_on_garbage():
 
 def test_today_spend_returns_zero_when_ledger_missing(tmp_path):
     import _vision_lib as vl
+
     assert vl.today_spend_usd(path=tmp_path / "no-ledger.jsonl") == 0.0
 
 
 def test_append_ledger_round_trip(tmp_path):
     import _vision_lib as vl
+
     ledger = tmp_path / "spend.jsonl"
     vl.append_ledger(
         vl.LedgerEntry(
@@ -231,6 +262,7 @@ def test_append_ledger_round_trip(tmp_path):
 
 def test_review_image_dry_run_does_not_call_api(tmp_path, monkeypatch):
     import _vision_lib as vl
+
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
     def boom(*a, **kw):
@@ -254,6 +286,7 @@ def test_review_image_dry_run_does_not_call_api(tmp_path, monkeypatch):
 
 def test_review_image_raises_when_no_api_key(tmp_path, monkeypatch):
     import _vision_lib as vl
+
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     png = list(FIXTURES.glob("*.png"))[0]
     with pytest.raises(vl.ApiKeyMissingError):
@@ -270,6 +303,7 @@ def test_review_image_raises_when_no_api_key(tmp_path, monkeypatch):
 
 def test_budget_assertion_blocks_when_already_over(tmp_path, monkeypatch):
     import _vision_lib as vl
+
     ledger = tmp_path / "spend.jsonl"
     # Pre-load a row that pushes today's spend just under the cap.
     # Borrow `_vision_lib.UTC` so the test stays compatible with the
@@ -315,6 +349,7 @@ def test_fixture_expected_kinds_are_in_allowed_set():
     """Every kind named in the manifest must exist in the vision_lib's
     allowed set; otherwise the reviewer would silently drop it."""
     import _vision_lib as vl
+
     manifest = json.loads((FIXTURES / "manifest.json").read_text())
     for f in manifest["fixtures"]:
         for k in f["expected_findings"] + f["forbidden_findings"]:
@@ -375,26 +410,41 @@ def test_cli_dry_run_is_read_only(run_bin_script, tmp_path, monkeypatch):
         b"\xaeB`\x82"
     )
     (snaps / "home.png").write_bytes(png_bytes)
-    (snaps / "home.findings.json").write_text(json.dumps({
-        "findings": [
-            {"kind": "color-contrast", "severity": "error", "source": "axe"},
-            {"kind": "vision:cta-buried", "severity": "warn", "source": "vision", "message": "preserved"},
-        ]
-    }))
+    (snaps / "home.findings.json").write_text(
+        json.dumps(
+            {
+                "findings": [
+                    {"kind": "color-contrast", "severity": "error", "source": "axe"},
+                    {
+                        "kind": "vision:cta-buried",
+                        "severity": "warn",
+                        "source": "vision",
+                        "message": "preserved",
+                    },
+                ]
+            }
+        )
+    )
 
     # Run reviewer with REPO_ROOT redirected to the fake tree. We
     # intentionally don't assert on the exit code: the only contract
     # this test is checking is "dry-run touches no disk", below.
     run_bin_script(
-        "snap-vision-review.py", "obel", "--dry-run",
+        "snap-vision-review.py",
+        "obel",
+        "--dry-run",
         env={"PYTHONPATH": str(BIN_DIR)},
         cwd=tmp_path,
     )
     # Whatever happens, we only assert about disk effects:
-    assert not list(snaps.glob("*.vision-fingerprint")), \
+    assert not list(snaps.glob("*.vision-fingerprint")), (
         f"dry-run wrote fingerprint files: {list(snaps.glob('*.vision-fingerprint'))}"
-    assert not list(snaps.glob("*.review.png")), \
+    )
+    assert not list(snaps.glob("*.review.png")), (
         f"dry-run wrote review PNGs: {list(snaps.glob('*.review.png'))}"
+    )
     after = json.loads((snaps / "home.findings.json").read_text())
     msgs = [f.get("message") for f in after["findings"] if f.get("source") == "vision"]
-    assert "preserved" in msgs, f"dry-run clobbered existing vision finding; remaining: {after['findings']}"
+    assert "preserved" in msgs, (
+        f"dry-run clobbered existing vision finding; remaining: {after['findings']}"
+    )

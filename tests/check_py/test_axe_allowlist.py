@@ -202,9 +202,7 @@ def test_wildcard_in_one_kind_does_not_leak_to_other_kinds():
     check = _import_check()
     allow = {"aero:mobile:shop": {"vision:brand-violation": {"*"}}}
     f_other_kind = {"kind": "vision:color-clash"}
-    assert not check._axe_finding_is_allowlisted(
-        allow, "aero", "mobile", "shop", f_other_kind
-    )
+    assert not check._axe_finding_is_allowlisted(allow, "aero", "mobile", "shop", f_other_kind)
 
 
 def test_specific_selector_still_required_when_no_wildcard_present():
@@ -214,13 +212,9 @@ def test_specific_selector_still_required_when_no_wildcard_present():
     check = _import_check()
     allow = {"chonk:desktop:home": {"element-overflow-x": {"div.specific"}}}
     f_no_fp = {"kind": "element-overflow-x", "message": "no selector"}
-    assert not check._axe_finding_is_allowlisted(
-        allow, "chonk", "desktop", "home", f_no_fp
-    )
+    assert not check._axe_finding_is_allowlisted(allow, "chonk", "desktop", "home", f_no_fp)
     f_diff_fp = {"kind": "element-overflow-x", "selector": "div.different"}
-    assert not check._axe_finding_is_allowlisted(
-        allow, "chonk", "desktop", "home", f_diff_fp
-    )
+    assert not check._axe_finding_is_allowlisted(allow, "chonk", "desktop", "home", f_diff_fp)
 
 
 def test_snap_apply_wildcard_demotes_findings_without_fingerprint(monkeypatch):
@@ -228,9 +222,7 @@ def test_snap_apply_wildcard_demotes_findings_without_fingerprint(monkeypatch):
     A wildcard cell must demote a vision finding (no fingerprint) the
     same way check.py:_axe_finding_is_allowlisted reads it."""
     snap = _import_snap()
-    fake_allowlist = {
-        "selvedge:mobile:home": {"vision:typography-overpowered": ["*"]}
-    }
+    fake_allowlist = {"selvedge:mobile:home": {"vision:typography-overpowered": ["*"]}}
     monkeypatch.setattr(snap, "_load_allowlist", lambda: fake_allowlist)
     findings = [
         {

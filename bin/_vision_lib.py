@@ -504,6 +504,14 @@ def _prepare_image_for_api(png_bytes: bytes) -> tuple[bytes, str]:
 
     from PIL import Image
 
+    # Pillow 9.1+ moved the enum-style resampling filters to
+    # `Image.Resampling.LANCZOS`; older releases keep them on
+    # `Image.LANCZOS`. Use `getattr` on the module so mypy (which
+    # knows only the new-location stub on fresh Pillow) doesn't
+    # complain, and falls back gracefully on Pillow < 9.1.
+    _resampling = getattr(Image, 'Resampling', Image)
+    lanczos = _resampling.LANCZOS
+
     if (
         len(png_bytes) <= MAX_IMAGE_BYTES
         and _png_dimensions_within_limit(png_bytes)
@@ -517,7 +525,7 @@ def _prepare_image_for_api(png_bytes: bytes) -> tuple[bytes, str]:
             scale = MAX_IMAGE_DIMENSION_PX / float(max(w, h))
             img = img.resize(
                 (max(1, int(w * scale)), max(1, int(h * scale))),
-                Image.LANCZOS,
+                lanczos,
             )
 
         buf = BytesIO()
@@ -539,7 +547,7 @@ def _prepare_image_for_api(png_bytes: bytes) -> tuple[bytes, str]:
         while img.width > 800 or img.height > 800:
             new_w = max(800, int(img.width * scale))
             new_h = max(800, int(img.height * scale))
-            small = img.resize((new_w, new_h), Image.LANCZOS)
+            small = img.resize((new_w, new_h), lanczos)
             buf = BytesIO()
             small.save(buf, format="JPEG", quality=70, optimize=True)
             out = buf.getvalue()
