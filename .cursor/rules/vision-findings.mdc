@@ -1,0 +1,145 @@
+---
+description: How to interpret and act on vision:* findings (pixel-derived design critique) emitted by bin/snap-vision-review.py.
+alwaysApply: true
+---
+
+# Vision findings (pixel-derived design critique)
+
+`bin/snap-vision-review.py` runs after every successful snap (when
+`FIFTY_VISION_REVIEW=1`) and writes `vision:*` findings into the same
+`tmp/snaps/<theme>/<viewport>/<route>.findings.json` files that axe-core
+already populates. Those vision findings then flow through the same
+`bin/finding_remedies.json` -> `tmp/dispatch-state.json` -> agent
+next-actions pipeline as everything else.
+
+The point of this rule: when you see a `kind` that starts with
+`vision:` in `tmp/dispatch-state.json` or in the raw `findings.json`,
+treat it as a **first-class fix request, not a hint**. The model that
+produced it had the rendered pixels, the per-theme rubric
+(`<theme>/design-intent.md`), and an explicit "be ruthless" prompt.
+Skipping it because "it looks fine" defeats the entire reason the
+reviewer exists.
+
+## What a `vision:*` finding looks like
+
+```jsonc
+{
+  "theme": "selvedge",
+  "route": "shop",
+  "viewport": "desktop",
+  "kind": "vision:typography-overpowered",   // always vision:<category>
+  "severity": "error",                        // error | warn | info
+  "source": "vision",                         // marks pixel-derived
+  "message": "Hero H1 swallows the page; product cards read as captions.",
+  "rationale": "Hero font-size ~96px against 16px body. Eye lands on hero...",
+  "remedy_hint": "Halve hero font-size or shrink hero block to leave room for cards.",
+  "bbox": { "x": 32, "y": 80, "w": 1216, "h": 380 },   // pixel rect on the PNG
+  "screenshot_path": "tmp/snaps/selvedge/desktop/shop.png",
+  "review_png_path": "tmp/snaps/selvedge/desktop/shop.review.png"
+}
+```
+
+Allowed `kind` suffixes (per `bin/finding_remedies.json`):
+
+- `typography-overpowered` -- one element dominates and crushes hierarchy
+- `hierarchy-flat` -- nothing leads the eye
+- `content-orphan` -- block sits with no semantic neighbour
+- `cta-buried` -- primary action visually subordinate to chrome
+- `alignment-off` -- visible grid drift
+- `whitespace-imbalance` -- gutters / vertical rhythm broken
+- `photography-mismatch` -- imagery clashes with rubric voice/palette
+- `color-clash` -- accents fight the rubric palette
+- `brand-violation` -- direct contradiction of `design-intent.md`
+- `mockup-divergent` -- output diverges from a tracked mockup
+
+If you see a `vision:*` kind that isn't on this list, the reviewer or
+the prompt drifted -- flag it instead of inventing a fix.
+
+## Mandatory workflow before fixing
+
+You MUST do all four of these BEFORE writing any code in response to a
+`vision:*` finding:
+
+1. **Open the screenshot** at `screenshot_path`. Look at it. The
+   reviewer described what it saw; you need to see it too. Don't trust
+   the textual `message` alone -- vision models occasionally locate the
+   right problem in the wrong words.
+2. **Open the annotated review** at `review_png_path`. The reviewer
+   draws a coloured `bbox` for every finding (red=error, amber=warn,
+   blue=info) with the kind label baked in. Use it to confirm which
+   element the finding is actually pointing at -- selectors are
+   deliberately absent from `vision:*` because the reviewer sees
+   pixels, not the DOM.
+3. **Read the rubric** at `<theme>/design-intent.md`. Every
+   `vision:*` finding was graded against that file. If the rubric
+   doesn't justify the complaint, the rubric is wrong, the finding is
+   wrong, or both -- but you cannot fix anything until you know which.
+4. **Look up the remedy** in `bin/finding_remedies.json`. Each
+   `vision:*` kind has an entry with `file`, `strategy`, and an
+   `example_diff`. That's where the fix goes; don't guess at a layer.
+
+Only then propose the change.
+
+## After you fix
+
+1. Save your edit. The `bin/dispatch-watch.py` daemon (if running)
+   re-snaps on file change; if it isn't running, run
+   `python3 bin/snap.py shoot <theme>` once.
+2. The next snap regenerates the screenshot. The reviewer's
+   fingerprint (PNG hash + intent.md hash + prompt version + model id)
+   will mismatch its cache, so it re-reviews and emits fresh
+   `vision:*` findings. Don't rerun the reviewer manually -- that
+   burns budget and races the watcher.
+3. Re-open `tmp/dispatch-state.json`. The original finding should be
+   gone. If a new related `vision:*` finding appeared, the fix
+   over- or undershot -- iterate.
+
+## When to disagree with a `vision:*` finding
+
+It happens. Vision models hallucinate, especially on `photography-mismatch`
+and `color-clash`. Disagreement protocol:
+
+1. Re-read the rubric. If the design-intent genuinely allows the
+   thing the reviewer flagged, **edit `<theme>/design-intent.md` to
+   make that allowance explicit** (one sentence under "Allowed
+   exceptions" or in the relevant "Required" / "Forbidden" section)
+   and commit it with the message that frames the disagreement.
+   Future reviews will respect the update.
+2. Don't add per-finding suppression flags. There is no allowlist.
+   The rubric IS the allowlist.
+3. If the reviewer is reliably wrong on a category, say so in the PR
+   that opens against `bin/snap-vision-review.py` -- the prompt or the
+   model needs adjusting, not the symptom.
+
+## What never to do
+
+- Never fix the screenshot. The reviewer reads
+  `tmp/snaps/<theme>/<viewport>/<route>.png`; editing it would make
+  the next snap diverge from reality. Always fix the source.
+- Never strip a `vision:*` finding out of `findings.json` by hand.
+  The reviewer rewrites that file atomically; your edit will be
+  clobbered or, worse, persist if the cache is hit.
+- Never run `bin/snap-vision-review.py` against a theme without a
+  `design-intent.md`. The reviewer refuses, and `bin/check.py`
+  enforces the pairing. If the file is missing, write it (see any
+  existing theme for the canonical shape) before invoking the
+  reviewer.
+- Never set `FIFTY_VISION_REVIEW=1` in CI without also setting
+  `ANTHROPIC_API_KEY` and `FIFTY_VISION_DAILY_BUDGET`. The reviewer
+  fails closed without a key and refuses to spend past the cap, but
+  unreviewed PRs still need a graceful fallback (`--dry-run` mode
+  exists for that).
+
+## Related files
+
+- `bin/snap-vision-review.py` -- the reviewer CLI (per-PNG cache,
+  prefilter, atomic merge into `*.findings.json`)
+- `bin/_vision_lib.py` -- API wrapper, ledger, daily $ cap
+- `bin/finding_remedies.json` -- `vision:*` remedy entries (one per
+  allowed `kind`)
+- `bin/dispatch-watch.py` -- invokes the reviewer post-snap when
+  `FIFTY_VISION_REVIEW=1`
+- `<theme>/design-intent.md` -- per-theme rubric (Voice / Palette /
+  Typography / Required / Forbidden); enforced by `bin/check.py`
+- `tmp/vision-spend.jsonl` -- daily spend ledger (one entry per API
+  call); inspect with `jq` if a budget breach is suspected

@@ -156,6 +156,7 @@ Read this file at the start of any LLM session to discover the project's structu
 |       `-- dashboard.php
 |-- AGENTS.md
 |-- CHANGELOG.md
+|-- design-intent.md
 |-- functions.php
 |-- INDEX.md
 |-- README.md
