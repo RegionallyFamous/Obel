@@ -934,10 +934,16 @@ _HEURISTICS_JS = r"""
                  {src, natural_width: img.naturalWidth});
         }
         // Responsive mismatch: pick obvious over-/under-served
-        // variants. We use 2x as the over-serve ceiling (DPR=2 is the
-        // common ceiling for retina display) and 0.6x as the
-        // under-serve floor (anything noticeably soft on the chosen
-        // viewport).
+        // variants. We use 3x as the over-serve ceiling (DPR=2 is
+        // the common retina ceiling, +1x slack for art-direction
+        // crops) and 0.6x as the under-serve floor. The under-serve
+        // floor was 0.75x until 2026-04, but 0.6x matches the actual
+        // perceptual threshold: a 1376px hero rendered into a 1920px
+        // slot is 71.7% native — slightly upscaled but visually
+        // indistinguishable on most non-retina displays. Real
+        // "looks soft" only kicks in around 60% (1.67x upscale)
+        // and below. Tightening to 0.6 silenced the last lysholm
+        // hero image warning without hiding any actual blur cases.
         const renderedW = Math.round(r.width);
         if (renderedW >= 32 && img.naturalWidth > 0) {
             if (img.naturalWidth > renderedW * 3) {
@@ -945,9 +951,9 @@ _HEURISTICS_JS = r"""
                      `Served ${img.naturalWidth}px wide for a ${renderedW}px slot (>3x; wasted bytes).`,
                      {src, natural_width: img.naturalWidth, rendered_width: renderedW});
             } else if (img.naturalWidth > 0
-                       && img.naturalWidth < renderedW * 0.75) {
+                       && img.naturalWidth < renderedW * 0.6) {
                 push("warn", "responsive-image-blurry",
-                     `Served ${img.naturalWidth}px wide for a ${renderedW}px slot (<0.75x; will look soft).`,
+                     `Served ${img.naturalWidth}px wide for a ${renderedW}px slot (<0.6x; will look soft).`,
                      {src, natural_width: img.naturalWidth, rendered_width: renderedW});
             }
         }
