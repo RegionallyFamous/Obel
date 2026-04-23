@@ -16,6 +16,7 @@ set by:
 These tests pin the predicate so a future refactor can't silently
 re-introduce the loophole.
 """
+
 from __future__ import annotations
 
 import sys

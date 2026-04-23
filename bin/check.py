@@ -6076,7 +6076,7 @@ def check_allowlist_entries_resolve() -> Result:
 
     sys.path.insert(0, str(MONOREPO_ROOT / "bin"))
     try:
-        import snap_config  # noqa: WPS433
+        import snap_config
     except ImportError as e:
         r.skip(f"could not import snap_config: {e}")
         return r

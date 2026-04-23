@@ -118,8 +118,18 @@ def test_design_rejects_spec_and_prompt_together(tmp_path):
 
 @pytest.mark.parametrize(
     "phase",
-    ["validate", "clone", "apply", "seed", "sync", "snap", "vision-review",
-     "baseline", "check", "report"],
+    [
+        "validate",
+        "clone",
+        "apply",
+        "seed",
+        "sync",
+        "snap",
+        "vision-review",
+        "baseline",
+        "check",
+        "report",
+    ],
 )
 def test_design_help_lists_every_phase(phase):
     r = _run(["--help"])

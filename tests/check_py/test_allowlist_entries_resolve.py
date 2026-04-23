@@ -6,6 +6,7 @@ silently match nothing (they don't suppress and they don't fail), so
 a real regression in the renamed route walks past the gate. This
 invariant turns those orphan keys into a hard fail.
 """
+
 from __future__ import annotations
 
 import json

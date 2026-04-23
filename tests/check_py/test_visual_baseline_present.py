@@ -6,6 +6,7 @@ files at all therefore looks "green" because there's nothing to
 diff. This invariant is the upstream shield: every theme must ship
 at least one baseline PNG, or the check fails.
 """
+
 from __future__ import annotations
 
 import sys
