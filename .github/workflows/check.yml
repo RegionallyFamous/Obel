@@ -121,7 +121,21 @@ jobs:
           fi
       - name: Shoot changed themes (quick subset)
         if: steps.changed.outputs.has_themes == 'true'
-        run: python3 bin/snap.py shoot --changed --quick --concurrency 1
+        # Pass `--changed-base origin/main` so brand-new themes (present on
+        # the PR branch but not yet on main) are detected. Without it the
+        # shoot step looks only at uncommitted + untracked on a fresh
+        # checkout, finds nothing, and skips — leaving the evidence-required
+        # check.py below to fail because tmp/snaps/<theme>/ never got
+        # populated. See `_changed_themes()` in bin/snap.py.
+        #
+        # FIFTY_CONTENT_REF: on a PR, rewrite main-branch URLs in the
+        # blueprint to the PR head SHA so a brand-new theme's playground/
+        # content + images resolve. See _retarget_content_ref() in snap.py.
+        env:
+          FIFTY_CONTENT_REF: ${{ github.event.pull_request.head.sha || '' }}
+        run: >-
+          python3 bin/snap.py shoot --changed
+          --changed-base origin/main --quick --concurrency 1
       - name: Run check.py with evidence required
         if: steps.changed.outputs.has_themes == 'true'
         env:

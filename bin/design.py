@@ -44,21 +44,26 @@ the long-form judgment work).
 
 Phase model
 -----------
-The pipeline has named phases A-J. Every phase is idempotent and can be
+The pipeline has named phases A-M. Every phase is idempotent and can be
 retried, every phase failure exits 1 by default (use `--no-strict` to
 get the legacy informational behaviour for the check phase).
 
   A. validate      - parse + validate the spec (always runs, dry-run stops here)
   B. clone         - bin/clone.py (skipped if --skip-clone or theme exists)
   C. apply         - palette + fonts written to <slug>/theme.json + BRIEF.md
-  D. seed          - bin/seed-playground-content.py (HARD-fail under default strict)
-  E. sync          - bin/sync-playground.py
-  F. snap          - bin/snap.py shoot <slug> -- generates tmp/snaps/<slug>/...
-  G. vision-review - bin/snap-vision-review.py <slug> (skipped without ANTHROPIC_API_KEY)
-  H. baseline      - promote baselines for routes that have none yet (no-op if all
+  D. index         - bin/build-index.py <slug> -- refreshes <slug>/INDEX.md
+  E. seed          - bin/seed-playground-content.py (HARD-fail under default strict)
+  F. sync          - bin/sync-playground.py
+  G. snap          - bin/snap.py shoot <slug> -- generates tmp/snaps/<slug>/...
+  H. vision-review - bin/snap-vision-review.py <slug> (skipped without ANTHROPIC_API_KEY)
+  I. baseline      - promote baselines for routes that have none yet (no-op if all
                      baselines already exist; pass --rebaseline to force)
-  I. check         - bin/check.py <slug> --quick -- runs against fresh evidence
-  J. report        - bin/snap.py report <slug> -- writes tmp/snaps/<slug>/review.md
+  J. screenshot    - bin/build-theme-screenshots.py <slug> -- derives screenshot.png
+                     from the baseline so check_theme_screenshots_distinct passes
+  K. check         - bin/check.py <slug> --quick -- runs against fresh evidence
+  L. report        - bin/snap.py report <slug> -- writes tmp/snaps/<slug>/review.md
+  M. redirects     - bin/build-redirects.py -- regenerates docs/ so the new theme
+                     shows up at demo.regionallyfamous.com/<slug>/...
 
 Use `--from PHASE` to start mid-pipeline (e.g. you tweaked the spec and
 only want to re-run phases C onward without re-cloning), or `--only PHASE`
@@ -114,13 +119,16 @@ PHASES = (
     "validate",
     "clone",
     "apply",
+    "index",
     "seed",
     "sync",
     "snap",
     "vision-review",
     "baseline",
+    "screenshot",
     "check",
     "report",
+    "redirects",
 )
 
 
@@ -303,9 +311,12 @@ def main(argv: list[str] | None = None) -> int:
 
     phases_to_run = _select_phases(args.from_phase, args.only)
     if args.skip_snap and not args.only:
+        # `screenshot` is derived from the baseline PNG so it's equally
+        # dependent on a fresh snap; group it with the snap phases.
         phases_to_run = [
             p for p in phases_to_run
-            if p not in {"snap", "vision-review", "baseline", "report"}
+            if p not in {"snap", "vision-review", "baseline",
+                         "screenshot", "report"}
         ]
     print(f"design.py: running phases {' -> '.join(phases_to_run)} for `{spec.slug}`")
 
@@ -396,6 +407,23 @@ def _phase_apply(spec: ValidatedSpec, dest: Path, args: argparse.Namespace) -> N
     print(f"  [apply] wrote {brief_path.relative_to(MONOREPO_ROOT)}")
 
 
+def _phase_index(spec: ValidatedSpec, dest: Path, args: argparse.Namespace) -> None:
+    """Run `bin/build-index.py <slug>` so the theme's INDEX.md reflects the
+    newly cloned + palette-applied surface before the `check` phase runs
+    `check_index_in_sync`. Without this, a brand-new theme ships without
+    an INDEX.md (or with the source theme's) and check.py hard-fails. Soft
+    warnings only; the check phase below is the authoritative gate."""
+    script = ROOT / "bin" / "build-index.py"
+    if not script.is_file():
+        print("  [index] WARN: bin/build-index.py missing; skipping.")
+        return
+    cmd = [sys.executable, str(script), spec.slug]
+    print(f"  [index] {' '.join(cmd[1:])}")
+    rc = subprocess.call(cmd, cwd=str(MONOREPO_ROOT))
+    if rc != 0:
+        raise PhaseError("index", f"bin/build-index.py exited {rc}")
+
+
 def _phase_seed(spec: ValidatedSpec, dest: Path, args: argparse.Namespace) -> None:
     """Run `bin/seed-playground-content.py --theme <slug>` to populate
     `<slug>/playground/content/` and `<slug>/playground/images/`.
@@ -479,6 +507,30 @@ def _phase_baseline(spec: ValidatedSpec, dest: Path, args: argparse.Namespace) -
         raise PhaseError("baseline", f"bin/snap.py baseline exited {rc}")
 
 
+def _phase_screenshot(spec: ValidatedSpec, dest: Path, args: argparse.Namespace) -> None:
+    """Run `bin/build-theme-screenshots.py <slug>` to derive the theme's
+    WordPress admin `screenshot.png` from the freshly promoted baseline.
+
+    Check.py's `check_theme_screenshots_distinct` rejects any theme that
+    ships the source theme's screenshot bytes unchanged. Without this
+    phase, a brand-new clone keeps its source's screenshot.png verbatim,
+    and the git pre-commit hook fails at the last mile of the build.
+    We bake the derivation into the pipeline so the gate stays green
+    without a separate manual step."""
+    script = ROOT / "bin" / "build-theme-screenshots.py"
+    if not script.is_file():
+        print("  [screenshot] WARN: bin/build-theme-screenshots.py missing; skipping.")
+        return
+    cmd = [sys.executable, str(script), spec.slug]
+    print(f"  [screenshot] {' '.join(cmd[1:])}")
+    rc = subprocess.call(cmd, cwd=str(MONOREPO_ROOT))
+    if rc != 0:
+        # Non-strict so a missing baseline (e.g. --skip-snap flow) doesn't
+        # abort the whole run; check.py will still flag the mismatch.
+        print(f"  [screenshot] WARN: bin/build-theme-screenshots.py exited {rc}; "
+              "check.py will flag if screenshot.png is stale.")
+
+
 def _phase_check(spec: ValidatedSpec, dest: Path, args: argparse.Namespace) -> None:
     """Run `bin/check.py <slug> --quick` for a fast static gate. With strict
     (the default), propagate failures; with `--no-strict`, print a hint
@@ -518,6 +570,28 @@ def _phase_report(spec: ValidatedSpec, dest: Path, args: argparse.Namespace) -> 
         print(f"  [report] WARN: bin/snap.py report exited {rc}; theme is still green.")
 
 
+def _phase_redirects(spec: ValidatedSpec, dest: Path, args: argparse.Namespace) -> None:
+    """Run `bin/build-redirects.py` so the new theme's short URLs appear
+    on `demo.regionallyfamous.com` and the landing page lists it.
+
+    This was a missing step in the Foundry build: the theme shipped and
+    merged but the Pages site didn't list it until a manual follow-up
+    commit. build-redirects.py regenerates every theme's docs/ entries
+    from scratch each run so it's safe to re-invoke on every design.py
+    run — incremental is a no-op. Soft-fails with a warning so a docs
+    regen glitch never blocks a theme landing."""
+    script = ROOT / "bin" / "build-redirects.py"
+    if not script.is_file():
+        print("  [redirects] WARN: bin/build-redirects.py missing; skipping.")
+        return
+    cmd = [sys.executable, str(script)]
+    print(f"  [redirects] {' '.join(cmd)}")
+    rc = subprocess.call(cmd, cwd=str(MONOREPO_ROOT))
+    if rc != 0:
+        print(f"  [redirects] WARN: bin/build-redirects.py exited {rc}; "
+              "run manually and commit the docs/ diff to publish to GH Pages.")
+
+
 def _resolve_prompt_to_spec(prompt: str) -> Path:
     """Invoke `bin/spec-from-prompt.py` to turn `prompt` into a spec.json,
     write it to `tmp/specs/<slug>.json`, and return the path. Raises
@@ -553,13 +627,16 @@ _PHASE_HANDLERS = {
     "validate": _phase_validate,
     "clone": _phase_clone,
     "apply": _phase_apply,
+    "index": _phase_index,
     "seed": _phase_seed,
     "sync": _phase_sync,
     "snap": _phase_snap,
     "vision-review": _phase_vision_review,
     "baseline": _phase_baseline,
+    "screenshot": _phase_screenshot,
     "check": _phase_check,
     "report": _phase_report,
+    "redirects": _phase_redirects,
 }
 
 
