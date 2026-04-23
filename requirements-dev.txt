@@ -10,3 +10,9 @@
 pytest>=8.4,<9
 ruff>=0.15,<1
 mypy>=1.19,<2
+# Pillow is consumed by `bin/snap-vision-review.py` (image prefilter +
+# annotated review.png) and by `tests/fixtures/visual-regressions/_generator.py`
+# (deterministic fixture rendering). Pinned to a range that includes the
+# version Playwright + visual.yml install separately so the lockstep is
+# obvious.
+Pillow>=10,<12

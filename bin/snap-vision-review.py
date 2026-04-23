@@ -66,14 +66,17 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+# Pillow is imported lazily inside the two functions that touch pixels
+# (`_passes_prefilter`, `_annotate_review_png`) so that `--help`, the
+# CLI smoke test, and the dry-run usage-error tests can load this
+# module without Pillow installed. The reviewer's actual runtime path
+# still requires Pillow; CI installs it via requirements-dev.txt.
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _vision_lib import (  # noqa: E402
+from _vision_lib import (
     DEFAULT_DAILY_BUDGET_USD,
     DEFAULT_LEDGER_PATH,
     DEFAULT_MODEL,
@@ -125,7 +128,7 @@ class ReviewItem:
     module isn't registered yet. Plain classes don't trigger that path.
     """
 
-    __slots__ = ("theme", "route", "viewport", "png_path")
+    __slots__ = ("png_path", "route", "theme", "viewport")
 
     def __init__(self, theme, route, viewport, png_path):
         self.theme = theme
@@ -150,7 +153,7 @@ class ReviewResult:
     """Outcome of reviewing one ReviewItem. Plain class for the same
     reason ReviewItem is — see its docstring."""
 
-    __slots__ = ("item", "status", "findings", "cost_usd", "elapsed_s", "note")
+    __slots__ = ("cost_usd", "elapsed_s", "findings", "item", "note", "status")
 
     def __init__(self, item, status, findings=None, cost_usd=0.0, elapsed_s=0.0, note=""):
         self.item = item
@@ -171,7 +174,7 @@ def _route_purpose(theme_root: Path, route: str) -> str:
     `bin/snap_config.py`'s ROUTES table when importable; otherwise empty."""
     try:
         sys.path.insert(0, str(REPO_ROOT / "bin"))
-        from snap_config import ROUTES  # type: ignore
+        from snap_config import ROUTES
         for r in ROUTES:
             if r.slug == route:
                 return r.description
@@ -222,6 +225,7 @@ def _discover_items(
 
 def _passes_prefilter(png_bytes: bytes) -> tuple[bool, str]:
     """Return (proceed, reason). `proceed=False` means skip the API call."""
+    from PIL import Image
     try:
         with Image.open(_BytesIO(png_bytes)) as img:
             img = img.convert("RGB")
@@ -262,6 +266,7 @@ def _annotate_review_png(item: ReviewItem, findings: list[dict]) -> None:
     a "No findings" stamp tells the agent the route was reviewed clean
     rather than untouched.
     """
+    from PIL import Image, ImageDraw
     try:
         with Image.open(item.png_path) as src:
             canvas = src.convert("RGB").copy()
@@ -467,7 +472,7 @@ def validate_against_fixtures(
                     ledger_path=ledger_path,
                     daily_budget_usd=daily_budget_usd,
                 )
-            except VisionError as exc:  # type: ignore[name-defined]
+            except VisionError as exc:
                 print(f"  !! {spec['file']}: {exc}")
                 return 2
             findings = resp.findings
@@ -484,9 +489,9 @@ def validate_against_fixtures(
     wd_total = 0
     tp = fp = fn = 0
     for spec, findings, note in results:
-        kinds = {f.get("kind") for f in findings}
-        expected = set(spec.get("expected_findings") or [])
-        forbidden = set(spec.get("forbidden_findings") or [])
+        kinds: set[str] = {str(f.get("kind") or "") for f in findings if f.get("kind")}
+        expected: set[str] = set(spec.get("expected_findings") or [])
+        forbidden: set[str] = set(spec.get("forbidden_findings") or [])
         if spec.get("kind") == "regression":
             regs_total += 1
             if expected & kinds:
