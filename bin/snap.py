@@ -988,6 +988,15 @@ _HEURISTICS_JS = r"""
             const r = el.getBoundingClientRect();
             const text = (el.innerText || '').trim();
             if (!text || r.width < 1) return;
+            // Element is squashed to near-zero width — that's a layout
+            // collapse (parent grid track collapsed, or the container
+            // is `display:none` waiting on a media query). Wrap-mid-
+            // word is meaningless when the element has no width to
+            // render text into; the real bug is the collapse, which
+            // is caught by `region-void` / `element-overflow-x`. ~24
+            // false positives/run on `<aside>` 7px-wide collapsed
+            // sidebars.
+            if (r.width < 32) return;
             // Approximate the intrinsic word width: the longest word's
             // pixel width if rendered on a single line.
             const longestWord = text.split(/\s+/).reduce((a,b) => a.length >= b.length ? a : b, '');
@@ -1099,6 +1108,32 @@ _HEURISTICS_JS = r"""
             }
             return false;
         };
+        // Stacked text-link list pattern. A `<li>` whose only anchor is
+        // `el` AND whose effective height (offsetHeight + margin) is
+        // >= 28px is a vertical list-of-links. The whole list-item line
+        // is clickable on mobile (browsers extend the hit-test box to
+        // the line box, not just the inline letterforms). Refusing to
+        // skip these produces ~120 noise findings/run on journal recent-
+        // posts widgets, footer link columns, and category nav lists.
+        const isLoneLinkInListItem = (el) => {
+            const p = el.parentElement;
+            if (!p) return false;
+            if (!p.matches) return false;
+            // Block-level containers that typically house bare-link
+            // text lists (aside widget posts, footer link columns,
+            // breadcrumb-style nav rows).
+            if (!p.matches('li, dt, dd, p, h1, h2, h3, h4, h5, h6')) return false;
+            // Must be the only anchor in its container — if there are
+            // siblings (nav primary > submenu) the per-link tap area
+            // matters individually.
+            const anchors = p.querySelectorAll('a[href]');
+            if (anchors.length !== 1) return false;
+            // Effective tap surface = the parent line-box. Use offset
+            // height inclusive of padding (which is what the click
+            // hit-test honours in practice).
+            const ph = p.offsetHeight || p.getBoundingClientRect().height;
+            return ph >= 28;
+        };
         tapEls.forEach((el) => {
             if (!isVisible(el)) return;
             const r = el.getBoundingClientRect();
@@ -1111,6 +1146,7 @@ _HEURISTICS_JS = r"""
             if (isScreenReaderOnly(el, r, cs)) return;
             if (r.width < 32 || r.height < 32) {
                 if (ancestorIsCardWithAnchor(el)) return;
+                if (isLoneLinkInListItem(el)) return;
                 const label = (el.innerText || el.getAttribute('aria-label') || '').trim().slice(0, 40);
                 push("warn", "tap-target-too-small",
                      `Mobile tap target ${Math.round(r.width)}x${Math.round(r.height)}px (<32px) for "${label}".`,
@@ -1246,6 +1282,14 @@ _HEURISTICS_JS = r"""
             const sel = cssPath(el);
             const tag = el.tagName.toLowerCase();
             const txt = (el.innerText || '').trim().slice(0, 80);
+            // Empty headings can't really be "clipped" — they have no
+            // visible glyphs. The reported scrollHeight > clientHeight
+            // is a font-metrics ghost (the line-box still reserves
+            // ascender + descender even with no text). Most often this
+            // fires on the legacy WC reviews title `h2.woocommerce-
+            // Reviews-title` which is left empty when there are zero
+            // reviews — ~24 noise findings/run, all the same h2.
+            if (txt.length === 0) return;
             push("error", "heading-clipped-vertical",
                  `<${tag}> "${txt}" is taller than its box by ${overflow}px (scrollHeight ${el.scrollHeight} > clientHeight ${el.clientHeight}). Likely a max-height + overflow:hidden parent eating part of the headline.`,
                  {selector: sel, fingerprint: sel,
@@ -1529,7 +1573,16 @@ _HEURISTICS_JS = r"""
                 '[aria-live], [role="status"], [role="alert"], '
                 + '.wc-block-components-notice-snackbar-list, '
                 + '.wc-block-components-notices__snackbar, '
-                + '.wp-block-woocommerce-store-notices'
+                + '.wp-block-woocommerce-store-notices, '
+                // WC product-image inner containers are placeholders
+                // that wrap an `<img>` whose `src` is set lazily by the
+                // collection block. On first paint the inner container
+                // is visible at full image dimensions but the `<img>`
+                // hasn't materialised yet — we'd report it as a void
+                // even though the next frame paints the image.
+                + '.wc-block-components-product-image, '
+                + '.wc-block-components-product-image__inner-container, '
+                + '.wc-block-grid__product-image'
             )) return true;
             if ((cs.position === 'fixed' || cs.position === 'absolute')
                 && cs.pointerEvents === 'none') return true;
@@ -1622,13 +1675,23 @@ _HEURISTICS_JS = r"""
             const mediaCount = el.querySelectorAll(
                 'img, svg, video, picture, iframe, canvas'
             ).length;
+            // CSS background-image counts as visual media — themes
+            // routinely paint hero / banner imagery via
+            // `background-image` rather than `<img>` (the wo-archive-
+            // hero "cover" variant uses the term thumbnail as a bg).
+            // Without this check, every cover-style hero fires
+            // region-low-density (one word + bg-image = "no media").
+            const cs = window.getComputedStyle(el);
+            const hasOwnBg = cs.backgroundImage && cs.backgroundImage !== 'none';
             // Density score: text characters + 50 per media element,
             // normalized to area in kilo-pixels. Threshold of 0.05
             // tuned to flag "one word in a 600px section" while
             // letting normal hero patterns (a paragraph + image)
-            // through.
+            // through. Background-image carries the same content
+            // weight as a media element.
             const areaKpx = (r.width * r.height) / 1000;
-            const score = (txt.length + 50 * mediaCount) / Math.max(1, areaKpx);
+            const effectiveMedia = mediaCount + (hasOwnBg ? 1 : 0);
+            const score = (txt.length + 50 * effectiveMedia) / Math.max(1, areaKpx);
             if (score >= 0.05) continue;
             // Skip "void" cases -- already covered by region-void above.
             if (txt.length === 0 && mediaCount === 0) continue;

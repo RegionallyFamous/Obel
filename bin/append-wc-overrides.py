@@ -1304,6 +1304,56 @@ h2.wp-block-heading.wp-block-heading.wp-block-heading.wp-block-heading{{line-hei
 {SENTINEL_CLOSE_PHASE_R}"""
 
 
+# wc-tells phase-s: the post-Phase-R / post-batch-4 cleanup. The
+# remaining clusters in the gallery are a tight set of real bugs the
+# previous CSS chunks didn't fully neutralise:
+#
+#   1. wo-archive-hero h1 ("Curiosities", "Range") at the 5xl preset
+#      blows past the mobile viewport: an 11-character serif headline
+#      renders ~385px wide inside a 294px content column, pushing the
+#      whole document scrollWidth 43px past the 390px iPhone viewport.
+#      Cascades into 14× horizontal-overflow + 14× wp-site-blocks
+#      overflow + 12× wp-block-template-part overflow (one per
+#      mobile route, one per theme). Fixed with a `clamp()` so the
+#      headline scales down on narrow viewports while keeping the
+#      desktop typographic intent. Also bumps line-height to 1.3 +
+#      adds padding-block:0.05em so descenders / italic ascenders
+#      don't trip the heading-clipped detector.
+#
+#   2. wo-account-intro__title ("WELCOME BACK TO …") same root cause
+#      at line-height:1, ~22 heading-clipped findings/run.
+#
+#   3. h1.wp-block-heading (page titles like "CART", "CHECKOUT",
+#      "JOURNAL") missed by the post-title rule — the Phase R rule
+#      targets `.wp-block-post-title`, page titles use plain
+#      `.wp-block-heading`. Adds the matching line-height bump.
+#
+#   4. WC product-template `.wc-block-components-product-button`
+#      buttons inside the 4-column shop grid: at tablet width each
+#      button is 120px wide but the default `padding: 12px 24px`
+#      leaves only 72px for the label. Words >= 7 characters
+#      ("Acquire", "Select options") spill 9-10px past the box on
+#      every product card, every mobile/tablet shop+category route.
+#      Shrinks padding to 8px and lets the link text wrap.
+#
+#   5. mini-cart button label "3" still overflows by 2px even after
+#      the Phase R 60px min-width. The WC default uses `width:auto`
+#      and the visible cart-count badge sits absolutely positioned
+#      half-outside the button boundary; bumping min-width with
+#      !important + adding right-padding for the badge clears it.
+#
+SENTINEL_OPEN_PHASE_S = "/* wc-tells-phase-s-real-bug-cleanup-3 */"
+SENTINEL_CLOSE_PHASE_S = "/* /wc-tells-phase-s-real-bug-cleanup-3 */"
+CSS_PHASE_S = f"""{SENTINEL_OPEN_PHASE_S}
+.wo-archive-hero__title.wo-archive-hero__title.wo-archive-hero__title{{font-size:clamp(2rem,8vw,var(--wp--preset--font-size--5-xl));line-height:1.3;padding-block:0.05em;overflow-wrap:break-word;min-width:0;max-width:100%;}}
+.wo-archive-hero__inner.wo-archive-hero__inner{{min-width:0;max-width:100%;}}
+.wo-account-intro__title.wo-account-intro__title.wo-account-intro__title{{line-height:1.3;padding-block:0.05em;}}
+h1.wp-block-heading.wp-block-heading.wp-block-heading.wp-block-heading{{line-height:1.25;padding-bottom:0.05em;}}
+.wp-block-woocommerce-product-template .wc-block-components-product-button.wc-block-components-product-button .wp-block-button__link,.wp-block-woocommerce-product-collection .wc-block-components-product-button.wc-block-components-product-button .wp-block-button__link{{padding-left:8px;padding-right:8px;min-width:0;max-width:100%;white-space:normal;overflow-wrap:break-word;}}
+.wc-block-mini-cart__button.wc-block-mini-cart__button.wc-block-mini-cart__button.wc-block-mini-cart__button.wc-block-mini-cart__button{{min-width:72px !important;padding-left:10px !important;padding-right:18px !important;}}
+{SENTINEL_CLOSE_PHASE_S}"""
+
+
 # Each entry: (sentinel_open, sentinel_close, raw_css, anchor_after).
 # `anchor_after` is the marker the chunk is spliced in after — for the
 # first chunk that's the canonical archive-page marker; for follow-ups
@@ -1453,6 +1503,12 @@ CHUNKS: list[tuple[str, str, str, str]] = [
         SENTINEL_CLOSE_PHASE_R,
         CSS_PHASE_R,
         SENTINEL_CLOSE_PHASE_Q,
+    ),
+    (
+        SENTINEL_OPEN_PHASE_S,
+        SENTINEL_CLOSE_PHASE_S,
+        CSS_PHASE_S,
+        SENTINEL_CLOSE_PHASE_R,
     ),
 ]
 
