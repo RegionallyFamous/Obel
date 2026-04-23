@@ -1121,8 +1121,13 @@ _HEURISTICS_JS = r"""
             if (!p.matches) return false;
             // Block-level containers that typically house bare-link
             // text lists (aside widget posts, footer link columns,
-            // breadcrumb-style nav rows).
-            if (!p.matches('li, dt, dd, p, h1, h2, h3, h4, h5, h6')) return false;
+            // breadcrumb-style nav rows). Also `<td>` / `<th>` —
+            // WC cart + checkout summary render product names and
+            // remove links inside table cells whose row height is the
+            // tap surface (one cart-line-item row is ~64px tall but
+            // the inline product-title <a> measures only 18px). The
+            // cell, not the glyph rect, is what the user can tap.
+            if (!p.matches('li, dt, dd, p, h1, h2, h3, h4, h5, h6, td, th')) return false;
             // Must be the only anchor in its container — if there are
             // siblings (nav primary > submenu) the per-link tap area
             // matters individually.
@@ -1277,6 +1282,24 @@ _HEURISTICS_JS = r"""
             // clip / clip-path (the modern sr-only).
             if ((cs.clipPath && cs.clipPath !== 'none')
                 || (cs.clip && cs.clip !== 'auto')) return;
+            // Same goes for any heading nested under an SR-only
+            // ancestor — the WC cart-line-items table renders a
+            // `<caption class="screen-reader-text"><h2>Products in
+            // cart</h2></caption>` per cart, and the visually-hidden
+            // caption fires the detector on every cart route at
+            // every viewport (~46 noise findings/run). The heading
+            // is invisible to sighted users; clipping doesn't matter.
+            let srAncestor = false;
+            for (let p = el.parentElement; p; p = p.parentElement) {
+                if (!p.className) continue;
+                const pcls = (p.className && p.className.baseVal) || p.className || '';
+                if (typeof pcls !== 'string') continue;
+                if (/\b(sr-only|screen-reader-text|visually-hidden)\b/.test(pcls)) {
+                    srAncestor = true;
+                    break;
+                }
+            }
+            if (srAncestor) return;
             const overflow = el.scrollHeight - el.clientHeight;
             if (overflow <= 4) return;
             const sel = cssPath(el);

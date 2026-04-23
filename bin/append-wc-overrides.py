@@ -1353,6 +1353,40 @@ h1.wp-block-heading.wp-block-heading.wp-block-heading.wp-block-heading{{line-hei
 {SENTINEL_CLOSE_PHASE_S}"""
 
 
+# wc-tells phase-t: the post-Phase-S cleanup. Two specific real bugs
+# that surfaced once the Phase R/S noise cleared:
+#
+#   1. wo-account-login-grid (the "Welcome back, sign in" grid that
+#      wraps WC's login form on the my-account page when the visitor
+#      is logged out) renders inside `.entry-content.alignwide >
+#      .woocommerce` with a 220px content column. The inner login
+#      copy ("PILOT ID … Welcome back to Aero. … Sign In") needs
+#      314px and spills 94px past the box on EVERY my-account route
+#      at desktop+wide (8 element-overflow-x findings/run, plus
+#      visible truncation in the gallery). Force the grid to 1
+#      column with `min-width:0` so the form fields and copy stay
+#      inside the parent column.
+#
+#   2. Selvedge primary nav at tablet (768px viewport) needs 756px
+#      of menu items inside a 705px alignwide content column —
+#      cascades into 51px + 19px overflow findings on the alignwide
+#      / alignfull / template-part / wp-site-blocks chain on every
+#      route. Allow the primary nav row to wrap on tablet+mobile so
+#      the menu reflows below the logo instead of forcing horizontal
+#      scroll. Selvedge-only (other themes' headers fit at 768px).
+#      Targets the alignfull header's nav container with high-spec
+#      class chaining; falls back to `flex-wrap:wrap` which is
+#      what the WP block editor expects when the nav doesn't fit.
+#
+SENTINEL_OPEN_PHASE_T = "/* wc-tells-phase-t-real-bug-cleanup-4 */"
+SENTINEL_CLOSE_PHASE_T = "/* /wc-tells-phase-t-real-bug-cleanup-4 */"
+CSS_PHASE_T = f"""{SENTINEL_OPEN_PHASE_T}
+.wo-account-login-grid.wo-account-login-grid.wo-account-login-grid{{display:grid;grid-template-columns:minmax(0,1fr);min-width:0;max-width:100%;}}
+.wo-account-login-grid.wo-account-login-grid.wo-account-login-grid>*{{min-width:0;max-width:100%;overflow-wrap:break-word;}}
+@media (max-width:781px){{body.theme-selvedge .wp-site-blocks header.wp-block-group.alignfull.alignfull,body.theme-selvedge .wp-site-blocks header.wp-block-group.alignfull .wp-block-group.alignfull,body.theme-selvedge .wp-site-blocks header.wp-block-group.alignfull .wp-block-group.alignwide{{flex-wrap:wrap;min-width:0;max-width:100%;}}body.theme-selvedge .wp-site-blocks header.wp-block-group.alignfull .wp-block-navigation,body.theme-selvedge .wp-site-blocks header.wp-block-group.alignfull .wp-block-navigation__container{{flex-wrap:wrap;min-width:0;max-width:100%;}}}}
+{SENTINEL_CLOSE_PHASE_T}"""
+
+
 # Each entry: (sentinel_open, sentinel_close, raw_css, anchor_after).
 # `anchor_after` is the marker the chunk is spliced in after — for the
 # first chunk that's the canonical archive-page marker; for follow-ups
@@ -1508,6 +1542,12 @@ CHUNKS: list[tuple[str, str, str, str]] = [
         SENTINEL_CLOSE_PHASE_S,
         CSS_PHASE_S,
         SENTINEL_CLOSE_PHASE_R,
+    ),
+    (
+        SENTINEL_OPEN_PHASE_T,
+        SENTINEL_CLOSE_PHASE_T,
+        CSS_PHASE_T,
+        SENTINEL_CLOSE_PHASE_S,
     ),
 ]
 
