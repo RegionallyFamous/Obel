@@ -789,7 +789,7 @@ def check_block_markup_anti_patterns() -> Result:
     """
     r = Result(
         "Block markup matches save() output "
-        "(group classes, button shadow, paragraph classes, accordion role, button type, heading typography, post-template grid)"
+        "(group classes, button shadow, paragraph classes, accordion role, button type, heading typography, post-template grid, wide-query content-size squeeze)"
     )
 
     skip_dirs = {"templates/", "parts/", "patterns/"}
@@ -883,6 +883,36 @@ def check_block_markup_anti_patterns() -> Result:
         r"<!--\s*wp:((?:[a-z0-9-]+/)?(?:post|term)-template)\s+(\{[^>]*?\})\s*-->",
         re.MULTILINE,
     )
+
+    # --- Invariant 8: wp:query with align=wide|full whose inner layout is
+    # `constrained` (without an explicit `contentSize` override) silently
+    # squeezes any direct child wp:post-template back to the THEME'S default
+    # contentSize -- typically 720px even when the query block itself is
+    # painted at 1280px wide. Result: a 3-column grid post-template renders as
+    # three ~225px cards stuffed into the left half of the section, with a
+    # huge empty void on the right.
+    #
+    # Past incident: obel/templates/front-page.html "From the journal" section
+    # (and the same pattern on every archive/home/category/tag/taxonomy/date/
+    # author template across all 5 themes -- 38 files) painted the post grid
+    # at content-size, not wide-size, even though `align:"wide"` was set.
+    # The user's screenshot showed three small cards in the left column with
+    # a giant empty block on the right.
+    #
+    # Canonical fix: change the wp:query inner `layout` to `{"type":"default"}`
+    # so the post-template fills its parent's actual rendered width.
+    # Alternative: keep `constrained` but explicitly set
+    # `"contentSize":"var(--wp--style--global--wide-size)"`.
+    #
+    # We only flag the combination that bites: align=wide|full + constrained
+    # layout WITHOUT a contentSize override + a direct-child post-template
+    # whose own layout is grid. Single-column post lists genuinely want the
+    # narrower content-size, so we don't touch those.
+    query_open_re = re.compile(
+        r"<!--\s*wp:query\s+(\{[^>]*?\})\s*-->",
+        re.MULTILINE,
+    )
+    query_close_re = re.compile(r"<!--\s*/wp:query\s*-->")
 
     def _slug_to_class_token(slug: str) -> str:
         """Mirror @wordpress/blocks save()'s slug → kebab-case conversion.
@@ -1088,6 +1118,54 @@ def check_block_markup_anti_patterns() -> Result:
                     f"pattern across this repo is `\"columnCount\":N,"
                     f"\"minimumColumnWidth\":null`."
                 )
+
+        # Invariant 8: wide/full wp:query + constrained layout (default
+        # contentSize) + grid post-template inside == post grid silently
+        # squeezed to content-size width.
+        for m in query_open_re.finditer(text):
+            qjson = m.group(1)
+            if not re.search(r'"align"\s*:\s*"(wide|full)"', qjson):
+                continue
+            layout_m = re.search(r'"layout"\s*:\s*(\{[^{}]*\})', qjson)
+            if not layout_m:
+                continue
+            layout_json = layout_m.group(1)
+            if not re.search(r'"type"\s*:\s*"constrained"', layout_json):
+                continue
+            if "contentSize" in layout_json:
+                # Author opted in to a specific contentSize override; trust it.
+                continue
+            # Find matching close (templates don't nest wp:query, but be safe
+            # by taking the next /wp:query after the opener).
+            close_m = query_close_re.search(text, m.end())
+            inner = text[m.end():close_m.start()] if close_m else text[m.end():]
+            grid_pt = False
+            grid_lineno = None
+            for pm in post_template_re.finditer(inner):
+                if "post-template" not in pm.group(1):
+                    continue
+                if re.search(r'"layout"\s*:\s*\{[^{}]*?"type"\s*:\s*"grid"', pm.group(2)):
+                    grid_pt = True
+                    grid_lineno = text.count("\n", 0, m.end() + pm.start()) + 1
+                    break
+            if not grid_pt:
+                continue
+            lineno = text.count("\n", 0, m.start()) + 1
+            r.fail(
+                f"{rel}:{lineno}: wp:query is `align:wide|full` with inner "
+                f"`layout:{{\"type\":\"constrained\"}}` (no `contentSize` "
+                f"override) AND contains a grid wp:post-template (line "
+                f"{grid_lineno}). The constrained layout falls back to the "
+                f"theme's DEFAULT contentSize (typically 720px), so the "
+                f"post grid is squeezed to content-size width even though "
+                f"the query block itself is painted at wide-size. The N "
+                f"columns then stack into the left half of the section "
+                f"with a void on the right. Fix: change the wp:query "
+                f"layout to `{{\"type\":\"default\"}}` so the post-template "
+                f"fills its parent's actual width, or set an explicit "
+                f"`\"contentSize\":\"var(--wp--style--global--wide-size)\"` "
+                f"on the constrained layout."
+            )
 
     if r.passed:
         r.details.append(f"{len(files)} pattern/template/part file(s) checked")
