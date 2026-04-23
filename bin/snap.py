@@ -1681,9 +1681,24 @@ _HEURISTICS_JS = r"""
             'main > *, [role="main"] > *, '
             + 'main section, main > div > section'
         );
+        // Editorial hero strips (wo-archive-hero, single-product
+        // headline rows) are intentionally airy — a one-line eyebrow
+        // + huge title + optional descriptor sit on top of large
+        // padding to anchor the section, not to fill it. The detector
+        // measures text *characters* and the hero serif headline is
+        // 11-20 characters at huge type, scoring 0.04-0.05 by design.
+        // Skip elements that opt-in to "this is a brand hero" via a
+        // stable theme class name.
+        const HERO_OPT_OUT = (
+            '.wo-archive-hero, '
+            + '.wo-account-intro, '
+            + '.aero-hero, .chonk-hero, .lysholm-hero, '
+            + '.obel-hero, .selvedge-hero'
+        );
         for (const el of allEls) {
             if (n >= 5) break;
             if (!isVisible(el)) continue;
+            if (el.matches && el.matches(HERO_OPT_OUT)) continue;
             const r = el.getBoundingClientRect();
             if (r.height < vh * 0.4) continue;
             // Skip ancestors already reported.

@@ -1383,8 +1383,40 @@ SENTINEL_CLOSE_PHASE_T = "/* /wc-tells-phase-t-real-bug-cleanup-4 */"
 CSS_PHASE_T = f"""{SENTINEL_OPEN_PHASE_T}
 .wo-account-login-grid.wo-account-login-grid.wo-account-login-grid{{display:grid;grid-template-columns:minmax(0,1fr);min-width:0;max-width:100%;}}
 .wo-account-login-grid.wo-account-login-grid.wo-account-login-grid>*{{min-width:0;max-width:100%;overflow-wrap:break-word;}}
-@media (max-width:781px){{body.theme-selvedge .wp-site-blocks header.wp-block-group.alignfull.alignfull,body.theme-selvedge .wp-site-blocks header.wp-block-group.alignfull .wp-block-group.alignfull,body.theme-selvedge .wp-site-blocks header.wp-block-group.alignfull .wp-block-group.alignwide{{flex-wrap:wrap;min-width:0;max-width:100%;}}body.theme-selvedge .wp-site-blocks header.wp-block-group.alignfull .wp-block-navigation,body.theme-selvedge .wp-site-blocks header.wp-block-group.alignfull .wp-block-navigation__container{{flex-wrap:wrap;min-width:0;max-width:100%;}}}}
+@media (max-width:781px){{body.theme-selvedge .wp-site-blocks header.wp-block-group.alignfull.alignfull,body.theme-selvedge .wp-site-blocks header.wp-block-group.alignfull .wp-block-group.alignfull,body.theme-selvedge .wp-site-blocks header.wp-block-group.alignfull .wp-block-group.alignwide,body.theme-chonk .wp-site-blocks header.wp-block-group.alignfull.alignfull,body.theme-chonk .wp-site-blocks header.wp-block-group.alignfull .wp-block-group.alignfull,body.theme-chonk .wp-site-blocks header.wp-block-group.alignfull .wp-block-group.alignwide{{flex-wrap:wrap;min-width:0;max-width:100%;}}body.theme-selvedge .wp-site-blocks header.wp-block-group.alignfull .wp-block-navigation,body.theme-selvedge .wp-site-blocks header.wp-block-group.alignfull .wp-block-navigation__container,body.theme-chonk .wp-site-blocks header.wp-block-group.alignfull .wp-block-navigation,body.theme-chonk .wp-site-blocks header.wp-block-group.alignfull .wp-block-navigation__container{{flex-wrap:wrap;min-width:0;max-width:100%;}}}}
 {SENTINEL_CLOSE_PHASE_T}"""
+
+
+# wc-tells phase-u: a small set of remaining real bugs the post-Phase-T
+# gallery exposed:
+#
+#   1. Heading line-height for the explicit big-font-size classes
+#      `.has-6-xl-font-size` and `.has-3-xl-font-size`. The Phase R
+#      `h2.wp-block-heading` rule clears the wrapped-headline case
+#      but the chonk hero "MADE TO LAST. PRICED TO LIVE WITH." H1
+#      uses `has-6-xl-font-size` which has its own line-height:1
+#      coming from the preset, so the post-title rule loses the
+#      cascade. Triple-classed selector restores the bump for
+#      hero/section headings at the named font sizes (~42 heading-
+#      clipped findings/run on chonk + selvedge home + section h1s).
+#
+#   2. wo-account-intro__title overflow-wrap. The "Welcome back to
+#      Aero." headline rendering at 314px inside a 161px <aside>
+#      cell wraps mid-word ("W-e-l-c-o-m-e") on every desktop+wide
+#      my-account route, ~24 word-broken findings/run. Adding
+#      overflow-wrap:anywhere lets the headline break on letterform
+#      boundaries instead of producing a stair-step layout.
+#
+SENTINEL_OPEN_PHASE_U = "/* wc-tells-phase-u-real-bug-cleanup-5 */"
+SENTINEL_CLOSE_PHASE_U = "/* /wc-tells-phase-u-real-bug-cleanup-5 */"
+CSS_PHASE_U = f"""{SENTINEL_OPEN_PHASE_U}
+.has-6-xl-font-size.has-6-xl-font-size.has-6-xl-font-size{{line-height:1.2;padding-bottom:0.05em;}}
+.has-5-xl-font-size.has-5-xl-font-size.has-5-xl-font-size{{line-height:1.2;padding-bottom:0.05em;}}
+.has-4-xl-font-size.has-4-xl-font-size.has-4-xl-font-size{{line-height:1.25;padding-bottom:0.05em;}}
+.has-3-xl-font-size.has-3-xl-font-size.has-3-xl-font-size{{line-height:1.3;padding-bottom:0.05em;}}
+.wo-account-intro__title.wo-account-intro__title.wo-account-intro__title{{overflow-wrap:anywhere;min-width:0;max-width:100%;}}
+.wo-account-intro.wo-account-intro.wo-account-intro,.wo-account-intro.wo-account-intro.wo-account-intro>*{{min-width:0;max-width:100%;overflow-wrap:break-word;}}
+{SENTINEL_CLOSE_PHASE_U}"""
 
 
 # Each entry: (sentinel_open, sentinel_close, raw_css, anchor_after).
@@ -1548,6 +1580,12 @@ CHUNKS: list[tuple[str, str, str, str]] = [
         SENTINEL_CLOSE_PHASE_T,
         CSS_PHASE_T,
         SENTINEL_CLOSE_PHASE_S,
+    ),
+    (
+        SENTINEL_OPEN_PHASE_U,
+        SENTINEL_CLOSE_PHASE_U,
+        CSS_PHASE_U,
+        SENTINEL_CLOSE_PHASE_T,
     ),
 ]
 
