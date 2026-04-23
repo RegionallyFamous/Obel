@@ -678,7 +678,13 @@ def running_server(theme: str, port: int | None = None,
         kill_server(server)
 
 
-PLAYGROUND_RACE_BACKOFFS_S = (1.0, 4.0, 16.0)
+# Backoff between PHP-instance-race retries. The tuple is indexed by
+# (attempt - 1); attempts beyond the tuple length reuse the last value.
+# 1s / 4s / 16s / 16s / 16s gives ~53s of sleep across the 4 gaps in a
+# 5-attempt sequence, plus ~30-40s per actual boot attempt = ~3.5min
+# worst-case before we give up. That fits comfortably inside the
+# matrix shoot job's 25-minute timeout.
+PLAYGROUND_RACE_BACKOFFS_S = (1.0, 4.0, 16.0, 16.0, 16.0)
 
 
 def boot_and_wait(
@@ -687,7 +693,7 @@ def boot_and_wait(
     port: int | None = None,
     verbosity: str = "normal",
     login: bool = False,
-    max_attempts: int = 3,
+    max_attempts: int = 5,
     cache_state: bool = False,
 ) -> Server:
     """Boot Playground + wait for blueprint, retrying on the wasm race.
@@ -696,8 +702,16 @@ def boot_and_wait(
     `Error: PHP instance already acquired` race is reliably cleared
     by killing the dead worker and starting fresh; this wrapper
     automates that workaround so a 1-in-2 cold-boot failure rate
-    stops being a session-killer. Backoffs: 1s, 4s, 16s (up to
-    ``max_attempts``).
+    stops being a session-killer.
+
+    ``max_attempts`` defaults to 5 (was 3 until 2026-04). Three
+    attempts proved insufficient on the matrix-per-theme cloud
+    pipeline: a single bad-luck day on aero burned all three retries
+    and failed the whole shoot. With per-attempt PHP-race rate of
+    roughly 30 percent (estimated from the failure clusters we have
+    seen), bumping to 5 attempts drops the all-fail probability from
+    ~3 percent to ~0.2 percent — an order of magnitude better
+    reliability for two extra ~40s attempts in the worst case.
 
     Non-race failures (network, blueprint timeout, exit code) still
     raise ``SystemExit`` immediately -- we only retry the specific
