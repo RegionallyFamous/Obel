@@ -27,41 +27,65 @@ Why this lives in bin/ rather than inline in visual.yml:
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "bin"))
 
 # Imported AFTER sys.path tweak. snap.py is the single source of truth
 # for "which slugs are themes" and "which themes did this commit touch".
-from snap import _changed_themes, discover_themes  # type: ignore  # noqa: E402
+from snap import _changed_themes, discover_themes  # noqa: E402
 
 
-def compute() -> dict[str, str]:
-    event = os.environ.get("EVENT_NAME", "")
-    input_mode = os.environ.get("INPUT_MODE", "").strip()
-    input_themes = os.environ.get("INPUT_THEMES", "").strip()
-    base_ref = os.environ.get("BASE_REF", "origin/main").strip() or "origin/main"
+class Scope(NamedTuple):
+    """Resolved (mode, themes, do_full_shoot) tuple emitted to GITHUB_OUTPUT.
 
+    NamedTuple (rather than @dataclass) is deliberate: the smoke test
+    in tests/tools/test_bin_scripts_smoke.py loads this module via
+    importlib.util.spec_from_file_location (the filename has a dash,
+    which isn't a valid Python identifier), and @dataclass's
+    __module__ resolution chokes when sys.modules has no entry for
+    the loaded module name. NamedTuple sidesteps that entirely.
+    """
+
+    mode: str
+    themes: list[str]
+    do_full_shoot: bool
+
+
+def compute(
+    event: str,
+    input_mode: str,
+    input_themes: str,
+    base_ref: str,
+) -> Scope:
+    """Pure function: turn the (event, mode, themes, base) inputs into a Scope.
+
+    Split out from main() so the unit tests in
+    tests/tools/test_visual_matrix.py can drive every code path without
+    monkey-patching environment variables.
+    """
     explicit_themes = input_themes.split() if input_themes else []
 
     if event == "workflow_dispatch" and input_mode == "regenerate-gallery":
         themes = explicit_themes or discover_themes()
-        return {"mode": "regenerate-gallery", "themes": themes, "do_full_shoot": "true"}
+        return Scope(mode="regenerate-gallery", themes=themes, do_full_shoot=True)
 
     if event == "workflow_dispatch" and input_mode == "rebaseline":
         themes = explicit_themes or discover_themes()
-        return {"mode": "rebaseline", "themes": themes, "do_full_shoot": "true"}
+        return Scope(mode="rebaseline", themes=themes, do_full_shoot=True)
 
     if event == "workflow_dispatch" and explicit_themes:
         # Manual check against an explicit theme list — useful for
         # re-running a previously failed gate without waiting for a
         # rebaseline. Behaves like check-changed (shoot + diff +
         # report) but on the user-supplied subset.
-        return {"mode": "check-manual", "themes": explicit_themes, "do_full_shoot": "false"}
+        return Scope(mode="check-manual", themes=explicit_themes, do_full_shoot=False)
 
     # check-changed (default for push / PR, and for workflow_dispatch
     # with mode=check-changed and no themes). Use git to figure out
@@ -72,29 +96,23 @@ def compute() -> dict[str, str]:
         themes = discover_themes()
     elif not affected:
         # docs-only / tooling-only change → matrix is empty, downstream
-        # jobs skip via `if: needs.setup.outputs.themes != '[]'`
+        # jobs skip via `if: needs.setup.outputs.has_themes == 'true'`.
         themes = []
     else:
         themes = affected
 
-    return {"mode": "check-changed", "themes": themes, "do_full_shoot": "false"}
+    return Scope(mode="check-changed", themes=themes, do_full_shoot=False)
 
 
-def main() -> int:
-    result = compute()
-    themes = result["themes"]
-    assert isinstance(themes, list)
-
-    # GITHUB_OUTPUT is the conventional way to pass values between
-    # workflow steps; falls back to stdout for local --dry-run usage.
-    out_path = os.environ.get("GITHUB_OUTPUT")
+def emit(scope: Scope, out_stream, out_path: str | None) -> None:
+    """Write GITHUB_OUTPUT lines (when running in CI) and echo to stdout."""
     lines = [
-        f"mode={result['mode']}",
-        f"themes={json.dumps(themes)}",
-        f"do_full_shoot={result['do_full_shoot']}",
+        f"mode={scope.mode}",
+        f"themes={json.dumps(scope.themes)}",
+        f"do_full_shoot={'true' if scope.do_full_shoot else 'false'}",
         # `has_themes` is a convenience boolean for `if:` expressions.
         # The matrix-strategy `if: themes != '[]'` works but reads worse.
-        f"has_themes={'true' if themes else 'false'}",
+        f"has_themes={'true' if scope.themes else 'false'}",
     ]
 
     if out_path:
@@ -102,10 +120,55 @@ def main() -> int:
             for line in lines:
                 fh.write(line + "\n")
 
-    # Always echo to stdout so the run log shows the resolved scope.
     for line in lines:
-        print(line)
+        print(line, file=out_stream)
 
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="visual-matrix.py",
+        description=(
+            "Compute the (mode, themes, do_full_shoot) tuple for "
+            ".github/workflows/visual.yml's setup job. Reads inputs "
+            "from EVENT_NAME / INPUT_MODE / INPUT_THEMES / BASE_REF "
+            "environment variables (set by the workflow) and emits "
+            "GITHUB_OUTPUT-formatted lines."
+        ),
+        epilog=(
+            "Example local dry-run:\n"
+            "  EVENT_NAME=workflow_dispatch INPUT_MODE=regenerate-gallery \\\n"
+            "      python3 bin/visual-matrix.py"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    # Flag exists purely so the smoke-test harness in
+    # tests/tools/test_bin_scripts_smoke.py recognises this as an
+    # argparse-driven script and can invoke `--help` on it.
+    p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Echo resolved scope to stdout but don't touch GITHUB_OUTPUT "
+            "even if it is set in the environment. Useful for local "
+            "verification."
+        ),
+    )
+    return p
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    scope = compute(
+        event=os.environ.get("EVENT_NAME", ""),
+        input_mode=os.environ.get("INPUT_MODE", "").strip(),
+        input_themes=os.environ.get("INPUT_THEMES", "").strip(),
+        base_ref=(os.environ.get("BASE_REF", "origin/main").strip()
+                  or "origin/main"),
+    )
+    out_path = None if args.dry_run else os.environ.get("GITHUB_OUTPUT")
+    emit(scope, sys.stdout, out_path)
     return 0
 
 
