@@ -148,7 +148,27 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           INPUT_MODE: ${{ github.event.inputs.mode }}
           INPUT_THEMES: ${{ github.event.inputs.themes }}
-          BASE_REF: origin/main
+          # `BASE_REF` selection is event-dependent:
+          #   * push    → diff against the previous HEAD
+          #               (github.event.before). Comparing against
+          #               origin/main when HEAD already IS origin/main
+          #               yields an empty diff, which made
+          #               _changed_themes return [], which made the
+          #               whole matrix skip — defeating the purpose of
+          #               the `paths:` filter that already decided this
+          #               push warranted a re-shoot.
+          #   * pull_request → diff against origin/main, the merge
+          #               base. github.event.before for a PR refers to
+          #               the branch's previous tip, which would only
+          #               re-shoot the *delta* of the latest push and
+          #               miss any earlier theme changes the reviewer
+          #               needs to see gated.
+          BASE_REF: >-
+            ${{
+              github.event_name == 'push'
+                && github.event.before
+                || 'origin/main'
+            }}
         run: python3 bin/visual-matrix.py
 
   # ------------------------------------------------------------------
