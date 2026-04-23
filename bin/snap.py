@@ -2114,6 +2114,27 @@ _HEURISTICS_JS = r"""
                          `\`${sel}\` rendered ${inst.width}px wide on a ${vw}px viewport (expected >= 300px sidebar).`,
                          {selector: sel, element_width: inst.width, viewport_width: vw});
                 }
+                // Surface wc main-content blocks that rendered crammed
+                // into a narrow column despite being on a desktop-or-
+                // wider viewport. Catches the Foundry-style "account
+                // login crammed into 228px inside a 1280px viewport"
+                // class of regression that neither the source-level
+                // `check_cart_checkout_pages_are_wide` (which only
+                // inspects block markup) nor vision review (without
+                // the v1.1 functional kinds) could see.
+                //
+                // Threshold at 900px because the designed 2-column WC
+                // layouts allocate ~880px to the main content column
+                // (1280px wideSize minus ~360px sidebar minus gap).
+                // Anything narrower than 900 at >=1280 viewport means
+                // the wide layout did not engage.
+                const looksLikeWcMain = /wc-block-cart\b|wc-block-checkout\b|woocommerce-MyAccount-content\b|wo-account-login-grid\b/i.test(sel)
+                    && !/sidebar|summary/i.test(sel);
+                if (looksLikeWcMain && inst.visible && inst.width > 0 && inst.width < 900 && vw >= 1280) {
+                    push("error", "narrow-wc-block",
+                         `\`${sel}\` rendered ${inst.width}px wide on a ${vw}px viewport (expected >= 900px at desktop+; the wide-layout CSS did not engage).`,
+                         {selector: sel, element_width: inst.width, viewport_width: vw});
+                }
             }
         }
         out.selectors.push(entry);
@@ -4506,9 +4527,12 @@ def _collect_current_error_findings(
     finding that has no DOM address; it lets the gate stay clean while
     keeping NEW kinds of vision findings detectable.
 
-    Findings already tagged `allowlisted` are reapplied at read time
-    by `_load_allowlist`, so this scan sees them as `info` and skips
-    them -- meaning a `regenerate` call is idempotent.
+    Findings already tagged `allowlisted` are treated as errors here
+    (they were originally errors, demoted at shoot time by the current
+    allowlist). This makes `regenerate` idempotent AND preserves
+    existing cells across re-scans, so a stale shoot on top of an
+    existing allowlist doesn't silently drop entries that would
+    otherwise still be needed.
     """
     out: dict[str, dict[str, list[str]]] = {}
     for theme in themes:
@@ -4523,7 +4547,14 @@ def _collect_current_error_findings(
             viewport = str(data.get("viewport", ""))
             route = str(data.get("route", fp_path.stem.removesuffix(".findings")))
             for f in data.get("findings", []) or []:
-                if f.get("severity") != "error":
+                # Treat both live errors and allowlist-demoted findings
+                # as errors for the purposes of snapshotting: demoted
+                # findings would pop back to "error" the moment the
+                # matching allowlist entry was removed, so they MUST
+                # persist in the regenerated file.
+                is_error = f.get("severity") == "error"
+                is_demoted = bool(f.get("allowlisted"))
+                if not (is_error or is_demoted):
                     continue
                 kind = str(f.get("kind") or "")
                 if not kind:
