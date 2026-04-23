@@ -60,12 +60,19 @@ name: visual
 on:
   push:
     branches: [main]
+    # Wildcard paths so a new theme directory triggers the gate
+    # without editing this workflow. `bin/visual-matrix.py` filters
+    # the actual matrix down to the changed themes inside the setup
+    # job, so over-triggering here just means a few extra noop setup
+    # runs (cheap) rather than a missed gate (expensive).
     paths:
-      - 'obel/**'
-      - 'chonk/**'
-      - 'selvedge/**'
-      - 'lysholm/**'
-      - 'aero/**'
+      - '**/theme.json'
+      - '**/functions.php'
+      - '**/templates/**'
+      - '**/parts/**'
+      - '**/patterns/**'
+      - '**/styles/**'
+      - '**/playground/**'
       - 'bin/snap.py'
       - 'bin/snap_config.py'
       - 'bin/visual-matrix.py'
@@ -74,11 +81,13 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'obel/**'
-      - 'chonk/**'
-      - 'selvedge/**'
-      - 'lysholm/**'
-      - 'aero/**'
+      - '**/theme.json'
+      - '**/functions.php'
+      - '**/templates/**'
+      - '**/parts/**'
+      - '**/patterns/**'
+      - '**/styles/**'
+      - '**/playground/**'
       - 'bin/snap.py'
       - 'bin/snap_config.py'
       - 'bin/visual-matrix.py'
@@ -345,13 +354,17 @@ jobs:
       # ----------------------------------------------------------------
       # check-changed / check-manual: run the strict gate
       # ----------------------------------------------------------------
-      # Warn-only rollout: see header. Flip continue-on-error off once
-      # the baselines have stabilised and we've scored a green run from
-      # each theme author.
+      # Warn-only rollout was retired 2026-Q2: with the
+      # FIFTY_REQUIRE_SNAP_EVIDENCE=1 escape, baselined `aero`, and
+      # the bin/design.py snap+vision phases all in place, an unhappy
+      # gate must hard-fail the workflow so the 50-theme batch flow
+      # cannot ship a regression with a yellow warning. Re-enable
+      # continue-on-error only with a documented justification.
       - name: Run snap.py report --strict
         id: report
         if: needs.setup.outputs.do_full_shoot != 'true'
-        continue-on-error: true
+        env:
+          FIFTY_REQUIRE_SNAP_EVIDENCE: '1'
         run: python3 bin/snap.py report --strict
 
       # ----------------------------------------------------------------
@@ -462,10 +475,5 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-      - name: Warn-only reminder
-        if: steps.report.outcome == 'failure'
-        run: |
-          echo "::warning::bin/snap.py report --strict FAILED but this job is"
-          echo "::warning::currently warn-only. Flip continue-on-error: false"
-          echo "::warning::on the 'Run snap.py report --strict' step in"
-          echo "::warning::.github/workflows/visual.yml once baselines stabilise."
+      # The historical "warn-only reminder" step has been removed —
+      # `bin/snap.py report --strict` now hard-fails the workflow.

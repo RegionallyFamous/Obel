@@ -5755,6 +5755,37 @@ def _axe_finding_fingerprint(f: dict) -> str | None:
     return None
 
 
+def _axe_merge_allowlist_cells(
+    allowlist: dict[str, dict[str, set[str]]],
+    theme: str,
+    viewport: str,
+    route: str,
+) -> dict[str, set[str]]:
+    """Mirror of `snap.py:_merge_allowlist_cells` for the read-side.
+
+    Unions the per-theme cell with the cross-theme `*:viewport:route`
+    cell. Wildcard selector sets (containing `"*"` or empty) win
+    immediately for that kind so a single global wildcard entry
+    suppresses every finding of that kind on every theme."""
+    merged: dict[str, set[str]] = {}
+    for key in (f"{theme}:{viewport}:{route}", f"*:{viewport}:{route}"):
+        cell = allowlist.get(key)
+        if not cell:
+            continue
+        for kind, selectors in cell.items():
+            existing = merged.get(kind)
+            if existing is None:
+                merged[kind] = set(selectors)
+                continue
+            existing_wild = (not existing) or ("*" in existing)
+            new_wild = (not selectors) or ("*" in selectors)
+            if existing_wild or new_wild:
+                merged[kind] = {"*"}
+            else:
+                merged[kind] = existing | set(selectors)
+    return merged
+
+
 def _axe_finding_is_allowlisted(
     allowlist: dict[str, dict[str, set[str]]],
     theme: str,
@@ -5774,10 +5805,14 @@ def _axe_finding_is_allowlisted(
     -- matches every finding of that `kind` on that route, regardless
     of fingerprint. Used by `vision:*` findings (no DOM address) and
     by globally-allowlisted heuristic kinds.
+
+    Cross-theme wildcard: a `*:viewport:route` cell unions on top of
+    the per-theme cell, so a chronic cross-theme finding can be
+    suppressed in one place instead of N.
     """
     if finding.get("allowlisted"):
         return True
-    cell = allowlist.get(f"{theme}:{viewport}:{route}")
+    cell = _axe_merge_allowlist_cells(allowlist, theme, viewport, route)
     if not cell:
         return False
     kind = str(finding.get("kind") or "")
@@ -5836,14 +5871,31 @@ def check_no_serious_axe_in_recent_snaps() -> Result:
           entries (theme is clean — the common path).
     """
     r = Result("Recent snaps carry no serious axe-core errors")
+    require_evidence = os.environ.get("FIFTY_REQUIRE_SNAP_EVIDENCE") == "1"
     snaps_dir = MONOREPO_ROOT / "tmp" / "snaps" / ROOT.name
+    missing_msg = (
+        f"tmp/snaps/{ROOT.name}/ has no findings (snap not run for this theme). "
+        f"Run `python3 bin/snap.py shoot {ROOT.name}` to generate evidence."
+    )
     if not snaps_dir.is_dir():
-        r.skip(f"no tmp/snaps/{ROOT.name}/ on disk (snap not run for this theme)")
+        if require_evidence:
+            r.fail(
+                f"FIFTY_REQUIRE_SNAP_EVIDENCE=1 but tmp/snaps/{ROOT.name}/ does not exist. "
+                f"Run `python3 bin/snap.py shoot {ROOT.name}` first."
+            )
+        else:
+            r.skip(f"no tmp/snaps/{ROOT.name}/ on disk (snap not run for this theme)")
         return r
 
     findings_files = sorted(snaps_dir.rglob("*.findings.json"))
     if not findings_files:
-        r.skip(f"tmp/snaps/{ROOT.name}/ exists but has no *.findings.json files")
+        if require_evidence:
+            r.fail(
+                f"FIFTY_REQUIRE_SNAP_EVIDENCE=1 but no *.findings.json under "
+                f"tmp/snaps/{ROOT.name}/. {missing_msg}"
+            )
+        else:
+            r.skip(f"tmp/snaps/{ROOT.name}/ exists but has no *.findings.json files")
         return r
 
     allowlist = _load_axe_allowlist()
@@ -5935,6 +5987,138 @@ def check_no_serious_axe_in_recent_snaps() -> Result:
             f"tests/visual-baseline/heuristics-allowlist.json)"
         )
     r.details.append(detail)
+    return r
+
+
+def check_visual_baseline_present() -> Result:
+    """Fail if the current theme has no committed visual baselines.
+
+    Why this exists:
+      `tests/visual-baseline/<theme>/<viewport>/<route>.png` is the
+      committed reference that `bin/snap.py diff` (and the
+      `visual.yml` CI workflow) diffs against. A theme with NO
+      baseline files at all looks "green" to the diff because there's
+      nothing to diff -- the same loophole as the no-snap SKIP, but
+      one layer up. Aero shipped without baselines for weeks and the
+      gate never noticed.
+
+      This check enforces "every theme has at least one PNG under
+      tests/visual-baseline/<theme>/". The downstream `bin/snap.py
+      diff` is responsible for catching new routes that don't yet
+      have a baseline (it already does, via the "no baseline at this
+      path" row).
+
+    Skips gracefully when:
+      * `FIFTY_SKIP_VISUAL_BASELINE_CHECK=1` is set (escape hatch
+        for fixture-only test themes that don't ship baselines).
+    """
+    r = Result("Visual baseline directory exists for this theme")
+    if os.environ.get("FIFTY_SKIP_VISUAL_BASELINE_CHECK") == "1":
+        r.skip("FIFTY_SKIP_VISUAL_BASELINE_CHECK=1")
+        return r
+    baseline_dir = MONOREPO_ROOT / "tests" / "visual-baseline" / ROOT.name
+    if not baseline_dir.is_dir():
+        r.fail(
+            f"no tests/visual-baseline/{ROOT.name}/ directory. Run "
+            f"`python3 bin/snap.py shoot {ROOT.name} && "
+            f"python3 bin/snap.py baseline {ROOT.name} --missing-only` "
+            "and commit the PNGs so visual diff has something to compare against."
+        )
+        return r
+    pngs = list(baseline_dir.rglob("*.png"))
+    if not pngs:
+        r.fail(
+            f"tests/visual-baseline/{ROOT.name}/ exists but contains no PNGs. "
+            f"Run `python3 bin/snap.py baseline {ROOT.name} --missing-only` "
+            "and commit the result."
+        )
+        return r
+    r.details.append(
+        f"{len(pngs)} baseline PNG(s) under tests/visual-baseline/{ROOT.name}/"
+    )
+    return r
+
+
+def check_allowlist_entries_resolve() -> Result:
+    """Fail if `tests/visual-baseline/heuristics-allowlist.json` references
+    a theme/viewport/route triple that doesn't exist in `bin/snap_config.py`.
+
+    Why this exists:
+      The allowlist suppresses pre-existing heuristic findings so a
+      theme can ship while a known issue is on the to-fix queue. But
+      typo'd entries (e.g. `selvedge:wide:checkout` after the route
+      was renamed to `checkout-filled`) silently match nothing, so a
+      genuine regression in the renamed route walks straight through
+      the gate without being suppressed-or-failed -- it's just
+      ignored. This check turns those orphan entries into a hard
+      failure with the offending key named.
+
+      Wildcard cells (kind => ["*"] or kind => []) are still checked
+      for the theme:viewport:route key existing; only the selector
+      list is allowed to be empty/wildcard.
+
+    Skips gracefully when:
+      * The allowlist file doesn't exist (no entries to validate).
+    """
+    r = Result("heuristics-allowlist.json entries resolve to known cells")
+    allowlist_path = _AXE_ALLOWLIST_PATH
+    if not allowlist_path.is_file():
+        r.skip("no heuristics-allowlist.json on disk")
+        return r
+    try:
+        raw = json.loads(allowlist_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        r.fail(f"could not parse {allowlist_path}: {e}")
+        return r
+    if not isinstance(raw, dict):
+        r.fail(f"{allowlist_path} top-level must be an object; got {type(raw).__name__}")
+        return r
+
+    sys.path.insert(0, str(MONOREPO_ROOT / "bin"))
+    try:
+        import snap_config  # noqa: WPS433
+    except ImportError as e:
+        r.skip(f"could not import snap_config: {e}")
+        return r
+
+    valid_themes = {p.name for p in MONOREPO_ROOT.iterdir() if (p / "theme.json").is_file()}
+    valid_viewports = {v.name for v in snap_config.VIEWPORTS}
+    valid_routes = {route.slug for route in snap_config.ROUTES}
+    # snap.py also emits per-interaction variants named
+    # `<route>.<interaction>` (e.g. `checkout-filled.field-focus`)
+    # whenever an INTERACTIONS entry exists for that route. Treat
+    # those as valid lookup targets too so allowlist entries pinned
+    # to the post-interaction snapshot don't get flagged as orphans.
+    interactions = getattr(snap_config, "INTERACTIONS", {}) or {}
+    for route_slug, interaction_list in interactions.items():
+        for interaction in interaction_list:
+            valid_routes.add(f"{route_slug}.{interaction.name}")
+
+    orphans: list[str] = []
+    for key in raw:
+        parts = str(key).split(":")
+        if len(parts) != 3:
+            orphans.append(f"{key} (malformed; expected theme:viewport:route)")
+            continue
+        theme, viewport, route = parts
+        if theme != "*" and theme not in valid_themes:
+            orphans.append(f"{key} (unknown theme `{theme}`)")
+            continue
+        if viewport not in valid_viewports:
+            orphans.append(f"{key} (unknown viewport `{viewport}`)")
+            continue
+        if route not in valid_routes:
+            orphans.append(f"{key} (unknown route `{route}`)")
+
+    if orphans:
+        r.fail(
+            f"{len(orphans)} orphan allowlist entr(ies) in "
+            f"{allowlist_path.relative_to(MONOREPO_ROOT)}:\n  "
+            + "\n  ".join(orphans)
+            + "\nDelete or rename them; orphans silently suppress nothing."
+        )
+        return r
+    r.details.append(f"all {len(raw)} allowlist cell(s) resolve.")
     return r
 
 
@@ -6582,6 +6766,8 @@ def run_checks_for(theme_root: Path, offline: bool) -> int:
         check_theme_screenshots_distinct(),
         check_wc_specificity_winnable(),
         check_no_serious_axe_in_recent_snaps(),
+        check_visual_baseline_present(),
+        check_allowlist_entries_resolve(),
         check_evidence_freshness(),
         check_view_transitions_wired(),
         check_no_unpushed_commits(),

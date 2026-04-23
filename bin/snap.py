@@ -3616,8 +3616,13 @@ def cmd_baseline(args: argparse.Namespace) -> int:
             f"`bin/snap.py shoot --all` first."
         )
 
+    if getattr(args, "missing_only", False) and getattr(args, "rebaseline", False):
+        raise SystemExit("--missing-only and --rebaseline are mutually exclusive")
+    missing_only = getattr(args, "missing_only", False)
+
     themes = [args.theme] if args.theme else discover_themes()
     promoted = 0
+    skipped = 0
     for theme in themes:
         src_root = SNAPS_DIR / theme
         if not src_root.exists():
@@ -3632,12 +3637,16 @@ def cmd_baseline(args: argparse.Namespace) -> int:
                     continue
                 rel = png.relative_to(SNAPS_DIR)
                 dst = BASELINE_DIR / rel
+                if missing_only and dst.exists():
+                    skipped += 1
+                    continue
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(png, dst)
                 promoted += 1
                 print(f"  baselined: {rel}")
+    suffix = f" ({skipped} skipped, already existed)" if missing_only and skipped else ""
     print(f"\n{GREEN}done.{RESET} {promoted} baseline(s) updated under "
-          f"{BASELINE_DIR.relative_to(REPO_ROOT)}/")
+          f"{BASELINE_DIR.relative_to(REPO_ROOT)}/{suffix}")
     return 0
 
 
@@ -3818,6 +3827,37 @@ def _allowlist_key(theme: str, viewport: str, route: str) -> str:
     return f"{theme}:{viewport}:{route}"
 
 
+def _merge_allowlist_cells(
+    allowlist: dict, theme: str, viewport: str, route: str
+) -> dict[str, list]:
+    """Return the union of the per-theme cell and the cross-theme
+    `*:viewport:route` cell, so a wildcard theme entry applies to every
+    theme without having to be copy-pasted into N keys.
+
+    Wildcard precedence: if either cell marks a kind as wildcard
+    (`["*"]` or empty list), the merged cell is wildcard; otherwise
+    the selector lists are concatenated."""
+    merged: dict[str, list] = {}
+    for key in (_allowlist_key(theme, viewport, route),
+                _allowlist_key("*", viewport, route)):
+        cell = allowlist.get(key)
+        if not cell:
+            continue
+        for kind, selectors in cell.items():
+            existing = merged.get(kind)
+            new_selectors = list(selectors) if isinstance(selectors, (list, tuple)) else []
+            if existing is None:
+                merged[kind] = new_selectors
+                continue
+            existing_wild = (not existing) or ("*" in existing)
+            new_wild = (not new_selectors) or ("*" in new_selectors)
+            if existing_wild or new_wild:
+                merged[kind] = ["*"]
+            else:
+                merged[kind] = list(set(existing) | set(new_selectors))
+    return merged
+
+
 def _apply_allowlist_to_findings(
     theme: str, viewport: str, route: str, findings: list[dict]
 ) -> int:
@@ -3833,10 +3873,15 @@ def _apply_allowlist_to_findings(
     allowlisted: they're whole-page critiques tied to a (theme,
     viewport, route, kind) tuple, not to a node.
 
+    Cross-theme wildcard support: an entry keyed `*:viewport:route`
+    applies on top of every theme's per-route cell, so a chronic
+    finding (e.g. `vision:typography-overpowered` on every theme's
+    home page) can be expressed once instead of N times.
+
     Findings already marked `allowlisted` are left alone (idempotent
     for cmd_report re-runs against a cached findings.json)."""
     allowlist = _load_allowlist()
-    cell = allowlist.get(_allowlist_key(theme, viewport, route))
+    cell = _merge_allowlist_cells(allowlist, theme, viewport, route)
     if not cell:
         return 0
     demoted = 0
@@ -4864,6 +4909,22 @@ def build_parser() -> argparse.ArgumentParser:
     s_baseline.add_argument("theme", nargs="?", default=None)
     s_baseline.add_argument("--route", default=None)
     s_baseline.add_argument("--viewport", default=None)
+    s_baseline.add_argument(
+        "--missing-only",
+        action="store_true",
+        help=(
+            "Only promote routes that have no existing baseline "
+            "(idempotent for design.py re-runs on existing themes)."
+        ),
+    )
+    s_baseline.add_argument(
+        "--rebaseline",
+        action="store_true",
+        help=(
+            "Always overwrite (default behaviour today). Mutually exclusive "
+            "with --missing-only."
+        ),
+    )
     s_baseline.set_defaults(func=cmd_baseline)
 
     s_diff = sub.add_parser(

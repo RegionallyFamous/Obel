@@ -105,10 +105,22 @@ def test_design_rejects_invalid_spec(tmp_path):
 def test_design_requires_spec_when_not_printing_example():
     r = _run([])
     assert r.returncode == 2
-    assert "--spec PATH is required" in r.stderr
+    assert "--spec" in r.stderr and "--prompt" in r.stderr
 
 
-@pytest.mark.parametrize("phase", ["validate", "clone", "apply", "seed", "sync", "check"])
+def test_design_rejects_spec_and_prompt_together(tmp_path):
+    spec_file = tmp_path / "spec.json"
+    spec_file.write_text("{}", encoding="utf-8")
+    r = _run(["--spec", str(spec_file), "--prompt", "midcentury surf shop"])
+    assert r.returncode == 2
+    assert "mutually exclusive" in r.stderr
+
+
+@pytest.mark.parametrize(
+    "phase",
+    ["validate", "clone", "apply", "seed", "sync", "snap", "vision-review",
+     "baseline", "check", "report"],
+)
 def test_design_help_lists_every_phase(phase):
     r = _run(["--help"])
     assert r.returncode == 0
