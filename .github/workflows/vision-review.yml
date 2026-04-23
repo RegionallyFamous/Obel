@@ -178,6 +178,11 @@ jobs:
           fi
 
       - name: Shoot ${{ matrix.theme }}
+        # FIFTY_CONTENT_REF: see the matching comment in visual.yml /
+        # check.yml. On a PR, redirect the blueprint's main-branch URLs
+        # to the PR head SHA so new-theme PRs can snap themselves.
+        env:
+          FIFTY_CONTENT_REF: ${{ github.event.pull_request.head.sha || '' }}
         run: python3 bin/snap.py shoot ${{ matrix.theme }}
 
       - name: Vision review ${{ matrix.theme }}

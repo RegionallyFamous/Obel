@@ -395,7 +395,14 @@ def check_no_hardcoded_colors() -> Result:
     shadows defined in theme.json, not in markup).
     """
     r = Result("No hardcoded hex colors in templates/parts/patterns")
+    # `#RGB` | `#RRGGBB` | `#RRGGBBAA`. The `entity_re` below strips
+    # HTML numeric entities (`&#10086;`, `&#x2766;`, etc.) before this
+    # regex runs — those are glyph escapes used for ornamental fleurons
+    # in templates, not color literals, and without the strip they
+    # trip this check. Foundry and chonk both legitimately embed
+    # `&#10086;` in decorative groups.
     hex_re = re.compile(r"#[0-9A-Fa-f]{3,8}\b")
+    entity_re = re.compile(r"&#x?[0-9A-Fa-f]+;")
     skip_dirs = {"templates/", "parts/", "patterns/"}
     for path in iter_files((".html", ".php")):
         rel = path.relative_to(ROOT).as_posix()
@@ -405,7 +412,8 @@ def check_no_hardcoded_colors() -> Result:
         for lineno, line in enumerate(text.splitlines(), 1):
             if "rgba(" in line:
                 continue
-            if hex_re.search(line):
+            stripped = entity_re.sub("", line)
+            if hex_re.search(stripped):
                 r.fail(f"{rel}:{lineno}: {line.strip()}")
     return r
 

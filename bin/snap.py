@@ -306,8 +306,45 @@ def build_local_blueprint(theme: str, login: bool = False) -> Path:
 
     BLUEPRINTS_DIR.mkdir(parents=True, exist_ok=True)
     out = BLUEPRINTS_DIR / f"{theme}.json"
-    out.write_text(json.dumps(bp, indent=2), encoding="utf-8")
+    payload = json.dumps(bp, indent=2)
+    payload = _retarget_content_ref(payload)
+    out.write_text(payload, encoding="utf-8")
     return out
+
+
+def _retarget_content_ref(payload: str) -> str:
+    """Rewrite `raw.githubusercontent.com/<org>/<repo>/main/` URLs in the
+    snap blueprint to point at a PR-branch SHA when requested via env.
+
+    Why this exists:
+        Every blueprint inlines absolute raw.githubusercontent.com URLs
+        for its WXR import + `WO_CONTENT_BASE_URL` PHP constants (see
+        bin/sync-playground.py). Those are baked against the default
+        branch (`main`) because that's where the live demo lives. But on
+        a PR that *adds a new theme*, the theme's `playground/content/`
+        and `playground/images/` haven't been merged to main yet — so
+        when CI runs `bin/snap.py shoot <new-theme>` the Playground
+        server hits a GitHub 404 for `products.csv`, parses the 404
+        HTML page, and dies with "W&O CSV looked malformed".
+
+        Setting `FIFTY_CONTENT_REF` (typically to `$GITHUB_SHA` on a PR
+        runner) redirects every main-branch URL to that ref so the PR's
+        own content is sideloaded. Local shoots leave the env var unset
+        and keep the production URLs.
+
+    The substitution is a pure text replace on the serialized blueprint
+    so it catches both `"url": "..."` fields (importWxr) and URLs
+    embedded inside PHP `"data"` strings (wo-import.php,
+    wo-configure.php, wo-cart.php).
+    """
+    import os
+    ref = os.environ.get("FIFTY_CONTENT_REF")
+    if not ref or ref == "main":
+        return payload
+    from _lib import GITHUB_ORG, GITHUB_REPO
+    src = f"raw.githubusercontent.com/{GITHUB_ORG}/{GITHUB_REPO}/main/"
+    dst = f"raw.githubusercontent.com/{GITHUB_ORG}/{GITHUB_REPO}/{ref}/"
+    return payload.replace(src, dst)
 
 
 # ---------------------------------------------------------------------------

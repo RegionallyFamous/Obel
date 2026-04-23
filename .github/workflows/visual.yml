@@ -240,6 +240,16 @@ jobs:
         # job stays single-process within the runner. With 1 theme +
         # 1 worker there's no possible port race (the only Node server
         # in the runner's port table is ours).
+        #
+        # FIFTY_CONTENT_REF: on a PR, rewrite the blueprint's inlined
+        # `raw.githubusercontent.com/.../main/` URLs to point at the PR
+        # head SHA. This lets a brand-new theme (whose playground/
+        # content + images aren't on main yet) sideload its own data
+        # from the PR commit instead of 404-ing on main and crashing
+        # the importer with "W&O CSV looked malformed". On push/main
+        # runs FIFTY_CONTENT_REF is empty and the default URLs win.
+        env:
+          FIFTY_CONTENT_REF: ${{ github.event.pull_request.head.sha || '' }}
         run: |
           python3 bin/snap.py shoot ${{ matrix.theme }}
 
