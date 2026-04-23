@@ -166,7 +166,7 @@ BRAND_HEAD_TAGS = """\t<link rel="icon" href="/favicon.svg" type="image/svg+xml"
 \t<meta property="og:image" content="https://demo.regionallyfamous.com/assets/og-default.png">
 \t<meta property="og:image:width" content="1200">
 \t<meta property="og:image:height" content="630">
-\t<meta property="og:image:alt" content="fifty. \u2014 AI-built WooCommerce themes on strict rails, set in DM Serif Display with a cobalt accent.">
+\t<meta property="og:image:alt" content="fifty. \u2014 AI-built WooCommerce themes on strict rails, set in heavy industrial sans with a cobalt period and a lime brush-script tag.">
 \t<meta name="twitter:card" content="summary_large_image">
 \t<meta name="twitter:image" content="https://demo.regionallyfamous.com/assets/og-default.png">"""
 
@@ -192,7 +192,7 @@ REDIRECT_TEMPLATE = """<!doctype html>
 {brand_head_tags}
 \t<link rel="preconnect" href="https://fonts.googleapis.com">
 \t<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-\t<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Serif+Text:ital@1&family=IBM+Plex+Mono:wght@400;500&display=swap">
+\t<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Caveat+Brush&family=Inter:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 \t<link rel="stylesheet" href="/assets/style.css">
 </head>
 <body class="redirector">
@@ -246,22 +246,32 @@ def render_redirector(
 
 
 # Manifesto-voice landing page. The shape (masthead → cover → theme-rows →
-# colophon) and the visual system (DM Serif Display brand, cobalt accent
-# dot, hairline rules, mono caps masthead) are unchanged from the earlier
-# magazine framing — only the copy was rewritten to match the README's
-# opening pitch (WooCommerce > Shopify in installs, ships nothing like
-# Shopify's themes; Rich and I are closing that gap with AI on rails, in
-# public). All visual rules live in /assets/style.css; this template is
-# just semantic HTML hooks for that stylesheet to attach to.
+# colophon) is the same; only the visual system has changed. We swapped
+# the magazine-cover register (DM Serif Display + DM Serif Text italic +
+# IBM Plex Mono caps) for a punk-zine register (Archivo Black industrial
+# grotesk + Inter body + Caveat Brush brush-script accents + a cream/
+# black/cobalt/lime/hot-pink palette). The copy is unchanged — only the
+# wrapper markup grew a `.brand` column for the brush-script signature
+# and a couple of `<span class="hi">…</span>` highlighter wraps on the
+# key phrases.
 #
-# Cover shape (post-redesign): the wordmark and deck sit side-by-side as a
-# single magazine-cover lockup (`.lockup` 2-column grid with shared
-# baseline) rather than the previous stacked wordmark → hairline-rule →
-# deck arrangement. The hairline rule moved INTO the lockup as its
-# `border-bottom` so the markup ships one fewer element. The deck is a
-# single sentence with no hardcoded <br> tags — `text-wrap: balance` in
-# the stylesheet handles wrap at every viewport. Below 880px the lockup
-# collapses to single-column with a smaller wordmark.
+# Cover shape: the wordmark and deck still sit side-by-side as a single
+# lockup (`.lockup` 2-column grid with shared baseline). The wordmark is
+# now wrapped in a `.brand` flex column with a brush-script signature
+# (`p.signature`) tucked beneath it — the signature is `aria-hidden="true"`
+# so screen readers don't read the decoration as part of the heading.
+# The deck stays a single sentence with no hardcoded <br> tags —
+# `text-wrap: balance` in the stylesheet handles wrap at every viewport.
+# Below 880px the lockup collapses to single-column with a smaller
+# wordmark and signature.
+#
+# Highlighter (`<span class="hi">…</span>`): a thin reusable wrapper
+# defined in style.css that paints a lime stripe behind whatever text
+# it wraps. Used twice in the cover: once on the brush-script "rails"
+# tag in the signature, and once on "closing that gap" in the deck.
+# The second is the punk-zine equivalent of italicising for emphasis;
+# we no longer have italic in the type system, so the highlighter is
+# the way you call out a phrase.
 #
 # Hard rules baked into the copy below:
 #   * No theme / concept counts. The repo grows constantly and any number
@@ -285,7 +295,7 @@ INDEX_HEAD = """<!doctype html>
 {brand_head_tags}
 \t<link rel="preconnect" href="https://fonts.googleapis.com">
 \t<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-\t<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Serif+Text:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap">
+\t<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Caveat+Brush&family=Inter:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 \t<link rel="stylesheet" href="/assets/style.css">
 </head>
 <body>
@@ -297,8 +307,11 @@ INDEX_HEAD = """<!doctype html>
 \t<main>
 \t\t<section class="cover">
 \t\t\t<div class="lockup">
-\t\t\t\t<h1 class="wordmark">fifty<span style="color:var(--accent)">.</span></h1>
-\t\t\t\t<p class="deck">WooCommerce powers more stores than Shopify and ships nothing like Shopify&rsquo;s themes. Rich&nbsp;and&nbsp;I are closing that gap, in public.</p>
+\t\t\t\t<div class="brand">
+\t\t\t\t\t<h1 class="wordmark">fifty<span style="color:var(--accent)">.</span></h1>
+\t\t\t\t\t<p class="signature" aria-hidden="true">on&nbsp;<span class="hi">rails</span>.</p>
+\t\t\t\t</div>
+\t\t\t\t<p class="deck">WooCommerce powers more stores than Shopify and ships nothing like Shopify&rsquo;s themes. Rich&nbsp;and&nbsp;I are <span class="hi">closing that gap</span>, in public.</p>
 \t\t\t</div>
 \t\t\t<div class="lede">
 \t\t\t\t<p>Every storefront below boots a real WordPress + WooCommerce site in your browser &mdash; no install, no signup, no card. Click anything: shop, single product, the pre-filled cart, checkout, the customer dashboard. Break it, refresh.</p>
@@ -469,7 +482,7 @@ CONCEPTS_HEAD = """<!doctype html>
 {brand_head_tags}
 \t<link rel="preconnect" href="https://fonts.googleapis.com">
 \t<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-\t<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Serif+Text:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap">
+\t<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Caveat+Brush&family=Inter:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 \t<link rel="stylesheet" href="/assets/style.css">
 </head>
 <body>
