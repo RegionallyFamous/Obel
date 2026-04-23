@@ -1032,6 +1032,30 @@ _HEURISTICS_JS = r"""
             + 'input[type="submit"], input[type="button"], '
             + 'input[type="reset"], summary'
         );
+        // Detect the canonical screen-reader-only pattern (1x1 clipped
+        // box, often a skip-link or a sr-only label). These elements
+        // are intentionally tiny so sighted users don't see them; they
+        // grow on `:focus` (e.g. the WP "Skip to content" pattern). The
+        // resting size isn't a real tap target -- focusing the link
+        // expands it -- so flagging the 1x1px footprint is pure noise.
+        const isScreenReaderOnly = (el, r, cs) => {
+            // 1x1 box plus a clipping rule is the dead-giveaway
+            // sr-only pattern. We accept either modern `clip-path`
+            // (e.g. `inset(50%)`, `polygon(0 0, 0 0, 0 0, 0 0)`) or
+            // the legacy `clip: rect(...)` form.
+            const tinyBox = r.width <= 2 && r.height <= 2;
+            const clipped = (cs.clipPath && cs.clipPath !== 'none')
+                || (cs.clip && cs.clip !== 'auto');
+            if (tinyBox && (clipped || cs.overflow === 'hidden')) return true;
+            // Also catch the common `.screen-reader-text` /
+            // `.visually-hidden` / `.sr-only` class names — even when
+            // a theme implements them slightly differently, the intent
+            // is unambiguous from the class name and we should not
+            // flag the resting state.
+            const cls = (el.className && el.className.baseVal) || el.className || '';
+            if (typeof cls === 'string' && /\b(sr-only|screen-reader-text|visually-hidden|wp-block-skip-link|skip-link)\b/.test(cls)) return true;
+            return false;
+        };
         tapEls.forEach((el) => {
             if (!isVisible(el)) return;
             const r = el.getBoundingClientRect();
@@ -1041,6 +1065,7 @@ _HEURISTICS_JS = r"""
             // measured box (i.e. wrapped inline content).
             const cs = window.getComputedStyle(el);
             if (cs.display === 'inline' && r.width >= 32) return;
+            if (isScreenReaderOnly(el, r, cs)) return;
             if (r.width < 32 || r.height < 32) {
                 const label = (el.innerText || el.getAttribute('aria-label') || '').trim().slice(0, 40);
                 push("warn", "tap-target-too-small",
@@ -1115,7 +1140,16 @@ _HEURISTICS_JS = r"""
             const r = el.getBoundingClientRect();
             if (r.width < 50) continue;
             const overflow = el.scrollWidth - el.clientWidth;
-            if (overflow <= 2) continue;
+            // Threshold is 5px (was 2px until 2026-04). 1-3px values
+            // turn out to be almost entirely scrollbar-gutter and
+            // sub-pixel-rounding artifacts from `position: fixed`
+            // overlays that wrap a scrolling child (notably the
+            // wc-block mini-cart drawer overlay, which fired ~250
+            // identical 3px findings every snap run). Real layout
+            // bugs spill by at least 5px and usually by tens-to-
+            // hundreds of pixels (a textarea, a header search field,
+            // an announcement bar).
+            if (overflow <= 4) continue;
             // Skip the document root + body (already covered by
             // `horizontal-overflow`).
             if (el === document.body || el === document.documentElement) continue;
@@ -1138,18 +1172,33 @@ _HEURISTICS_JS = r"""
     // wrapped headline). We only check h1-h4 because longer prose
     // headings (h5/h6) are typically not styled with hard heights and
     // would produce noise.
+    //
+    // Threshold is 4px (was 2px until 2026-04). The 2px floor was
+    // tripped on every heading whose font has a deeper-than-typical
+    // descender ("g", "y", "p" hanging 3-4px below the baseline) at
+    // tight line-heights — a font-metrics quirk, not a real clipping
+    // bug. Bumping to 4px+ catches the wrapped-headline-with-clipped-
+    // second-line cases (which are >= 1 line-height of overflow, i.e.
+    // dozens of pixels) without crying wolf on every glyph descender.
     {
         let n = 0;
         document.querySelectorAll('h1, h2, h3, h4').forEach((el) => {
             if (n >= 5) return;
             if (!isVisible(el)) return;
             const cs = window.getComputedStyle(el);
-            if (cs.overflow === 'hidden' || cs.overflowY === 'hidden') {
-                // Heading itself has overflow hidden -- its scrollHeight
-                // will still be the full content height even when clipped.
-            }
+            // Skip the canonical screen-reader-only pattern. An h1
+            // with `class="screen-reader-text"` (e.g. WP's hidden
+            // checkout/cart page title) has clientHeight ~1px while
+            // scrollHeight reflects the full text — guaranteed false
+            // positive.
+            const cls = (el.className && el.className.baseVal) || el.className || '';
+            if (typeof cls === 'string' && /\b(sr-only|screen-reader-text|visually-hidden)\b/.test(cls)) return;
+            // Same goes for any heading that is itself clipped via
+            // clip / clip-path (the modern sr-only).
+            if ((cs.clipPath && cs.clipPath !== 'none')
+                || (cs.clip && cs.clip !== 'auto')) return;
             const overflow = el.scrollHeight - el.clientHeight;
-            if (overflow <= 2) return;
+            if (overflow <= 4) return;
             const sel = cssPath(el);
             const tag = el.tagName.toLowerCase();
             const txt = (el.innerText || '').trim().slice(0, 80);
@@ -1204,62 +1253,126 @@ _HEURISTICS_JS = r"""
         }
     }
 
-    // 4. duplicate-nav-link: the same link rendered in two DIFFERENT
-    // visible navigation containers at the same time. Catches the
-    // "Shop" twice bug where both the desktop nav and the mobile
-    // drawer are visible, or two `<nav>`s both rendering the same
-    // primary menu (a footer that accidentally re-uses the header
-    // template, etc.). Within a single nav container, duplicates are
-    // intentional (mega-menu mirrors the top items, etc.), so we
-    // group by nav-container identity AND link signature.
+    // 4. duplicate-nav-block: two visible navigation containers whose
+    // link sets are nearly identical (Jaccard >= 0.8). Catches the
+    // real bugs:
+    //   * primary menu accidentally rendered twice (footer pulling the
+    //     header pattern, two wp-navigation blocks pointing at the same
+    //     wp_navigation post, etc.)
+    //   * mobile drawer + desktop primary nav both visible at the same
+    //     viewport (responsive CSS forgot to hide one)
+    //   * "Footer legal" row literally listing the same links as the
+    //     "Help" footer column right above it
+    //
+    // Deliberately does NOT flag the case where one nav is a small
+    // SUBSET of another (e.g. a "Company" footer column linking to
+    // /about/, /journal/, /contact/ — which are all in the primary
+    // nav too). That cross-link pattern is intentional footer design,
+    // not a bug; flagging it produces hundreds of false positives
+    // and trains people to ignore the rule.
+    //
+    // Container identity uses the OUTERMOST nav-shaped ancestor of
+    // each candidate. Without that, `<header>` and the `<nav>` inside
+    // it are treated as two separate containers, and every primary-nav
+    // link is reported as a duplicate of itself.
     {
-        const navContainers = document.querySelectorAll(
-            'header, nav, [role="navigation"], '
-            + '.wp-block-navigation, '
-            + '.wp-block-navigation__container, '
-            + '.wp-block-navigation__responsive-container-content'
+        const NAV_OUTER_SEL = 'header, nav, [role="navigation"]';
+        const candidates = document.querySelectorAll(
+            NAV_OUTER_SEL
+            + ', .wp-block-navigation'
+            + ', .wp-block-navigation__container'
+            + ', .wp-block-navigation__responsive-container-content'
         );
-        // Map of "text|href" -> Set of distinct top-level nav containers
-        // that contain a visible link with that signature.
-        const sigToContainers = new Map();
-        // Also map signature -> sample selector (for the finding payload).
-        const sigToSample = new Map();
-        navContainers.forEach((nav) => {
-            if (!isVisible(nav)) return;
-            // Find the OUTERMOST nav-shaped ancestor of this container so
-            // a `.wp-block-navigation__container` nested inside its own
-            // `<nav>` only counts as one container.
-            const outer = nav.closest(
-                'header, nav, [role="navigation"]'
-            ) || nav;
-            nav.querySelectorAll('a[href]').forEach((a) => {
+        // Walk up from `el` to find the outermost nav-shaped ancestor.
+        // (`closest()` returns the innermost match, which is the wrong
+        // answer here; we want a `<header>` to subsume the `<nav>` it
+        // wraps, not be considered a separate container.)
+        function outermostNavAncestor(el) {
+            let outer = el.matches(NAV_OUTER_SEL) ? el : null;
+            for (let p = el.parentElement; p; p = p.parentElement) {
+                if (p.matches && p.matches(NAV_OUTER_SEL)) outer = p;
+            }
+            return outer || el;
+        }
+        // For each outermost container, collect the SET of link sigs it
+        // exposes. Use a Map keyed by the DOM element so duplicate
+        // candidates (a `<nav>` and its `.wp-block-navigation` selector
+        // hit) collapse to a single bucket.
+        const containerSigs = new Map();      // outerEl -> Set<sig>
+        const containerSamples = new Map();   // outerEl -> {text,href,sel} per sig
+        const containerLabel = new Map();     // outerEl -> friendly label
+        candidates.forEach((c) => {
+            if (!isVisible(c)) return;
+            const outer = outermostNavAncestor(c);
+            if (!containerSigs.has(outer)) {
+                containerSigs.set(outer, new Set());
+                containerSamples.set(outer, new Map());
+                const aria = outer.getAttribute && outer.getAttribute('aria-label');
+                containerLabel.set(outer, aria || outer.tagName.toLowerCase());
+            }
+            const sigs = containerSigs.get(outer);
+            const samples = containerSamples.get(outer);
+            outer.querySelectorAll('a[href]').forEach((a) => {
                 if (!isVisible(a)) return;
                 const text = (a.innerText || a.textContent || '').trim();
                 if (!text) return;
                 const href = a.getAttribute('href') || '';
-                const sig = text.toLowerCase() + '|' + href;
-                const set = sigToContainers.get(sig) || new Set();
-                set.add(outer);
-                sigToContainers.set(sig, set);
-                if (!sigToSample.has(sig)) {
-                    sigToSample.set(sig, {
-                        text, href, selector: cssPath(a),
-                    });
+                // Sig is href-only: two navs that link to the same page
+                // with different label text ("Shop" vs "All products"
+                // both pointing at /shop/) ARE menu duplicates as far
+                // as this rule cares.
+                const sig = href;
+                sigs.add(sig);
+                if (!samples.has(sig)) {
+                    samples.set(sig, {text, href, selector: cssPath(a)});
                 }
             });
         });
+        // Drop trivially small navs (<2 links): a "back to top" or
+        // "view cart" lone-link container can't meaningfully be a
+        // menu mirror.
+        const containers = [];
+        for (const [outer, sigs] of containerSigs.entries()) {
+            if (sigs.size >= 2) {
+                containers.push({outer, sigs,
+                                 samples: containerSamples.get(outer),
+                                 label: containerLabel.get(outer)});
+            }
+        }
+        // Pairwise Jaccard. Threshold 0.8 catches identical sets and
+        // near-identical (one extra link in either direction) without
+        // flagging "footer column is a subset of primary nav".
         let n = 0;
-        for (const [sig, containers] of sigToContainers.entries()) {
-            if (n >= 5) break;
-            if (containers.size < 2) continue;
-            const sample = sigToSample.get(sig);
-            push("error", "duplicate-nav-link",
-                 `Link "${sample.text}" -> "${sample.href}" appears in ${containers.size} different visible navigation containers. (A primary menu rendered in two navs at the same time is almost always a template bug -- usually a mobile drawer that should be display:none at this viewport, or a footer accidentally re-using the header pattern.)`,
-                 {selector: sample.selector,
-                  fingerprint: sample.text + '|' + sample.href,
-                  text: sample.text, href: sample.href,
-                  container_count: containers.size});
-            n += 1;
+        const seenPairs = new Set();
+        for (let i = 0; i < containers.length && n < 5; i += 1) {
+            for (let j = i + 1; j < containers.length && n < 5; j += 1) {
+                const a = containers[i], b = containers[j];
+                const intersection = new Set(
+                    [...a.sigs].filter((s) => b.sigs.has(s))
+                );
+                if (intersection.size < 2) continue;
+                const union = new Set([...a.sigs, ...b.sigs]);
+                const jaccard = intersection.size / union.size;
+                if (jaccard < 0.8) continue;
+                const pairKey = a.label + '||' + b.label;
+                if (seenPairs.has(pairKey)) continue;
+                seenPairs.add(pairKey);
+                const sharedHrefs = [...intersection].sort();
+                const firstSig = sharedHrefs[0];
+                const sample = a.samples.get(firstSig)
+                    || b.samples.get(firstSig)
+                    || {text: '?', href: firstSig, selector: ''};
+                push("error", "duplicate-nav-block",
+                     `Two visible navigation containers ("${a.label}" and "${b.label}") have nearly identical link sets (${intersection.size} of ${union.size} hrefs match, Jaccard ${jaccard.toFixed(2)}). Shared: ${sharedHrefs.slice(0, 6).join(', ')}${sharedHrefs.length > 6 ? ', …' : ''}. One is almost certainly a duplicate -- e.g. a footer "legal" row repeating the same links as a footer help column right above it, two wp-navigation blocks rendering the same wp_navigation post, or a mobile drawer that should be display:none at this viewport.`,
+                     {selector: sample.selector,
+                      fingerprint: 'pair:' + a.label + '|' + b.label,
+                      label_a: a.label, label_b: b.label,
+                      shared_count: intersection.size,
+                      union_count: union.size,
+                      jaccard: jaccard,
+                      shared_hrefs: sharedHrefs});
+                n += 1;
+            }
         }
     }
 
@@ -1352,9 +1465,46 @@ _HEURISTICS_JS = r"""
         );
         let n = 0;
         const reported = new Set();
+        // The element BEING checked counts as media if it IS one of
+        // these tags (querySelector below only checks descendants, so
+        // an `<img>` itself trivially has no img descendant and would
+        // otherwise be reported as a "void of page background"). The
+        // earlier set was just descendants-only, which made every PDP
+        // hero image fire region-void on every snap.
+        const SELF_IS_MEDIA = new Set([
+            'IMG', 'SVG', 'VIDEO', 'PICTURE', 'IFRAME', 'CANVAS', 'OBJECT', 'EMBED'
+        ]);
+        // Live-region overlays — the WC blocks toast/snackbar list
+        // is rendered EMPTY-but-present at all times so screen readers
+        // can announce notices added later. The empty container is
+        // intentionally a "void" by design (full-viewport invisible
+        // overlay). Same goes for any other ARIA live region or any
+        // overlay positioned to occupy the viewport while transparent.
+        const isOverlayPlaceholder = (el, cs) => {
+            if (el.matches && el.matches(
+                '[aria-live], [role="status"], [role="alert"], '
+                + '.wc-block-components-notice-snackbar-list, '
+                + '.wc-block-components-notices__snackbar, '
+                + '.wp-block-woocommerce-store-notices'
+            )) return true;
+            if ((cs.position === 'fixed' || cs.position === 'absolute')
+                && cs.pointerEvents === 'none') return true;
+            return false;
+        };
         for (const el of allEls) {
             if (n >= 5) break;
             if (!isVisible(el)) continue;
+            if (SELF_IS_MEDIA.has(el.tagName)) continue;
+            // Inside a closed <details>, child content is hidden by
+            // the browser but `getBoundingClientRect()` may still
+            // report a non-zero rect at the collapsed location. The
+            // content is genuinely not visible to the user — flagging
+            // it as a "void of page background" is a guaranteed false
+            // positive. (Bit our 80x-per-shoot wp-block-woocommerce-
+            // product-reviews finding nested inside the PDP's
+            // collapsed "Reviews" <details> on every snap.)
+            const closedDetails = el.closest && el.closest('details');
+            if (closedDetails && !closedDetails.open) continue;
             const r = el.getBoundingClientRect();
             const area = r.width * r.height;
             if (area < viewportArea * 0.15) continue;
@@ -1366,6 +1516,7 @@ _HEURISTICS_JS = r"""
             // Has its own background image?
             const cs = window.getComputedStyle(el);
             if (cs.backgroundImage && cs.backgroundImage !== 'none') continue;
+            if (isOverlayPlaceholder(el, cs)) continue;
             // Background-color matches body's -> renders as page void.
             // (transparent or rgba(0,0,0,0) also count as void since they
             // pass through to the body background.)
@@ -1533,21 +1684,38 @@ _HEURISTICS_JS = r"""
     // (the listing pages get tested first; the long-tail PDP grids
     // do not).
     {
-        const cardSelector = (
+        // ONLY consider links that live inside a recognised listing
+        // context. Without this guard the rule fires on any product
+        // link anywhere (cart line-item thumbnails, mini-cart drawer,
+        // body-copy cross-sells), all of which use generic
+        // `.wp-block-post-content` page wrappers as their `closest()`
+        // ancestor, producing "1 of 1 card missing" findings on cart,
+        // checkout, and my-account routes that have no real listings
+        // at all.
+        const LISTING_CONTEXT = (
+            '.wp-block-post-template'
+            + ', .wp-block-product-template'
+            + ', .wc-block-product-template'
+            + ', .wc-block-product-collection'
+            + ', ul.products'
+        );
+        const CARD_LINK = (
             'a[href*="/product/"]'
             + ', a.woocommerce-LoopProduct-link'
-            + ', .wp-block-post-template a[href]'
             + ', .wp-block-post a[href]'
-            + ', li.product a.woocommerce-LoopProduct-link'
         );
-        const cardLinks = Array.from(document.querySelectorAll(cardSelector));
+        const cardLinks = Array.from(document.querySelectorAll(CARD_LINK))
+            .filter((a) => a.closest(LISTING_CONTEXT) !== null);
         // Distinct cards only — the same product link often appears
         // multiple times (image link + title link). Group by closest
-        // card-shaped ancestor so we count one card once.
+        // card-shaped ancestor so we count one card once. Drop the
+        // overbroad `article` from the ancestor list — a singular post
+        // template's `<article>` wrapper is NOT a card and was the
+        // source of half the false positives.
         const cards = new Set();
         for (const a of cardLinks) {
             const card = a.closest(
-                'li.product, .wp-block-product, .wp-block-post, article'
+                'li.product, .wp-block-product, .wp-block-post'
             ) || a;
             cards.add(card);
         }
@@ -3291,9 +3459,10 @@ _SEVERITY_RANK = {"error": 0, "warn": 1, "info": 2}
 #   }
 #
 # A finding's fingerprint is whatever stable identifier the heuristic
-# produced -- usually the `selector`, but `duplicate-nav-link` uses the
-# `text|href` tuple because the link could be reordered without that
-# being a regression.
+# produced -- usually the `selector`, but `duplicate-nav-block` uses
+# `pair:<label_a>|<label_b>` (the two duplicate nav containers'
+# aria-labels) because the offending pair is what's actionable, not
+# any individual selector.
 
 _ALLOWLIST_CACHE: dict[str, dict[str, list[str]]] | None = None
 
