@@ -44,18 +44,24 @@ the long-form judgment work).
 
 Phase model
 -----------
-The pipeline has named phases A-F. Every phase is idempotent and can be
-retried:
+The pipeline has named phases A-J. Every phase is idempotent and can be
+retried, every phase failure exits 1 by default (use `--no-strict` to
+get the legacy informational behaviour for the check phase).
 
-  A. validate     - parse + validate the spec (always runs, dry-run stops here)
-  B. clone        - bin/clone.py (skipped if --skip-clone or theme exists)
-  C. apply        - palette + fonts written to <slug>/theme.json + BRIEF.md
-  D. seed         - bin/seed-playground-content.py
-  E. sync         - bin/sync-playground.py
-  F. check        - bin/check.py <slug> --quick (informational; --strict to fail)
+  A. validate      - parse + validate the spec (always runs, dry-run stops here)
+  B. clone         - bin/clone.py (skipped if --skip-clone or theme exists)
+  C. apply         - palette + fonts written to <slug>/theme.json + BRIEF.md
+  D. seed          - bin/seed-playground-content.py (HARD-fail under default strict)
+  E. sync          - bin/sync-playground.py
+  F. snap          - bin/snap.py shoot <slug> -- generates tmp/snaps/<slug>/...
+  G. vision-review - bin/snap-vision-review.py <slug> (skipped without ANTHROPIC_API_KEY)
+  H. baseline      - promote baselines for routes that have none yet (no-op if all
+                     baselines already exist; pass --rebaseline to force)
+  I. check         - bin/check.py <slug> --quick -- runs against fresh evidence
+  J. report        - bin/snap.py report <slug> -- writes tmp/snaps/<slug>/review.md
 
 Use `--from PHASE` to start mid-pipeline (e.g. you tweaked the spec and
-only want to re-run phases C+D+E+F without re-cloning), or `--only PHASE`
+only want to re-run phases C onward without re-cloning), or `--only PHASE`
 to run a single phase (e.g. just re-emit the brief after editing the spec).
 
 Output
@@ -85,6 +91,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -103,7 +110,18 @@ from _design_lib import (  # noqa: E402
 )
 from _lib import MONOREPO_ROOT  # noqa: E402
 
-PHASES = ("validate", "clone", "apply", "seed", "sync", "check")
+PHASES = (
+    "validate",
+    "clone",
+    "apply",
+    "seed",
+    "sync",
+    "snap",
+    "vision-review",
+    "baseline",
+    "check",
+    "report",
+)
 
 
 class PhaseError(RuntimeError):
@@ -121,6 +139,18 @@ def _build_parser() -> argparse.ArgumentParser:
         "--spec",
         type=Path,
         help="Path to a spec JSON file (see --print-example-spec for the shape).",
+    )
+    p.add_argument(
+        "--prompt",
+        type=str,
+        default=None,
+        help=(
+            "Natural-language theme description; resolved to a spec.json by "
+            "`bin/spec-from-prompt.py` before phase dispatch. Mutually exclusive "
+            "with --spec. The resolved spec is written to "
+            "tmp/specs/<slug>.json so subsequent phases (or re-runs) can use "
+            "--spec on it directly."
+        ),
     )
     p.add_argument(
         "--print-example-spec",
@@ -157,11 +187,47 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
+        "--no-strict",
+        dest="strict",
+        action="store_false",
+        default=True,
+        help=(
+            "Demote the check phase from FAIL to WARN. Use only when iterating "
+            "on a spec and you want to read BRIEF.md before fixing every issue. "
+            "Default is strict (any phase failure exits 1) because a 50-theme "
+            "batch run cannot babysit individual themes."
+        ),
+    )
+    p.add_argument(
         "--strict",
+        dest="strict",
+        action="store_true",
+        help=argparse.SUPPRESS,  # legacy alias; default is now strict.
+    )
+    p.add_argument(
+        "--rebaseline",
         action="store_true",
         help=(
-            "Make the final check phase block on any check.py failure (default is "
-            "informational so you can read BRIEF.md and fix issues iteratively)."
+            "In the baseline phase, re-baseline EVERY route (not just the ones "
+            "with no existing baseline). Use after an intentional visual change."
+        ),
+    )
+    p.add_argument(
+        "--skip-snap",
+        action="store_true",
+        help=(
+            "Skip the snap, vision-review, baseline, and report phases. Useful "
+            "for rapid spec iteration where Playground boot (~30-60s) dominates "
+            "the loop. The next un-skipped run will catch up."
+        ),
+    )
+    p.add_argument(
+        "--vision-budget",
+        type=float,
+        default=2.0,
+        help=(
+            "Per-theme vision-review budget cap in USD (default: 2.0). Forwards "
+            "to FIFTY_VISION_DAILY_BUDGET so the daily ledger still applies."
         ),
     )
     p.add_argument(
@@ -183,8 +249,27 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write("\n")
         return 0
 
+    if args.prompt and args.spec:
+        print(
+            "error: --prompt and --spec are mutually exclusive (pick one input source)",
+            file=sys.stderr,
+        )
+        return 2
+
+    if args.prompt:
+        try:
+            args.spec = _resolve_prompt_to_spec(args.prompt)
+        except PhaseError as e:
+            print(f"\nSTATUS: FAIL (phase {e.args[0]})", file=sys.stderr)
+            print(f"  {e.args[1]}", file=sys.stderr)
+            return 1
+        print(f"design.py: prompt resolved to spec at {args.spec}")
+
     if not args.spec:
-        print("error: --spec PATH is required (or pass --print-example-spec)", file=sys.stderr)
+        print(
+            "error: provide --spec PATH or --prompt STR (or --print-example-spec)",
+            file=sys.stderr,
+        )
         return 2
 
     if not args.spec.is_file():
@@ -217,6 +302,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     phases_to_run = _select_phases(args.from_phase, args.only)
+    if args.skip_snap and not args.only:
+        phases_to_run = [
+            p for p in phases_to_run
+            if p not in {"snap", "vision-review", "baseline", "report"}
+        ]
     print(f"design.py: running phases {' -> '.join(phases_to_run)} for `{spec.slug}`")
 
     dest = MONOREPO_ROOT / spec.slug
@@ -308,14 +398,21 @@ def _phase_apply(spec: ValidatedSpec, dest: Path, args: argparse.Namespace) -> N
 
 def _phase_seed(spec: ValidatedSpec, dest: Path, args: argparse.Namespace) -> None:
     """Run `bin/seed-playground-content.py --theme <slug>` to populate
-    `<slug>/playground/content/` and `<slug>/playground/images/`. Soft-fails
-    (warns and continues) so a missing optional dep doesn't block the rest
-    of the pipeline -- the user can re-run seed manually after fixing."""
+    `<slug>/playground/content/` and `<slug>/playground/images/`.
+
+    Hard-fails on a non-zero exit: a theme without seeded playground
+    content can't be shot, can't be vision-reviewed, and will silently
+    pass downstream gates by skipping them (the loophole that made
+    50-theme batch runs unreliable). Use `--no-strict` only when you're
+    iterating manually and intend to fix seed errors yourself.
+    """
     cmd = [sys.executable, str(ROOT / "bin" / "seed-playground-content.py"), "--theme", spec.slug]
     print(f"  [seed] {' '.join(cmd[1:])}")
     rc = subprocess.call(cmd, cwd=str(MONOREPO_ROOT))
     if rc != 0:
-        print(f"  [seed] WARN: bin/seed-playground-content.py exited {rc}; continuing.")
+        if args.strict:
+            raise PhaseError("seed", f"bin/seed-playground-content.py exited {rc}")
+        print(f"  [seed] WARN: bin/seed-playground-content.py exited {rc}; continuing (--no-strict).")
 
 
 def _phase_sync(spec: ValidatedSpec, dest: Path, args: argparse.Namespace) -> None:
@@ -329,25 +426,127 @@ def _phase_sync(spec: ValidatedSpec, dest: Path, args: argparse.Namespace) -> No
         raise PhaseError("sync", f"bin/sync-playground.py exited {rc}")
 
 
+def _phase_snap(spec: ValidatedSpec, dest: Path, args: argparse.Namespace) -> None:
+    """Run `bin/snap.py shoot <slug>` to generate fresh PNGs + axe + heuristic
+    findings under `tmp/snaps/<slug>/`. This is the evidence the check phase
+    consumes — without it, FIFTY_REQUIRE_SNAP_EVIDENCE=1 in CI/pre-push will
+    fail because the no-snap path is no longer a silent skip."""
+    cmd = [sys.executable, str(ROOT / "bin" / "snap.py"), "shoot", spec.slug]
+    print(f"  [snap] {' '.join(cmd[1:])}")
+    rc = subprocess.call(cmd, cwd=str(MONOREPO_ROOT))
+    if rc != 0:
+        raise PhaseError("snap", f"bin/snap.py shoot exited {rc}")
+
+
+def _phase_vision_review(spec: ValidatedSpec, dest: Path, args: argparse.Namespace) -> None:
+    """Run `bin/snap-vision-review.py <slug>` against the freshly shot PNGs.
+    Skipped (with a warning) when ANTHROPIC_API_KEY is unset so airgapped /
+    fixture runs don't fail; CI sets the key.
+
+    Forwards `--vision-budget` as FIFTY_VISION_BUDGET_USD (the per-invocation
+    cap); the daily ledger at FIFTY_VISION_DAILY_BUDGET still applies on top.
+    """
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        print("  [vision-review] WARN: ANTHROPIC_API_KEY unset; skipping vision review.")
+        return
+
+    env = os.environ.copy()
+    env["FIFTY_VISION_BUDGET_USD"] = f"{args.vision_budget:.4f}"
+    cmd = [
+        sys.executable,
+        str(ROOT / "bin" / "snap-vision-review.py"),
+        spec.slug,
+    ]
+    print(f"  [vision-review] {' '.join(cmd[1:])} (budget=${args.vision_budget:.2f})")
+    rc = subprocess.call(cmd, cwd=str(MONOREPO_ROOT), env=env)
+    if rc != 0:
+        raise PhaseError("vision-review", f"bin/snap-vision-review.py exited {rc}")
+
+
+def _phase_baseline(spec: ValidatedSpec, dest: Path, args: argparse.Namespace) -> None:
+    """Promote freshly shot PNGs to `tests/visual-baseline/<slug>/` for any
+    route that has no baseline yet. With `--rebaseline`, refresh every
+    route. This phase is a no-op once every route has a committed baseline,
+    so re-running design.py on an existing theme won't churn baselines."""
+    cmd = [sys.executable, str(ROOT / "bin" / "snap.py"), "baseline", spec.slug]
+    if args.rebaseline:
+        cmd.append("--rebaseline")
+    else:
+        cmd.append("--missing-only")
+    print(f"  [baseline] {' '.join(cmd[1:])}")
+    rc = subprocess.call(cmd, cwd=str(MONOREPO_ROOT))
+    if rc != 0:
+        raise PhaseError("baseline", f"bin/snap.py baseline exited {rc}")
+
+
 def _phase_check(spec: ValidatedSpec, dest: Path, args: argparse.Namespace) -> None:
-    """Run `bin/check.py <slug> --quick` for a fast static gate. With
-    `--strict`, propagate failures; otherwise print a hint and continue.
+    """Run `bin/check.py <slug> --quick` for a fast static gate. With strict
+    (the default), propagate failures; with `--no-strict`, print a hint
+    and continue.
 
     `--quick` skips the network-dependent block-name validator so this
     works in airgapped environments. The full gate (with `check.py --all
-    --offline`) runs in CI on push."""
+    --offline`) runs in CI on push.
+
+    Sets FIFTY_REQUIRE_SNAP_EVIDENCE=1 so any missing snap evidence is a
+    FAIL rather than a silent SKIP — the snap phase already ran above,
+    so absence here means snap.py crashed without raising."""
+    env = os.environ.copy()
+    env.setdefault("FIFTY_REQUIRE_SNAP_EVIDENCE", "1")
     cmd = [sys.executable, str(ROOT / "bin" / "check.py"), spec.slug, "--quick"]
     print(f"  [check] {' '.join(cmd[1:])}")
-    rc = subprocess.call(cmd, cwd=str(MONOREPO_ROOT))
+    rc = subprocess.call(cmd, cwd=str(MONOREPO_ROOT), env=env)
     if rc == 0:
         return
     if args.strict:
-        raise PhaseError("check", f"bin/check.py exited {rc} (--strict)")
+        raise PhaseError("check", f"bin/check.py exited {rc}")
     print(
-        f"  [check] WARN: bin/check.py exited {rc}. This is informational under "
-        "the default policy -- read BRIEF.md, fix issues, then re-run "
+        f"  [check] WARN: bin/check.py exited {rc}. Running under --no-strict so "
+        "this is informational -- read BRIEF.md, fix issues, then re-run "
         f"`python3 bin/check.py {spec.slug} --quick` until green before committing."
     )
+
+
+def _phase_report(spec: ValidatedSpec, dest: Path, args: argparse.Namespace) -> None:
+    """Run `bin/snap.py report <slug>` to write the human-readable
+    `tmp/snaps/<slug>/review.md` summarising findings + cost. Soft-fails
+    with a warning so a missing report doesn't undo a green check."""
+    cmd = [sys.executable, str(ROOT / "bin" / "snap.py"), "report", spec.slug]
+    print(f"  [report] {' '.join(cmd[1:])}")
+    rc = subprocess.call(cmd, cwd=str(MONOREPO_ROOT))
+    if rc != 0:
+        print(f"  [report] WARN: bin/snap.py report exited {rc}; theme is still green.")
+
+
+def _resolve_prompt_to_spec(prompt: str) -> Path:
+    """Invoke `bin/spec-from-prompt.py` to turn `prompt` into a spec.json,
+    write it to `tmp/specs/<slug>.json`, and return the path. Raises
+    PhaseError("prompt", ...) on any failure so the caller can render a
+    consistent STATUS: FAIL line."""
+    helper = ROOT / "bin" / "spec-from-prompt.py"
+    if not helper.is_file():
+        raise PhaseError(
+            "prompt",
+            f"bin/spec-from-prompt.py not found at {helper}; install PR gamma "
+            "or pass --spec instead.",
+        )
+    out_dir = MONOREPO_ROOT / "tmp" / "specs"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    cmd = [sys.executable, str(helper), "--prompt", prompt, "--out-dir", str(out_dir)]
+    proc = subprocess.run(cmd, cwd=str(MONOREPO_ROOT), capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise PhaseError(
+            "prompt",
+            f"bin/spec-from-prompt.py exited {proc.returncode}: {proc.stderr.strip()}",
+        )
+    out_path_str = proc.stdout.strip().splitlines()[-1] if proc.stdout.strip() else ""
+    out_path = Path(out_path_str)
+    if not out_path.is_file():
+        raise PhaseError(
+            "prompt",
+            f"bin/spec-from-prompt.py did not write a spec file (got: {out_path_str!r})",
+        )
+    return out_path
 
 
 _PHASE_HANDLERS = {
@@ -356,7 +555,11 @@ _PHASE_HANDLERS = {
     "apply": _phase_apply,
     "seed": _phase_seed,
     "sync": _phase_sync,
+    "snap": _phase_snap,
+    "vision-review": _phase_vision_review,
+    "baseline": _phase_baseline,
     "check": _phase_check,
+    "report": _phase_report,
 }
 
 

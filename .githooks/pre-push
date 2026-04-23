@@ -135,6 +135,32 @@ else
     echo "      FIFTY_SKIP_VISUAL_PUSH=1 git push"
     exit 1
   fi
+
+  # The visual gate above re-shot every changed theme, so there is
+  # now snap evidence on disk for them. Re-run the static gate with
+  # FIFTY_REQUIRE_SNAP_EVIDENCE=1 -- only on the changed themes --
+  # to make sure NONE of them sneaked through the no-snap SKIP path
+  # in `check_no_serious_axe_in_recent_snaps`. Parity with CI's
+  # `snap-evidence-gate` job in .github/workflows/check.yml.
+  changed="$(python3 -c '
+import sys, pathlib
+sys.path.insert(0, "bin")
+from snap import _changed_themes
+print(" ".join(_changed_themes("origin/main") or []))
+')"
+  if [ -n "$changed" ]; then
+    echo "▸ pre-push: bin/check.py per-changed-theme (snap evidence required)"
+    for t in $changed; do
+      if ! FIFTY_SKIP_UNPUSHED_CHECK=1 FIFTY_SKIP_EVIDENCE_FRESHNESS=1 \
+            FIFTY_REQUIRE_SNAP_EVIDENCE=1 python3 bin/check.py "$t" --offline; then
+        echo
+        echo "✘ pre-push blocked: $t failed the snap-evidence-required gate."
+        echo "  Re-shoot with: python3 bin/snap.py shoot $t"
+        echo "  then re-run: bin/check.py $t --offline"
+        exit 1
+      fi
+    done
+  fi
 fi
 
 echo "✓ pre-push: all gates green."

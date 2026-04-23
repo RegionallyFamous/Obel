@@ -119,6 +119,39 @@ def test_finding_in_unmapped_cell_is_not_allowlisted():
     assert not check._axe_finding_is_allowlisted(allow, "selvedge", "wide", "checkout-filled", f)
 
 
+def test_cross_theme_wildcard_cell_matches_every_theme():
+    """A `*:viewport:route` entry suppresses the finding on every theme.
+
+    This is how chronic cross-theme findings (e.g. vision typography
+    flags every theme triggers on the home page) get suppressed in
+    one place instead of N copies."""
+    check = _import_check()
+    allow = {"*:wide:home": {"vision:typography-overpowered": {"*"}}}
+    f = {"kind": "vision:typography-overpowered"}
+    assert check._axe_finding_is_allowlisted(allow, "selvedge", "wide", "home", f)
+    assert check._axe_finding_is_allowlisted(allow, "obel", "wide", "home", f)
+    assert check._axe_finding_is_allowlisted(allow, "ghost-theme", "wide", "home", f)
+
+
+def test_cross_theme_wildcard_does_not_leak_across_routes():
+    check = _import_check()
+    allow = {"*:wide:home": {"vision:typography-overpowered": {"*"}}}
+    f = {"kind": "vision:typography-overpowered"}
+    assert not check._axe_finding_is_allowlisted(allow, "selvedge", "wide", "checkout-filled", f)
+
+
+def test_per_theme_and_wildcard_cells_union_for_same_route():
+    check = _import_check()
+    allow = {
+        "*:wide:home": {"vision:brand-violation": {"*"}},
+        "selvedge:wide:home": {"element-overflow-x": {"fp-a"}},
+    }
+    selvedge_specific = {"kind": "element-overflow-x", "fingerprint": "fp-a"}
+    cross_theme = {"kind": "vision:brand-violation"}
+    assert check._axe_finding_is_allowlisted(allow, "selvedge", "wide", "home", selvedge_specific)
+    assert check._axe_finding_is_allowlisted(allow, "selvedge", "wide", "home", cross_theme)
+
+
 def test_already_marked_allowlisted_finding_is_treated_as_allowlisted():
     """Defends against stale findings.json that snap.py demoted at
     write time -- we don't want to re-promote them just because the
