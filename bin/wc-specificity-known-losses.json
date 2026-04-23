@@ -51,6 +51,7 @@
     ".wc-block-components-checkout-step__heading",
     ".wc-block-components-formatted-money-amount",
     ".wc-block-components-order-summary",
+    ".wc-block-components-order-summary.wc-block-components-order-summary.wc-block-components-order-summary.wc-block-components-order-summary *",
     ".wc-block-components-order-summary-item",
     ".wc-block-components-order-summary-item__description",
     ".wc-block-components-order-summary-item__image",

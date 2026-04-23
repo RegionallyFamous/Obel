@@ -1419,6 +1419,43 @@ CSS_PHASE_U = f"""{SENTINEL_OPEN_PHASE_U}
 {SENTINEL_CLOSE_PHASE_U}"""
 
 
+# wc-tells phase-v: final cleanup batch covering the long-tail clusters
+# the post-Phase-U gallery still surfaced:
+#
+#   1. Plain `h1.wp-block-heading` / `h2.wp-block-heading` (no font-size
+#      preset class) clipping 5-9px on tablet wraps. The Phase-U bumps
+#      only targeted .has-{3..6}-xl-font-size. Generic block heading
+#      line-height needs the same 1.3 floor so descenders + wraps don't
+#      poke past the heading's own clientHeight.
+#
+#   2. WooCommerce product-button covers BOTH `<button>` and `<a>`
+#      forms (an anchor when the product is variable-with-options or
+#      out-of-stock-with-cta). Phase-S only loosened `<button>` padding
+#      so 16 obel "SELECT OPTIONS" anchors overflowed 19px. Same rule,
+#      `a.wp-block-button__link` now included.
+#
+#   3. Mini-cart "items" badge button is 2px tight (overflow on the
+#      "3" digit when font has wide numerals). Add 2px horizontal
+#      breathing room without a min-width that would cascade-break
+#      header layouts (lesson learnt in Phase S).
+#
+#   4. Checkout order-summary-cart-items: product titles inside the
+#      collapsed accordion block force scrollWidth 14px past
+#      clientWidth on desktop checkout-filled. Force min-width:0 +
+#      overflow-wrap:anywhere on the cart-items block + its descendants
+#      so the title wraps at the box edge instead of pushing.
+#
+SENTINEL_OPEN_PHASE_V = "/* wc-tells-phase-v-real-bug-cleanup-6 */"
+SENTINEL_CLOSE_PHASE_V = "/* /wc-tells-phase-v-real-bug-cleanup-6 */"
+CSS_PHASE_V = f"""{SENTINEL_OPEN_PHASE_V}
+h1.wp-block-heading.wp-block-heading,h2.wp-block-heading.wp-block-heading,h1.wp-block-post-title.wp-block-post-title,h2.wp-block-post-title.wp-block-post-title{{line-height:1.3;}}
+.wp-block-woocommerce-product-template a.wp-block-button__link.wp-block-button__link,.wp-block-woocommerce-product-collection a.wp-block-button__link.wp-block-button__link,.wp-block-woocommerce-product-template .wc-block-components-product-button.wc-block-components-product-button a.wp-block-button__link,.wp-block-woocommerce-product-collection .wc-block-components-product-button.wc-block-components-product-button a.wp-block-button__link{{padding-left:8px;padding-right:8px;min-width:0;max-width:100%;white-space:normal;overflow-wrap:break-word;}}
+.wc-block-mini-cart__button.wc-block-mini-cart__button.wc-block-mini-cart__button{{padding-left:6px;padding-right:6px;}}
+.wc-block-components-order-summary.wc-block-components-order-summary.wc-block-components-order-summary.wc-block-components-order-summary,.wc-block-components-order-summary.wc-block-components-order-summary.wc-block-components-order-summary.wc-block-components-order-summary *{{min-width:0;max-width:100%;}}
+.wc-block-components-order-summary-item__description.wc-block-components-order-summary-item__description.wc-block-components-order-summary-item__description.wc-block-components-order-summary-item__description,.wc-block-components-order-summary-item__title.wc-block-components-order-summary-item__title.wc-block-components-order-summary-item__title.wc-block-components-order-summary-item__title,.wc-block-components-product-name.wc-block-components-product-name.wc-block-components-product-name.wc-block-components-product-name.wc-block-components-product-name{{overflow-wrap:anywhere;min-width:0;max-width:100%;}}
+{SENTINEL_CLOSE_PHASE_V}"""
+
+
 # Each entry: (sentinel_open, sentinel_close, raw_css, anchor_after).
 # `anchor_after` is the marker the chunk is spliced in after — for the
 # first chunk that's the canonical archive-page marker; for follow-ups
@@ -1586,6 +1623,12 @@ CHUNKS: list[tuple[str, str, str, str]] = [
         SENTINEL_CLOSE_PHASE_U,
         CSS_PHASE_U,
         SENTINEL_CLOSE_PHASE_T,
+    ),
+    (
+        SENTINEL_OPEN_PHASE_V,
+        SENTINEL_CLOSE_PHASE_V,
+        CSS_PHASE_V,
+        SENTINEL_CLOSE_PHASE_U,
     ),
 ]
 
