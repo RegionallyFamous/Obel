@@ -1056,6 +1056,49 @@ _HEURISTICS_JS = r"""
             if (typeof cls === 'string' && /\b(sr-only|screen-reader-text|visually-hidden|wp-block-skip-link|skip-link)\b/.test(cls)) return true;
             return false;
         };
+        // A link is "inside a card hit area" when one of its
+        // closest()-walk ancestors is itself either a clickable
+        // element or a typical card/post wrapper that exposes its own
+        // anchor. Tapping anywhere in that ancestor lands on the
+        // product/post page; the inner text link is a secondary
+        // affordance, not the real tap target.
+        //
+        // This catches the post-card / product-card pattern that fires
+        // ~240 false findings/run: a 100x20 product-title <a>" Portable
+        // Hole "</a> inside a `<li class="wp-block-post"><a class="wp-
+        // block-post-title__link">` (or wp-block-product wrapper +
+        // image link). The card itself is the real >=300x400 tap
+        // target; complaining that the inner title link is "too
+        // small" trains people to ignore the rule.
+        const CARD_HIT_AREA = (
+            'li.wp-block-post, '
+            + '.wp-block-post, '
+            + 'li.product, '
+            + '.wp-block-product, '
+            + '.wc-block-product, '
+            + 'article'
+        );
+        const ancestorIsCardWithAnchor = (el) => {
+            let p = el.parentElement;
+            for (let depth = 0; p && depth < 5; depth += 1, p = p.parentElement) {
+                if (!p.matches) continue;
+                if (!p.matches(CARD_HIT_AREA)) continue;
+                // Card must expose at least one OTHER anchor that
+                // covers it (the image link or the title link sibling
+                // of `el`). Without that, tapping the card body wouldn't
+                // navigate anywhere.
+                const anchors = p.querySelectorAll('a[href]');
+                for (const a of anchors) {
+                    if (a === el) continue;
+                    const ar = a.getBoundingClientRect();
+                    // Sibling anchor must be visible AND reasonably
+                    // sized -- a 1x1 sr-only sibling doesn't make the
+                    // card a real tap target.
+                    if (ar.width >= 32 && ar.height >= 32) return true;
+                }
+            }
+            return false;
+        };
         tapEls.forEach((el) => {
             if (!isVisible(el)) return;
             const r = el.getBoundingClientRect();
@@ -1067,6 +1110,7 @@ _HEURISTICS_JS = r"""
             if (cs.display === 'inline' && r.width >= 32) return;
             if (isScreenReaderOnly(el, r, cs)) return;
             if (r.width < 32 || r.height < 32) {
+                if (ancestorIsCardWithAnchor(el)) return;
                 const label = (el.innerText || el.getAttribute('aria-label') || '').trim().slice(0, 40);
                 push("warn", "tap-target-too-small",
                      `Mobile tap target ${Math.round(r.width)}x${Math.round(r.height)}px (<32px) for "${label}".`,

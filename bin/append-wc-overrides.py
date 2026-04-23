@@ -1296,11 +1296,11 @@ CSS_PHASE_Q = f"""{SENTINEL_OPEN_PHASE_Q}
 SENTINEL_OPEN_PHASE_R = "/* wc-tells-phase-r-real-bug-cleanup-2 */"
 SENTINEL_CLOSE_PHASE_R = "/* /wc-tells-phase-r-real-bug-cleanup-2 */"
 CSS_PHASE_R = f"""{SENTINEL_OPEN_PHASE_R}
-.wp-block-post-title.wp-block-post-title.wp-block-post-title{{line-height:1.15;}}
-h2.wp-block-heading.wp-block-heading.wp-block-heading{{line-height:1.2;}}
-.wc-block-mini-cart__button.wc-block-mini-cart__button.wc-block-mini-cart__button.wc-block-mini-cart__button.wc-block-mini-cart__button{{min-width:48px;}}
+.wp-block-post-title.wp-block-post-title.wp-block-post-title.wp-block-post-title{{line-height:1.25;padding-bottom:0.05em;}}
+h2.wp-block-heading.wp-block-heading.wp-block-heading.wp-block-heading{{line-height:1.3;padding-bottom:0.05em;}}
+.wc-block-mini-cart__button.wc-block-mini-cart__button.wc-block-mini-cart__button.wc-block-mini-cart__button.wc-block-mini-cart__button{{min-width:60px;padding-left:8px;padding-right:8px;}}
 .wc-block-checkout__sidebar.wc-block-checkout__sidebar.wc-block-checkout__sidebar.wc-block-checkout__sidebar.wc-block-checkout__sidebar{{overflow-wrap:anywhere;}}
-body.theme-aero .wp-site-blocks>div>header.alignfull>div.wp-block-group:first-child,body.theme-aero .wp-site-blocks>div>header.alignfull>div.wp-block-group:first-child>div.wp-block-group{{flex-wrap:wrap;}}
+.aero-header.aero-header .is-nowrap.is-nowrap{{flex-wrap:wrap;}}
 {SENTINEL_CLOSE_PHASE_R}"""
 
 
