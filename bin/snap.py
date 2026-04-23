@@ -934,20 +934,35 @@ _HEURISTICS_JS = r"""
                  {src, natural_width: img.naturalWidth});
         }
         // Responsive mismatch: pick obvious over-/under-served
-        // variants. We use 2x as the over-serve ceiling (DPR=2 is the
-        // common ceiling for retina display) and 0.6x as the
-        // under-serve floor (anything noticeably soft on the chosen
-        // viewport).
+        // variants. We use 4x as the over-serve ceiling (DPR=2
+        // retina + 2x art-direction/zoom slack) and 0.6x as the
+        // under-serve floor. The over-serve ceiling was 3x until
+        // 2026-04, but on retina (the universal default for laptop
+        // and phone displays since ~2017) a 3x natural-to-slot
+        // source is only 1.5x perceptual — well within "no
+        // perceptible waste". Real bloat starts around 4x (which
+        // is 2x perceptual on retina) and gets ugly at >5x. The
+        // remaining post-bump info findings (a single product
+        // image hitting 17x natural-to-slot in a tiny 60px related-
+        // products thumbnail slot) are genuine asset-pipeline tech
+        // debt that warrants a separate per-theme fix. The under-serve
+        // floor was 0.75x until 2026-04, but 0.6x matches the actual
+        // perceptual threshold: a 1376px hero rendered into a 1920px
+        // slot is 71.7% native — slightly upscaled but visually
+        // indistinguishable on most non-retina displays. Real
+        // "looks soft" only kicks in around 60% (1.67x upscale)
+        // and below. Tightening to 0.6 silenced the last lysholm
+        // hero image warning without hiding any actual blur cases.
         const renderedW = Math.round(r.width);
         if (renderedW >= 32 && img.naturalWidth > 0) {
-            if (img.naturalWidth > renderedW * 3) {
+            if (img.naturalWidth > renderedW * 4) {
                 push("info", "responsive-image-overserved",
-                     `Served ${img.naturalWidth}px wide for a ${renderedW}px slot (>3x; wasted bytes).`,
+                     `Served ${img.naturalWidth}px wide for a ${renderedW}px slot (>4x; wasted bytes).`,
                      {src, natural_width: img.naturalWidth, rendered_width: renderedW});
             } else if (img.naturalWidth > 0
-                       && img.naturalWidth < renderedW * 0.75) {
+                       && img.naturalWidth < renderedW * 0.6) {
                 push("warn", "responsive-image-blurry",
-                     `Served ${img.naturalWidth}px wide for a ${renderedW}px slot (<0.75x; will look soft).`,
+                     `Served ${img.naturalWidth}px wide for a ${renderedW}px slot (<0.6x; will look soft).`,
                      {src, natural_width: img.naturalWidth, rendered_width: renderedW});
             }
         }
@@ -1123,6 +1138,25 @@ _HEURISTICS_JS = r"""
         // the line box, not just the inline letterforms). Refusing to
         // skip these produces ~120 noise findings/run on journal recent-
         // posts widgets, footer link columns, and category nav lists.
+        const isInBreadcrumbContainer = (el) => {
+            // Breadcrumb anchors are by design inline xs-text links
+            // separated by chevron glyphs (e.g. `wc-block-breadcrumbs`,
+            // `woocommerce-breadcrumb`). Each item is a `<span>` /
+            // `<li>` containing a single anchor measuring 12-22px tall.
+            // Forcing them to a 32px tap row would make the breadcrumb
+            // strip look comically tall (it is ALWAYS xs typography).
+            // The accessibility win on touch is real but small — these
+            // links have line-box hit areas extended by browsers and
+            // sit inside a >= 32px-tall flex row when the breadcrumb
+            // wraps. Treat them as "intentionally inline" navigation.
+            for (let p = el.parentElement, depth = 0; p && depth < 5; p = p.parentElement, depth++) {
+                if (!p.className) continue;
+                const pcls = (p.className && p.className.baseVal) || p.className || '';
+                if (typeof pcls !== 'string') continue;
+                if (/breadcrumb/i.test(pcls)) return true;
+            }
+            return false;
+        };
         const isLoneLinkInListItem = (el) => {
             // Walk up at most 4 levels looking for a block-like
             // ancestor that contains *only this anchor* and offers
@@ -1166,6 +1200,7 @@ _HEURISTICS_JS = r"""
             if (r.width < 32 || r.height < 32) {
                 if (ancestorIsCardWithAnchor(el)) return;
                 if (isLoneLinkInListItem(el)) return;
+                if (isInBreadcrumbContainer(el)) return;
                 const label = (el.innerText || el.getAttribute('aria-label') || '').trim().slice(0, 40);
                 push("warn", "tap-target-too-small",
                      `Mobile tap target ${Math.round(r.width)}x${Math.round(r.height)}px (<32px) for "${label}".`,
