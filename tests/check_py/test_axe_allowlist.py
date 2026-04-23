@@ -33,6 +33,7 @@ def _import_check():
     if str(bin_dir) not in sys.path:
         sys.path.insert(0, str(bin_dir))
     import check  # noqa: WPS433
+
     return check
 
 
@@ -42,6 +43,7 @@ def _import_snap():
     if str(bin_dir) not in sys.path:
         sys.path.insert(0, str(bin_dir))
     import snap  # noqa: WPS433
+
     return snap
 
 
@@ -67,22 +69,14 @@ def test_load_well_formed(tmp_path, monkeypatch):
     check = _import_check()
     good = tmp_path / "ok.json"
     good.write_text(
-        json.dumps(
-            {
-                "selvedge:wide:checkout-filled": {
-                    "element-overflow-x": ["fp-a", "fp-b"]
-                }
-            }
-        ),
+        json.dumps({"selvedge:wide:checkout-filled": {"element-overflow-x": ["fp-a", "fp-b"]}}),
         encoding="utf-8",
     )
     monkeypatch.setattr(check, "_AXE_ALLOWLIST_PATH", good)
     out = check._load_axe_allowlist()
     assert "selvedge:wide:checkout-filled" in out
     # Sets, not lists, for O(1) membership in the hot loop:
-    assert out["selvedge:wide:checkout-filled"]["element-overflow-x"] == {
-        "fp-a", "fp-b"
-    }
+    assert out["selvedge:wide:checkout-filled"]["element-overflow-x"] == {"fp-a", "fp-b"}
 
 
 # ---------------------------------------------------------------------------
@@ -92,9 +86,7 @@ def test_finding_with_matching_kind_and_fingerprint_is_allowlisted():
     check = _import_check()
     allow = {"selvedge:wide:checkout-filled": {"element-overflow-x": {"fp-a"}}}
     f = {"kind": "element-overflow-x", "fingerprint": "fp-a"}
-    assert check._axe_finding_is_allowlisted(
-        allow, "selvedge", "wide", "checkout-filled", f
-    )
+    assert check._axe_finding_is_allowlisted(allow, "selvedge", "wide", "checkout-filled", f)
 
 
 def test_finding_falls_back_to_selector_when_no_fingerprint():
@@ -102,9 +94,7 @@ def test_finding_falls_back_to_selector_when_no_fingerprint():
     check = _import_check()
     allow = {"selvedge:wide:checkout-filled": {"element-overflow-x": {".cart .total"}}}
     f = {"kind": "element-overflow-x", "selector": ".cart .total"}
-    assert check._axe_finding_is_allowlisted(
-        allow, "selvedge", "wide", "checkout-filled", f
-    )
+    assert check._axe_finding_is_allowlisted(allow, "selvedge", "wide", "checkout-filled", f)
 
 
 def test_finding_with_no_fingerprint_or_selector_is_not_allowlisted():
@@ -112,27 +102,21 @@ def test_finding_with_no_fingerprint_or_selector_is_not_allowlisted():
     check = _import_check()
     allow = {"selvedge:wide:checkout-filled": {"element-overflow-x": {"fp-a"}}}
     f = {"kind": "element-overflow-x", "message": "no addressable target"}
-    assert not check._axe_finding_is_allowlisted(
-        allow, "selvedge", "wide", "checkout-filled", f
-    )
+    assert not check._axe_finding_is_allowlisted(allow, "selvedge", "wide", "checkout-filled", f)
 
 
 def test_finding_with_wrong_kind_is_not_allowlisted():
     check = _import_check()
     allow = {"selvedge:wide:checkout-filled": {"element-overflow-x": {"fp-a"}}}
     f = {"kind": "color-contrast", "fingerprint": "fp-a"}
-    assert not check._axe_finding_is_allowlisted(
-        allow, "selvedge", "wide", "checkout-filled", f
-    )
+    assert not check._axe_finding_is_allowlisted(allow, "selvedge", "wide", "checkout-filled", f)
 
 
 def test_finding_in_unmapped_cell_is_not_allowlisted():
     check = _import_check()
     allow = {"selvedge:wide:home": {"element-overflow-x": {"fp-a"}}}
     f = {"kind": "element-overflow-x", "fingerprint": "fp-a"}
-    assert not check._axe_finding_is_allowlisted(
-        allow, "selvedge", "wide", "checkout-filled", f
-    )
+    assert not check._axe_finding_is_allowlisted(allow, "selvedge", "wide", "checkout-filled", f)
 
 
 def test_already_marked_allowlisted_finding_is_treated_as_allowlisted():
@@ -162,9 +146,7 @@ def test_already_marked_allowlisted_finding_is_treated_as_allowlisted():
 def test_fingerprint_implementations_agree(finding):
     check = _import_check()
     snap = _import_snap()
-    assert check._axe_finding_fingerprint(finding) == snap._finding_fingerprint(
-        finding
-    ), (
+    assert check._axe_finding_fingerprint(finding) == snap._finding_fingerprint(finding), (
         "check.py and snap.py disagree on the fingerprint of the same "
         "finding -- if snap.py changed `_finding_fingerprint`, mirror "
         "the change in check.py:_axe_finding_fingerprint."

@@ -81,9 +81,16 @@ import os
 import time
 import urllib.error
 import urllib.request
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+
+# `datetime.UTC` is the modern alias (Python 3.11+) and what ruff's
+# UP017 insists on under our py312 lint target. The project's
+# documented minimum runtime in `pyproject.toml` is `python>=3.9`,
+# where the alias does not exist. Resolve once at import time so the
+# rest of the file can use `UTC` without scattering version checks.
+UTC = getattr(dt, "UTC", dt.timezone.utc)  # noqa: UP017
+
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -419,7 +426,7 @@ def today_spend_usd(*, path: Path = DEFAULT_LEDGER_PATH, now: dt.datetime | None
     ledger doesn't exist yet."""
     if not path.exists():
         return 0.0
-    today = (now or dt.datetime.now(dt.timezone.utc)).date().isoformat()
+    today = (now or dt.datetime.now(UTC)).date().isoformat()
     total = 0.0
     try:
         for line in path.read_text(encoding="utf-8").splitlines():
@@ -609,7 +616,7 @@ def review_image(
 
     append_ledger(
         LedgerEntry(
-            timestamp_iso=dt.datetime.now(dt.timezone.utc).isoformat(),
+            timestamp_iso=dt.datetime.now(UTC).isoformat(),
             model=model,
             input_tokens=in_tokens,
             output_tokens=out_tokens,

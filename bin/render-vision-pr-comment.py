@@ -54,8 +54,8 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 MARKER = "<!-- vision-review:sticky -->"
 
@@ -79,7 +79,7 @@ def discover_themes(root: Path) -> list[str]:
     the comment is stable across runs (otherwise a re-run could
     reorder the section headings and produce a noisy diff).
     """
-    out = []
+    out: list[str] = []
     if not root.is_dir():
         return out
     for child in sorted(root.iterdir()):

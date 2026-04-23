@@ -348,9 +348,7 @@ def test_wide_query_with_default_layout_and_grid_post_template_passes(
     assert check.check_block_markup_anti_patterns().passed
 
 
-def test_wide_query_with_explicit_contentsize_override_passes(
-    minimal_theme, bind_check_root
-):
+def test_wide_query_with_explicit_contentsize_override_passes(minimal_theme, bind_check_root):
     """An explicit `contentSize` on the constrained layout is also a valid
     fix: the author chose the width deliberately, so don't flag it."""
     check = bind_check_root(minimal_theme)
@@ -390,8 +388,7 @@ def test_wide_query_with_constrained_default_and_grid_post_template_fails(
     result = check.check_block_markup_anti_patterns()
     assert not result.passed
     assert any(
-        "wp:query" in d and "constrained" in d and "post-template" in d
-        for d in result.details
+        "wp:query" in d and "constrained" in d and "post-template" in d for d in result.details
     )
 
 

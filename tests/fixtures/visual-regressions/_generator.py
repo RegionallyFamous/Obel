@@ -31,6 +31,7 @@ Regenerating
 
 Commit the resulting PNGs along with any change to this script.
 """
+
 from __future__ import annotations
 
 import json
@@ -48,6 +49,7 @@ FIXTURE_DIR = Path(__file__).resolve().parent
 # ---------------------------------------------------------------------------
 # Font helpers — fall back to PIL default if system fonts unavailable
 # ---------------------------------------------------------------------------
+
 
 def _load_font(size: int, *, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
     """Best-effort font loader. We try a few system locations; if none of them
@@ -75,18 +77,22 @@ def _load_font(size: int, *, bold: bool = False) -> ImageFont.FreeTypeFont | Ima
 # Drawing primitives
 # ---------------------------------------------------------------------------
 
+
 def _new(bg: tuple[int, int, int]) -> tuple[Image.Image, ImageDraw.ImageDraw]:
     img = Image.new("RGB", (W, H), bg)
     return img, ImageDraw.Draw(img)
 
 
-def _text(draw: ImageDraw.ImageDraw, xy, text: str, *, size: int, fill: tuple[int, int, int]) -> None:
+def _text(
+    draw: ImageDraw.ImageDraw, xy, text: str, *, size: int, fill: tuple[int, int, int]
+) -> None:
     draw.text(xy, text, fill=fill, font=_load_font(size))
 
 
 # ---------------------------------------------------------------------------
 # Planted regressions (5) — reviewer MUST flag these
 # ---------------------------------------------------------------------------
+
 
 def make_regression_typography_overpowered() -> Image.Image:
     """A single 'WELCOME!' headline at 320pt consuming most of the viewport,
@@ -173,6 +179,7 @@ def make_regression_whitespace_imbalance() -> Image.Image:
 # Well-designed-unusual (5) — reviewer MUST NOT flag these
 # ---------------------------------------------------------------------------
 
+
 def make_welldesigned_deliberate_whitespace() -> Image.Image:
     """Editorial pacing: tight type block in the upper third, generous
     intentional whitespace below. Mimics lysholm's restrained voice. The
@@ -247,9 +254,9 @@ def make_welldesigned_editorial_magazine() -> Image.Image:
     _text(d, (80, 90), "On the cutting floor", size=44, fill=(40, 30, 22))
     _text(d, (80, 160), "An afternoon with the makers, March 2026.", size=16, fill=(110, 100, 88))
     d.rectangle((80, 220, 660, 560), fill=(220, 215, 205))
-    _text(d, (700, 220), '\u201cThe table is older than', size=28, fill=(40, 30, 22))
-    _text(d, (700, 260), 'any of us. It remembers', size=28, fill=(40, 30, 22))
-    _text(d, (700, 300), 'every cut.\u201d', size=28, fill=(40, 30, 22))
+    _text(d, (700, 220), "\u201cThe table is older than", size=28, fill=(40, 30, 22))
+    _text(d, (700, 260), "any of us. It remembers", size=28, fill=(40, 30, 22))
+    _text(d, (700, 300), "every cut.\u201d", size=28, fill=(40, 30, 22))
     _text(d, (700, 360), "\u2014 K. Lindahl, head cutter", size=14, fill=(140, 130, 115))
     _text(d, (700, 430), "Read the full piece  \u2192", size=16, fill=(180, 80, 50))
     return img
@@ -345,7 +352,8 @@ FIXTURES = [
 
 
 def main() -> int:
-    manifest = {
+    fixtures_out: list[dict] = []
+    manifest: dict = {
         "_meta": {
             "purpose": (
                 "Labelled fixture set for bin/snap-vision-review.py. Each "
@@ -366,13 +374,13 @@ def main() -> int:
                 "recall_min": 0.70,
             },
         },
-        "fixtures": [],
+        "fixtures": fixtures_out,
     }
     for filename, generator, expected, forbidden, severity_floor, notes in FIXTURES:
         out = FIXTURE_DIR / filename
         img = generator()
         img.save(out, format="PNG", optimize=True)
-        manifest["fixtures"].append(
+        fixtures_out.append(
             {
                 "file": filename,
                 "kind": "regression" if filename.startswith("regression-") else "well-designed",
