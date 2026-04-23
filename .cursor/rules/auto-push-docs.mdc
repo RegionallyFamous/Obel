@@ -61,6 +61,35 @@ them. Do not ask the Proprietor first.** This includes:
    This keeps the public queue moving without absorbing other agents'
    regressions, and never silently hides a check.
 
+   ### Bypass blocklist — checks `--no-verify` MUST NOT skip
+
+   Some failures mean **shipped markup is broken on the live demo**, not
+   just "stale CI gate". For these, `--no-verify` is forbidden — fix the
+   underlying theme first, even if the docs push has to wait a turn:
+
+   - **`Block markup matches save() output`** (the static heading-typography
+     /group-class /accordion-role /button-type invariants in `bin/check.py`).
+     A failure here means a `wp:heading` or `wp:group` block has JSON
+     attributes that don't match its rendered markup. The editor's
+     deprecation pipeline silently rewrites the markup at editor-load,
+     but the FRONT-END serves the bare markup, so the production demo
+     renders the wrong thing. Past incident: aero/lysholm/selvedge
+     footer column titles shipped as 4-7.5rem display headings instead
+     of 15px uppercase labels because three `wp:heading` blocks had
+     `fontSize:"sm"` + `style.typography.*` JSON but bare `<h2>` markup.
+     `--no-verify` shipped that to production for weeks.
+   - **`Block markup passes the @wordpress/blocks editor-parity validator`**
+     (the Node validator in `bin/blocks-validator/`). A "silent
+     deprecation" failure here means the same class of bug — the editor
+     is auto-upgrading legacy markup on load. The static check above
+     catches the most common shape (heading typography); this one is
+     the catch-all for everything else. Treat it the same way.
+
+   Before bypassing the hook, inspect the failure list. If any failure
+   is on one of these checks, FIX IT FIRST regardless of which staged
+   files you "own". The cost of a wrong-render shipping to the demo
+   site dwarfs the cost of a one-turn delay on the docs push.
+
 ## What this rule does NOT cover
 
 - **Theme code changes** (`<slug>/templates/`, `<slug>/parts/`,

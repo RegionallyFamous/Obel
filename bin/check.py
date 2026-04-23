@@ -758,10 +758,25 @@ def check_block_markup_anti_patterns() -> Result:
          submits the form on click. Belt-and-braces against the editor
          silently injecting `type="button"` on save() and the next
          round-trip looking like a "fix" in CI.
+      6. core/heading: when the JSON declares `fontSize` (top-level
+         shortcut) or `style.typography.{fontFamily,fontWeight,fontStyle,
+         letterSpacing,lineHeight,textTransform,fontSize}`, the rendered
+         `<h*>` tag MUST carry the matching `has-<slug>-font-size` /
+         `has-<slug>-font-family` class and the matching CSS property
+         in its inline `style` attribute. Without the class/style, the
+         editor's `parse()` falls through to the deprecation pipeline
+         which silently rescues the markup at editor load -- but the
+         FRONT-END serves the bare markup, so the heading falls through
+         to `styles.elements.h2.fontSize` defaults (typically 4-7.5rem
+         display sizes) and renders nothing like the design intent.
+         This is the exact regression that shipped chunky 100px display
+         headings in the aero/lysholm/selvedge footers; fast-path here
+         so future generators can't recreate it without tripping the
+         pre-commit hook in <0.1s.
     """
     r = Result(
         "Block markup matches save() output "
-        "(group classes, button shadow, paragraph classes, accordion role, button type)"
+        "(group classes, button shadow, paragraph classes, accordion role, button type, heading typography)"
     )
 
     skip_dirs = {"templates/", "parts/", "patterns/"}
@@ -819,6 +834,39 @@ def check_block_markup_anti_patterns() -> Result:
     # appears before the closing `>`. Self-closing variants are not used in
     # block markup, so we don't bother matching them.
     button_no_type_re = re.compile(r"<button(?![^>]*\stype=)(?:\s[^>]*)?>")
+
+    # --- Invariant 6: core/heading typography JSON ↔ markup coherence.
+    # Match `<!-- wp:heading {...} -->` followed by an `<h1>`–`<h6>` tag.
+    # We do not anchor on a newline-only join because some patterns put
+    # the opening comment and the tag on the same line.
+    heading_block_re = re.compile(
+        r"<!--\s*wp:heading\s+(\{[^>]*?\})\s*-->\s*\n?\s*(<h[1-6]\b[^>]*>)",
+        re.MULTILINE,
+    )
+    # Map JSON style.typography.<key> → CSS property. Keep `fontSize` last
+    # so the message is consistent with how save() orders the inline style.
+    HEADING_TYPO_PROPS = (
+        ("fontFamily", "font-family"),
+        ("fontStyle", "font-style"),
+        ("fontWeight", "font-weight"),
+        ("fontSize", "font-size"),
+        ("letterSpacing", "letter-spacing"),
+        ("lineHeight", "line-height"),
+        ("textTransform", "text-transform"),
+    )
+
+    def _slug_to_class_token(slug: str) -> str:
+        """Mirror @wordpress/blocks save()'s slug → kebab-case conversion.
+        WP inserts a hyphen at every digit↔letter boundary so a JSON
+        `fontSize:"4xl"` (or `"4-xl"`) becomes `has-4-xl-font-size` in
+        the rendered class list. Without this normalisation the check
+        false-positives on every numeric size preset.
+        """
+        # digit followed by letter, or letter followed by digit
+        s = re.sub(r"(\d)([A-Za-z])", r"\1-\2", slug)
+        s = re.sub(r"([A-Za-z])(\d)", r"\1-\2", s)
+        # collapse any accidental double hyphens (slug already had a `-`)
+        return re.sub(r"-+", "-", s)
 
     for path in files:
         rel = path.relative_to(ROOT).as_posix()
@@ -908,6 +956,77 @@ def check_block_markup_anti_patterns() -> Result:
                 f"submit) -- the HTML default is `submit`, which silently posts any "
                 f"surrounding <form> on click."
             )
+
+        # Invariant 6: core/heading typography JSON ↔ markup coherence.
+        for m in heading_block_re.finditer(text):
+            json_part, tag = m.group(1), m.group(2)
+            tag_classes_m = re.search(r'\sclass\s*=\s*"([^"]*)"', tag)
+            tag_classes = set(tag_classes_m.group(1).split()) if tag_classes_m else set()
+            tag_style_m = re.search(r'\sstyle\s*=\s*"([^"]*)"', tag)
+            tag_style = tag_style_m.group(1) if tag_style_m else ""
+            tag_style_props = {
+                p.split(":", 1)[0].strip().lower()
+                for p in tag_style.split(";")
+                if ":" in p
+            }
+            missing: list[str] = []
+
+            # 6a. Top-level `fontSize: "<slug>"` shortcut → has-<kebab-slug>-font-size class.
+            font_size_short = re.search(
+                r'(?<![\w])"fontSize"\s*:\s*"([A-Za-z0-9_-]+)"', json_part
+            )
+            if font_size_short and not re.search(
+                r'(?<![\w])"style"\s*:\s*\{[^{}]*?"typography"\s*:\s*\{[^{}]*?"fontSize"',
+                json_part,
+            ):
+                slug = font_size_short.group(1)
+                expected = f"has-{_slug_to_class_token(slug)}-font-size"
+                if expected not in tag_classes:
+                    missing.append(f"class `{expected}` (from JSON fontSize:\"{slug}\")")
+
+            # 6b. Top-level `fontFamily: "<slug>"` shortcut → has-<kebab-slug>-font-family class.
+            # Skip values that look like CSS variables / preset references --
+            # those go in `style.typography.fontFamily`, not the shortcut.
+            font_family_short = re.search(
+                r'(?<![\w])"fontFamily"\s*:\s*"([A-Za-z0-9_-]+)"', json_part
+            )
+            if font_family_short:
+                slug = font_family_short.group(1)
+                expected = f"has-{_slug_to_class_token(slug)}-font-family"
+                if expected not in tag_classes:
+                    missing.append(f"class `{expected}` (from JSON fontFamily:\"{slug}\")")
+
+            # 6c. style.typography.<prop> → matching CSS property in inline style.
+            typo_block = re.search(
+                r'"style"\s*:\s*\{[^{}]*?"typography"\s*:\s*(\{[^{}]*?\})',
+                json_part,
+            )
+            if typo_block:
+                typo_json = typo_block.group(1)
+                for json_key, css_prop in HEADING_TYPO_PROPS:
+                    if not re.search(rf'(?<![\w])"{json_key}"\s*:\s*"', typo_json):
+                        continue
+                    if css_prop not in tag_style_props:
+                        missing.append(
+                            f"inline `style` property `{css_prop}` "
+                            f"(from JSON style.typography.{json_key})"
+                        )
+
+            if missing:
+                lineno = text.count("\n", 0, m.start(2)) + 1
+                tag_name = re.match(r"<(h[1-6])", tag).group(1)
+                r.fail(
+                    f"{rel}:{lineno}: core/heading <{tag_name}> is missing "
+                    f"{len(missing)} attribute(s) the JSON declared: "
+                    + "; ".join(missing)
+                    + ". Without these, the front-end serves bare markup that "
+                    + f"falls through to `styles.elements.{tag_name}` defaults "
+                    + "(typically display-size headings). The editor's deprecation "
+                    + "pipeline silently rewrites the markup on load so the bug "
+                    + "only surfaces in production. Mirror the JSON into the "
+                    + "rendered tag (add the class(es) and the inline style "
+                    + "properties shown above)."
+                )
 
     if r.passed:
         r.details.append(f"{len(files)} pattern/template/part file(s) checked")
