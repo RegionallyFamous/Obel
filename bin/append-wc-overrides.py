@@ -1262,6 +1262,47 @@ CSS_PHASE_Q = f"""{SENTINEL_OPEN_PHASE_Q}
 .wc-block-components-quantity-selector__input.wc-block-components-quantity-selector__input.wc-block-components-quantity-selector__input.wc-block-components-quantity-selector__input.wc-block-components-quantity-selector__input{{min-width:48px;}}
 {SENTINEL_CLOSE_PHASE_Q}"""
 
+# wc-tells phase-r: round-2 cleanup after observing the post-Phase-Q
+# gallery. Targets the next bucket of real bugs, picked from the
+# remaining clusters (not detector tweaks):
+#
+#   1. `.wp-block-post-title` and `h2.wp-block-heading` line-height bump.
+#      Same root cause as the wo-archive-hero fix — `line-height:1`
+#      crops descenders + italic letterform tilt. Singular post / page
+#      titles ("CART", "JOURNAL", post titles) lose 6-12px to the same
+#      bug. Not patching the WP core block style; we doubled-class our
+#      own rule to win the cascade. ~120 heading-clipped findings/run.
+#
+#   2. `.wc-block-mini-cart__button` min-width:48px. Mini-cart count
+#      "3" overflows the button by 6px because WC sizes the button to
+#      hug the icon + 1-digit count; 2-digit counts (and any double-
+#      width glyph) clip. ~60 button-label-overflow findings/run.
+#
+#   3. `.wc-block-checkout__sidebar` overflow-wrap:anywhere. WC's
+#      strict `word-break:keep-all` on the sidebar product names is
+#      causing 16 word-broken findings/run on long product names
+#      that share a sidebar column with a tight gap.
+#
+#   4. Aero announcement bar: `.alignfull > div.wp-block-group` housing
+#      the "✦ HOLOGRAPHIC SHIPPING OVER $50 ✦ CATCH THE NEW DROP →"
+#      strip needs `flex-wrap:wrap` so it doesn't push 117px off-canvas
+#      on tablet/mobile. Targets only aero (the only theme with that
+#      strip) by scoping to `body.theme-aero .wp-site-blocks > div >
+#      header.alignfull > div.wp-block-group:first-child`. The whole
+#      strip is a 2-paragraph flex row; wrapping is the right
+#      responsive behaviour. ~120 element-overflow-x +
+#      ~20 horizontal-overflow findings/run.
+#
+SENTINEL_OPEN_PHASE_R = "/* wc-tells-phase-r-real-bug-cleanup-2 */"
+SENTINEL_CLOSE_PHASE_R = "/* /wc-tells-phase-r-real-bug-cleanup-2 */"
+CSS_PHASE_R = f"""{SENTINEL_OPEN_PHASE_R}
+.wp-block-post-title.wp-block-post-title.wp-block-post-title{{line-height:1.15;}}
+h2.wp-block-heading.wp-block-heading.wp-block-heading{{line-height:1.2;}}
+.wc-block-mini-cart__button.wc-block-mini-cart__button.wc-block-mini-cart__button.wc-block-mini-cart__button.wc-block-mini-cart__button{{min-width:48px;}}
+.wc-block-checkout__sidebar.wc-block-checkout__sidebar.wc-block-checkout__sidebar.wc-block-checkout__sidebar.wc-block-checkout__sidebar{{overflow-wrap:anywhere;}}
+body.theme-aero .wp-site-blocks>div>header.alignfull>div.wp-block-group:first-child,body.theme-aero .wp-site-blocks>div>header.alignfull>div.wp-block-group:first-child>div.wp-block-group{{flex-wrap:wrap;}}
+{SENTINEL_CLOSE_PHASE_R}"""
+
 
 # Each entry: (sentinel_open, sentinel_close, raw_css, anchor_after).
 # `anchor_after` is the marker the chunk is spliced in after — for the
@@ -1406,6 +1447,12 @@ CHUNKS: list[tuple[str, str, str, str]] = [
         SENTINEL_CLOSE_PHASE_Q,
         CSS_PHASE_Q,
         SENTINEL_CLOSE_PHASE_P,
+    ),
+    (
+        SENTINEL_OPEN_PHASE_R,
+        SENTINEL_CLOSE_PHASE_R,
+        CSS_PHASE_R,
+        SENTINEL_CLOSE_PHASE_Q,
     ),
 ]
 
