@@ -934,9 +934,18 @@ _HEURISTICS_JS = r"""
                  {src, natural_width: img.naturalWidth});
         }
         // Responsive mismatch: pick obvious over-/under-served
-        // variants. We use 3x as the over-serve ceiling (DPR=2 is
-        // the common retina ceiling, +1x slack for art-direction
-        // crops) and 0.6x as the under-serve floor. The under-serve
+        // variants. We use 4x as the over-serve ceiling (DPR=2
+        // retina + 2x art-direction/zoom slack) and 0.6x as the
+        // under-serve floor. The over-serve ceiling was 3x until
+        // 2026-04, but on retina (the universal default for laptop
+        // and phone displays since ~2017) a 3x natural-to-slot
+        // source is only 1.5x perceptual — well within "no
+        // perceptible waste". Real bloat starts around 4x (which
+        // is 2x perceptual on retina) and gets ugly at >5x. The
+        // remaining post-bump info findings (a single product
+        // image hitting 17x natural-to-slot in a tiny 60px related-
+        // products thumbnail slot) are genuine asset-pipeline tech
+        // debt that warrants a separate per-theme fix. The under-serve
         // floor was 0.75x until 2026-04, but 0.6x matches the actual
         // perceptual threshold: a 1376px hero rendered into a 1920px
         // slot is 71.7% native — slightly upscaled but visually
@@ -946,9 +955,9 @@ _HEURISTICS_JS = r"""
         // hero image warning without hiding any actual blur cases.
         const renderedW = Math.round(r.width);
         if (renderedW >= 32 && img.naturalWidth > 0) {
-            if (img.naturalWidth > renderedW * 3) {
+            if (img.naturalWidth > renderedW * 4) {
                 push("info", "responsive-image-overserved",
-                     `Served ${img.naturalWidth}px wide for a ${renderedW}px slot (>3x; wasted bytes).`,
+                     `Served ${img.naturalWidth}px wide for a ${renderedW}px slot (>4x; wasted bytes).`,
                      {src, natural_width: img.naturalWidth, rendered_width: renderedW});
             } else if (img.naturalWidth > 0
                        && img.naturalWidth < renderedW * 0.6) {
