@@ -1,0 +1,87 @@
+---
+description: Always commit and push changes under docs/ and mockups/ without asking. The Proprietor wants the public concepts queue and demo pages to track HEAD continuously.
+alwaysApply: true
+---
+
+# Auto-push docs/ and mockups/
+
+The repo serves a public site from `docs/` via GitHub Pages
+(`demo.regionallyfamous.com`). The concept queue at
+`docs/concepts/index.html` is regenerated from `mockups/*.png` by
+`bin/build-redirects.py`. Both surfaces are meant to track HEAD
+continuously so the public-facing bench always reflects what the agent
+just produced.
+
+## The standing rule
+
+**Whenever the working tree has uncommitted changes under `docs/` or
+`mockups/`, commit and push them at the end of the turn that produced
+them. Do not ask the Proprietor first.** This includes:
+
+- New `mockups/mockup-<slug>.png` files (fresh concept cards)
+- Modified `mockups/mockup-<slug>.png` files (refreshed cards)
+- Any regeneration of `docs/` (concept queue, redirect pages, mockup
+  copies, snap gallery, `docs/index.html`)
+- New themes shipped under `docs/<slug>/` plus their mockup card moving
+  from "queued" to "shipped"
+
+## How to do it
+
+1. If you generated mockups but didn't yet rebuild the queue, run
+   `python3 bin/build-redirects.py` first so `docs/concepts/index.html`
+   and `docs/mockups/<slug>.png` pick up the changes.
+2. Stage everything under `docs/` and `mockups/`:
+   ```bash
+   git add docs/ mockups/
+   ```
+3. Commit with a message that names what changed (concept slugs added,
+   refreshed, or shipped). Group related changes in one commit:
+   ```bash
+   git commit -m "$(cat <<'EOF'
+   Add Ember, Foundry, Holler concepts; refresh Klang, Cog, Pulp mockups
+
+   New tiny/small/medium-tier concept cards painted and queued.
+   docs/concepts/index.html now reads 27 in queue, 1 shipped.
+   EOF
+   )"
+   ```
+4. Push to `main`:
+   ```bash
+   git push
+   ```
+5. The pre-commit and pre-push hooks (`bin/check.py --visual`) run as
+   normal. **If a hook fails on files you actually touched, fix the
+   failure and re-commit.** If the hook fails entirely on territory
+   outside the staged change set (a theme you didn't touch is red at
+   HEAD because of a previous agent's drift), use `--no-verify` so the
+   docs/mockups push lands, and:
+   - name the bypassed checks in the commit message body
+   - in the same turn, surface the unrelated failure to the Proprietor
+     in chat so they can decide whether to fix it now or queue it
+   This keeps the public queue moving without absorbing other agents'
+   regressions, and never silently hides a check.
+
+## What this rule does NOT cover
+
+- **Theme code changes** (`<slug>/templates/`, `<slug>/parts/`,
+  `<slug>/theme.json`, etc.) — those follow the normal "only commit
+  when explicitly requested" rule from the system prompt.
+- **`tmp/`, scratch files, baselines under
+  `tests/visual-baseline/`** — those need explicit permission per the
+  usual rules.
+- **Force-pushes, amends, or anything destructive** — the safety
+  protocol from the system prompt still applies. Auto-push means
+  fast-forward `git push` only.
+
+If a `docs/` change is mixed into a commit that *also* touches theme
+code or unreviewed scratch, split the commit so the `docs/` portion
+ships under this rule and the theme portion waits for the Proprietor's
+nod.
+
+## Rationale
+
+The concepts queue is the marketing surface of the project — it's how
+prospective Proprietors and casual visitors see what's on the bench.
+Letting fresh concept cards sit uncommitted on a single workstation
+defeats the whole point of a public queue. The Proprietor has standing
+authorisation: paint a card, push the card.
