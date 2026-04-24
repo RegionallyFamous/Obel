@@ -4295,6 +4295,18 @@ def _cross_theme_parity(per_theme_payloads: dict[str, list[dict]],
             key = (p.get("viewport", ""), p.get("route", ""))
             by_cell.setdefault(key, {})[theme] = p
 
+    # Selectors whose rendered width is dominated by text content +
+    # font metrics, not by theme layout. A display face like `Chango`
+    # renders "Curiosities" ~50% wider than `Iowan Old Style` at the
+    # same font-size — that's the whole point of choosing a distinct
+    # display face per theme, not a layout regression to flag. Adding
+    # a selector here opts it out of cross-theme width parity. Layout
+    # containers (`.wo-archive-hero`, `.wp-block-woocommerce-product-
+    # template`, etc.) stay tracked — they still catch real drift.
+    PARITY_WIDTH_TEXT_INTRINSIC: set[str] = {
+        ".wo-archive-hero__title",
+    }
+
     out: list[dict] = []
     for (vp, route), per_theme in by_cell.items():
         if len(per_theme) < 3:
@@ -4305,6 +4317,8 @@ def _cross_theme_parity(per_theme_payloads: dict[str, list[dict]],
             for s in p.get("selectors", []):
                 selectors_seen.add(s.get("selector", ""))
         for sel in selectors_seen:
+            if sel in PARITY_WIDTH_TEXT_INTRINSIC:
+                continue
             widths: dict[str, int] = {}
             for theme, p in per_theme.items():
                 for s in p.get("selectors", []):
