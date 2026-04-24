@@ -1878,6 +1878,7 @@ def check_wc_overrides_styled() -> Result:
                 #       grid scoped via :has(>.wo-account-intro) — see the
                 #       my-account chunk in each theme's theme.json).
                 ".woocommerce-account.woocommerce{display:grid;grid-template-columns:220px1fr",
+                ".woocommerce-account.woocommerce:has(>.woocommerce-MyAccount-navigation){display:grid;grid-template-columns:220px1fr",
                 "body.woocommerce-account.entry-content>.woocommerce{display:grid",
                 "body.woocommerce-account.entry-content>.woocommerce:has(>.woocommerce-MyAccount-navigation){display:grid",
             ],
@@ -2814,22 +2815,20 @@ def check_nav_item_pill_scoped_to_horizontal() -> Result:
             horizontal_slots: list[str] = []
             if len(parts) == 1:
                 horizontal_slots = parts
-            elif len(parts) == 2:
-                horizontal_slots = [parts[1]]
-            elif len(parts) == 3:
+            elif len(parts) in (2, 3):
                 horizontal_slots = [parts[1]]
             elif len(parts) >= 4:
                 horizontal_slots = [parts[1], parts[3]]
             for slot in horizontal_slots:
                 # Anything that isn't literally "0", "0px", "0rem",
                 # "0em", or "initial"/"unset" counts as non-zero.
-                s = slot.strip().rstrip("!important").strip()
+                s = slot.strip().removesuffix("!important").strip()
                 if s.lower() not in ("0", "0px", "0rem", "0em", "unset", "initial", "none"):
                     return True
         # Dedicated padding-inline / padding-left / padding-right
         # with a non-zero value.
         for m2 in pad_inline_re.finditer(body):
-            s = m2.group(1).strip().rstrip("!important").strip().split()[0]
+            s = m2.group(1).strip().removesuffix("!important").strip().split()[0]
             if s.lower() not in ("0", "0px", "0rem", "0em", "unset", "initial", "none"):
                 return True
         return False
@@ -2859,9 +2858,7 @@ def check_nav_item_pill_scoped_to_horizontal() -> Result:
             "unset",
         }
         first_token = val.split()[0].rstrip(";").rstrip(",")
-        if first_token in non_trigger_first_tokens:
-            return False
-        return True
+        return first_token not in non_trigger_first_tokens
 
     failures: list[str] = []
     checked = 0
@@ -2934,6 +2931,162 @@ def check_nav_item_pill_scoped_to_horizontal() -> Result:
         r.details.append(
             f"{checked} nav-item rule(s) scoped correctly (horizontal-only "
             f"or orientation-neutral)"
+        )
+    return r
+
+
+def check_account_grid_scoped_to_sidebar() -> Result:
+    """Fail if `.woocommerce-account .woocommerce` is given a sidebar-style
+    two-column grid (`grid-template-columns: <fixed-px> 1fr`) without
+    scoping the rule to the logged-in dashboard via
+    `:has(>.woocommerce-MyAccount-navigation)` (or equivalent).
+
+    Why this exists:
+      WooCommerce's `/my-account/` page reuses the same body class
+      (`woocommerce-account`) AND the same `.woocommerce` wrapper for
+      both the logged-in dashboard (which DOES have a
+      `.woocommerce-MyAccount-navigation` sidebar in column 1) and the
+      logged-out login screen (which does NOT -- it only shows the WC
+      login form, optionally wrapped in our branded `.wo-account-intro`
+      + `.wo-account-login-grid` two-column split).
+
+      The legacy rule `.woocommerce-account .woocommerce { display:grid;
+      grid-template-columns: 220px 1fr }` was written for the dashboard,
+      but because it's unscoped it ALSO fires on the logged-out login
+      screen. There, the entire login form is the sole child of
+      `.woocommerce`, so it gets crammed into the fixed 220px first
+      column and the `1fr` column is empty. The login form then
+      wraps every word and every INPUT field letter-by-letter down
+      the page, producing a ~14000px-tall vertical stream of one
+      character per line. In-production example (caught 2026-04-24
+      on Aero / Chonk / Lysholm / Selvedge): `/my-account/` rendered
+      the "Sign in" panel at clientWidth=65-66px with scrollWidth
+      137-154px and a page height of 13672px. The page was still
+      technically usable -- you could click through if you knew
+      exactly where to aim -- but reviewers reliably read it as
+      "the account page is broken".
+
+    What this check enforces:
+      For every rule in top-level `styles.css` whose selector contains
+      `.woocommerce-account` AND whose body declares `display:grid`
+      AND `grid-template-columns:` with a fixed-width first track
+      (e.g., `220px 1fr`, `minmax(180px,220px) 1fr`, `200px 1fr`):
+
+      1. If the selector already restricts via `:has(
+         >.woocommerce-MyAccount-navigation)` or `:has(
+         .woocommerce-MyAccount-navigation)` (logged-in dashboard
+         only), skip the rule -- correctly scoped.
+      2. If the selector already restricts via `.logged-in` or
+         explicit body class, skip -- also correctly scoped.
+      3. Otherwise, fail.
+
+      Rules that write `grid-template-columns: 1fr` (single column,
+      the reset) or `grid-template-columns: minmax(0,1fr)
+      minmax(0,1fr)` (the logged-OUT 2-col login split) are fine and
+      pass -- they don't introduce the 220px squeeze.
+
+    See AGENTS.md "my-account logged-out login layout" rule.
+    """
+    r = Result("My-account grid is scoped to logged-in dashboard only")
+
+    theme_json = ROOT / "theme.json"
+    if not theme_json.exists():
+        r.skip("theme.json missing")
+        return r
+    try:
+        data = json.loads(theme_json.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        r.fail(f"theme.json: invalid JSON ({exc}).")
+        return r
+
+    top_css = (data.get("styles", {}) or {}).get("css") or ""
+    if not top_css.strip():
+        r.skip("no top-level styles.css")
+        return r
+
+    # Find every rule whose selector mentions `.woocommerce-account`.
+    # We need to collect (selector, body) pairs, stripped of comments.
+    css_no_comments = re.sub(r"/\*.*?\*/", " ", top_css, flags=re.S)
+
+    # Walk rules with a simple tokenizer that handles nested @media.
+    # For simplicity, just find all top-level `selector{body}` pairs
+    # without @media nesting detection -- media queries still get
+    # surfaced.
+    rule_re = re.compile(r"([^{}]+)\{([^{}]*)\}")
+
+    # Fixed-width first track: accepts `220px 1fr`, `200px 1fr`,
+    # `minmax(180px,220px) 1fr`, `minmax(200px,260px) 1fr`, etc.
+    # Rejects `1fr`, `1fr 1fr`, `minmax(0,1fr) minmax(0,1fr)`.
+    fixed_first_track_re = re.compile(
+        r"grid-template-columns\s*:\s*"
+        r"(?:\d+px|minmax\(\s*\d+px\s*,\s*\d+px\s*\))"
+        r"\s+1fr",
+        re.IGNORECASE,
+    )
+
+    # Acceptable scoping -- any ONE of these makes the rule safe.
+    scoped_ok_re = re.compile(
+        r":has\(\s*>?\s*\.woocommerce-MyAccount-navigation"
+        r"|\.logged-in\b",
+        re.IGNORECASE,
+    )
+
+    checked = 0
+    failures = []
+    for m in rule_re.finditer(css_no_comments):
+        selector = m.group(1).strip()
+        body = m.group(2).strip()
+
+        # Selector must mention .woocommerce-account AND .woocommerce
+        # (the combined dashboard/login wrapper). This keeps us from
+        # matching unrelated rules.
+        if ".woocommerce-account" not in selector:
+            continue
+        if ".woocommerce" not in selector.replace(".woocommerce-account", ""):
+            # The selector only targets the BODY class, not the
+            # wrapper -- those rules don't force a grid on the
+            # wrapper and can't cause the squeeze.
+            continue
+        if "display:grid" not in re.sub(r"\s+", "", body):
+            continue
+        if not fixed_first_track_re.search(body):
+            continue
+        if scoped_ok_re.search(selector):
+            checked += 1
+            continue
+
+        checked += 1
+        sel_pretty = selector
+        if len(sel_pretty) > 180:
+            sel_pretty = sel_pretty[:177] + "..."
+        body_pretty = re.sub(r"\s+", " ", body)
+        if len(body_pretty) > 140:
+            body_pretty = body_pretty[:137] + "..."
+        failures.append(
+            f"{sel_pretty} {{ {body_pretty} }}: forces a fixed-width "
+            f"sidebar grid on `.woocommerce-account .woocommerce` "
+            f"without scoping to the logged-in dashboard. The same "
+            f"rule hits the logged-out `/my-account/` login screen, "
+            f"which has no sidebar -- WC's login form then renders "
+            f"inside the 220px first column and wraps letter-by-letter. "
+            f"Scope the selector with "
+            f"`:has(>.woocommerce-MyAccount-navigation)` so the grid "
+            f"only fires on the dashboard; let the login screen fall "
+            f"back to `display:block` or its own "
+            f"`.wo-account-login-grid` 2-column layout."
+        )
+
+    if failures:
+        for f in failures:
+            r.fail(f)
+        return r
+
+    if checked == 0:
+        r.skip("no fixed-width account grid rules in top-level styles.css")
+    else:
+        r.details.append(
+            f"{checked} account-grid rule(s) scoped correctly "
+            f"(`:has(>.woocommerce-MyAccount-navigation)` or logged-in)"
         )
     return r
 
@@ -7585,6 +7738,7 @@ def _build_results(offline: bool) -> list[Result]:
         check_hover_state_legibility(),
         check_background_clip_text_legibility(),
         check_nav_item_pill_scoped_to_horizontal(),
+        check_account_grid_scoped_to_sidebar(),
         check_distinctive_chrome(),
         check_cart_checkout_pages_are_wide(),
         check_wc_chrome_sentinel_present(),
