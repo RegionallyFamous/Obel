@@ -432,6 +432,31 @@ INTERACTIONS: dict[str, list[Interaction]] = {
                 {"action": "wait", "ms": 200},
             ],
         ),
+        Interaction(
+            name="reviews-open",
+            description="Expand the Reviews <details> accordion and screenshot "
+                        "the review submission form. Guards against the "
+                        "regression where `<select id=\"rating\">` renders as "
+                        "a raw native dropdown because WC omits its stars "
+                        "script on block themes (classic-template legacy "
+                        "render path inside <!-- wp:woocommerce/product-"
+                        "reviews /-->). Without this flow, every theme's "
+                        "full_page snap shows the <details> closed and the "
+                        "bug is invisible to the audit matrix.",
+            steps=[
+                # Clicking a <summary> toggles its <details> natively; the
+                # WP details block emits the summary text verbatim so we
+                # can target by string without brittle :nth-of-type
+                # offsets (the PDP has Description / Specifications /
+                # Reviews in that order, and theme variants reorder them).
+                {"action": "click",
+                 "selector": "details.wp-block-details summary:has-text('Reviews')",
+                 "timeout_ms": 4000},
+                # One frame for the native details transition, another for
+                # any Interactivity-API hydration on the review form.
+                {"action": "wait", "ms": 500},
+            ],
+        ),
     ],
     "product-variable": [
         Interaction(

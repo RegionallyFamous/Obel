@@ -993,6 +993,51 @@ _HEURISTICS_JS = r"""
              "Page body contains a raw __() i18n token (string never translated).");
     }
 
+    // Unstyled WC review-rating select. Product pages render a legacy
+    // `<select id="rating" name="rating">` inside `#commentform` (from
+    // `single-product-reviews.php`) that WC's classic frontend script
+    // `wc-single-product.js` would normally hide and replace with a
+    // `<p class="stars">` star-anchor widget on init. That script is
+    // skipped on block themes (see
+    // `plugins/woocommerce/includes/class-wc-frontend-scripts.php:527`),
+    // so without the `review-stars-fallback` re-enqueue in each theme's
+    // `functions.php` the shopper sees a raw native <select> with
+    // "Rate…" as the placeholder option. Emit a warn-level finding when
+    // both conditions hold simultaneously: the select is visible AND
+    // the stars replacement has not been injected. The reviews <details>
+    // must be open for this detector to fire, which the `reviews-open`
+    // flow on `product-simple` guarantees.
+    document.querySelectorAll('select#rating, select#rating-selector').forEach((sel) => {
+        const r = sel.getBoundingClientRect();
+        if (r.width === 0 && r.height === 0) return;
+        const cs = getComputedStyle(sel);
+        if (cs.display === 'none' || cs.visibility === 'hidden') return;
+        if (sel.hasAttribute('hidden')) return;
+        // Stars replacement may live as a prior sibling (classic
+        // wc-single-product.js pattern: `<p class="stars">` is
+        // prepended) or as a sibling `<p class="stars-wrapper">` (new
+        // Interactivity-API product-review-form block). Either one
+        // means the select was correctly replaced.
+        const wrap = sel.closest('#commentform, .comment-respond, #review_form') || document;
+        const starsReplacement = wrap.querySelector('p.stars, p.stars-wrapper, .stars-wrapper');
+        const starsVisible = (() => {
+            if (!starsReplacement) return false;
+            const sr = starsReplacement.getBoundingClientRect();
+            if (sr.width === 0 || sr.height === 0) return false;
+            if (starsReplacement.hasAttribute('hidden')) return false;
+            const scs = getComputedStyle(starsReplacement);
+            return scs.display !== 'none' && scs.visibility !== 'hidden';
+        })();
+        if (starsVisible) return;
+        push("warn", "unstyled-review-rating",
+             "Review rating <select> is rendering as a native browser " +
+             "dropdown with no `<p class=\"stars\">` replacement widget. " +
+             "Enqueue the `wc-single-product` script on block-theme " +
+             "product pages (see each theme's `functions.php` between " +
+             "the `review-stars-fallback` sentinel markers).",
+             {selector: cssPath(sel), id: sel.id});
+    });
+
     // Images: missing alt + broken + oversized + responsive mismatch +
     // SVG placeholder leakage (a real product image was expected but a
     // grey placeholder shipped instead, which is the silent class of

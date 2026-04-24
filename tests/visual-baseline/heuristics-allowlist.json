@@ -69,16 +69,6 @@
       "*"
     ]
   },
-  "chonk:desktop:my-account": {
-    "element-overflow-x": [
-      "#wp--skip-link--target > div.entry-content.alignwide:nth-of-type(3) > div.woocommerce > div.wo-account-login-grid",
-      "#wp--skip-link--target > div.entry-content.alignwide:nth-of-type(3) > div.woocommerce > div.wo-account-login-grid > div.wo-account-login-form",
-      "div.entry-content.alignwide:nth-of-type(3) > div.woocommerce > div.wo-account-login-grid > div.wo-account-login-form > form.woocommerce-form.woocommerce-form-login"
-    ],
-    "narrow-wc-block": [
-      ".wo-account-login-grid"
-    ]
-  },
   "chonk:wide:cart-filled": {
     "narrow-wc-block": [
       ".wc-block-cart-items"
@@ -95,16 +85,6 @@
     ],
     "a11y-color-contrast": [
       "*"
-    ]
-  },
-  "chonk:wide:my-account": {
-    "element-overflow-x": [
-      "#wp--skip-link--target > div.entry-content.alignwide:nth-of-type(3) > div.woocommerce > div.wo-account-login-grid",
-      "#wp--skip-link--target > div.entry-content.alignwide:nth-of-type(3) > div.woocommerce > div.wo-account-login-grid > div.wo-account-login-form",
-      "div.entry-content.alignwide:nth-of-type(3) > div.woocommerce > div.wo-account-login-grid > div.wo-account-login-form > form.woocommerce-form.woocommerce-form-login"
-    ],
-    "narrow-wc-block": [
-      ".wo-account-login-grid"
     ]
   },
   "foundry:desktop:cart-filled": {
