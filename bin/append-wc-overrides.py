@@ -1854,6 +1854,41 @@ CSS_PHASE_DD = f"""{SENTINEL_OPEN_PHASE_DD}
 {SENTINEL_CLOSE_PHASE_DD}"""
 
 
+# wc-tells phase-ee: keep `.wo-account-help` full-width inside the
+# account login grid across every theme.
+#
+# FAIL MODE WE'RE FIXING
+# ----------------------
+# `.wo-account-help` is the "Trouble signing in? …" line rendered by
+# `functions.php`'s `// === BEGIN my-account ===` block at priority 20
+# on `woocommerce_after_customer_login_form`. That action fires BEFORE
+# the grid-closer at priority 25, so the `<p>` lands INSIDE the
+# `.wo-account-login-grid` wrapper. Phase Y paints the grid as
+# `grid-template-columns: 1fr 1fr` at ≥782px, so without an explicit
+# `grid-column: 1 / -1` the help line is auto-placed into a single
+# 1fr column (`wo-archive-intro` on the left, login form on the right,
+# help text pushed to whichever slot is free -- typically the left
+# column under the intro). Cross-theme audit (snap.py report on
+# desktop + wide my-account) showed obel + foundry rendered the help
+# line at ~556/596px (single column width) while the other four themes
+# rendered it at ~1200/1280px (full grid width). That 54-%-drift is
+# the `parity-drift-width` warning the cross-theme heuristic fires.
+#
+# FIX
+# ---
+# Span the help line across all grid columns unconditionally. This is
+# a pure presentational override that doesn't depend on viewport or
+# the parent's column count, so `grid-column: 1 / -1` is the minimal
+# rule that produces identical layout across every theme. Triple-class
+# specificity matches Phase Y's grid-columns override so the fix wins
+# the cascade whatever phase-Y ends up emitting.
+SENTINEL_OPEN_PHASE_EE = "/* wc-tells-phase-ee-account-help-span */"
+SENTINEL_CLOSE_PHASE_EE = "/* /wc-tells-phase-ee-account-help-span */"
+CSS_PHASE_EE = f"""{SENTINEL_OPEN_PHASE_EE}
+.wo-account-login-grid.wo-account-login-grid.wo-account-login-grid>.wo-account-help{{grid-column:1 / -1;margin-top:var(--wp--preset--spacing--md);}}
+{SENTINEL_CLOSE_PHASE_EE}"""
+
+
 SENTINEL_OPEN_PHASE_V = "/* wc-tells-phase-v-real-bug-cleanup-6 */"
 SENTINEL_CLOSE_PHASE_V = "/* /wc-tells-phase-v-real-bug-cleanup-6 */"
 CSS_PHASE_V = f"""{SENTINEL_OPEN_PHASE_V}
@@ -2085,6 +2120,12 @@ CHUNKS: list[tuple[str, str, str, str]] = [
         SENTINEL_CLOSE_PHASE_DD,
         CSS_PHASE_DD,
         SENTINEL_CLOSE_PHASE_CC,
+    ),
+    (
+        SENTINEL_OPEN_PHASE_EE,
+        SENTINEL_CLOSE_PHASE_EE,
+        CSS_PHASE_EE,
+        SENTINEL_CLOSE_PHASE_DD,
     ),
 ]
 
