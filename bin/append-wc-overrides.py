@@ -1696,8 +1696,62 @@ CSS_PHASE_Z = f"""{SENTINEL_OPEN_PHASE_Z}
 .wc-block-checkout__sidebar.wc-block-checkout__sidebar.wc-block-checkout__sidebar.wc-block-checkout__sidebar.wc-block-checkout__sidebar.wc-block-checkout__sidebar,.wc-block-cart__sidebar.wc-block-cart__sidebar.wc-block-cart__sidebar.wc-block-cart__sidebar.wc-block-cart__sidebar.wc-block-cart__sidebar{{overflow-wrap:break-word;word-break:normal;hyphens:none;}}
 .wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button,.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button:visited{{color:var(--wp--preset--color--contrast);text-decoration:none;border:0;background:transparent;font-weight:var(--wp--custom--font-weight--medium,500);}}
 .wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button:hover,.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button:focus-visible{{color:var(--wp--preset--color--accent,var(--wp--preset--color--contrast));text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px;}}
-.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button>svg{{fill:currentColor;stroke:currentColor;flex:0 0 auto;}}
+.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button>svg{{fill:currentColor;stroke:currentColor;flex:0 0 auto;}}
 {SENTINEL_CLOSE_PHASE_Z}"""
+
+
+# PHASE AA -- RETURN-TO-CART SVG OVERLAP (REAL STRIKETHROUGH BUG).
+#
+# SYMPTOM
+# -------
+# On `/checkout/` the "Return to Cart" link at the bottom-left of the
+# main column renders as `←Return to Cart` where the left-arrow's
+# horizontal shaft cuts through the x-height of the word "Return",
+# making the whole link look like it has a `text-decoration:
+# line-through`. Users reported it as "the return-to-cart button is
+# still messed up" even after phase-z shipped colour + hover styling.
+#
+# ROOT CAUSE
+# ----------
+# WooCommerce Blocks' default stylesheet positions the chevron SVG
+# absolutely and reserves space for it with padding-left on the anchor:
+#
+#   .wc-block-components-checkout-return-to-cart-button {
+#     padding-left: calc(24px + 0.25em);
+#     position: relative;
+#   }
+#   .wc-block-components-checkout-return-to-cart-button svg {
+#     position: absolute;
+#     left: 0; top: 50%; transform: translateY(-50%);
+#   }
+#
+# Phases W and X converted the anchor to `display:inline-flex` and
+# overrode the shorthand `padding` (0 on the sides, or a small xs on
+# the sides). The shorthand kills the 24px+0.25em left padding that
+# reserved space for the absolutely-positioned SVG. The SVG is STILL
+# `position:absolute; left:0; top:50%; translate(-50%)`, so it draws
+# on top of the first letters of the label instead of beside them.
+#
+# The `flex:0 0 auto; margin-right` phase-X added to the SVG is inert
+# as long as the SVG stays out-of-flow (absolute children don't
+# participate in flex layout).
+#
+# FIX
+# ---
+# Override `position`, `top`, `left`, and `transform` on the SVG so it
+# becomes a proper flex child. Combined with phase-X's `margin-right`
+# and phase-Z's `>svg { fill; flex }` rules, the arrow renders beside
+# the text with an em-sized gap, not across it. No padding-left needed
+# -- the flex container sizes itself to (svg + gap + label).
+#
+# Applies to every theme with zero theme-specific selectors. Idempotent
+# because the sentinel guards re-injection.
+SENTINEL_OPEN_PHASE_AA = "/* wc-tells-phase-aa-return-to-cart-svg-inflow */"
+SENTINEL_CLOSE_PHASE_AA = "/* /wc-tells-phase-aa-return-to-cart-svg-inflow */"
+CSS_PHASE_AA = f"""{SENTINEL_OPEN_PHASE_AA}
+.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button>svg,.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button>svg.wc-block-components-checkout-return-to-cart-button__svg{{position:static;top:auto;left:auto;transform:none;margin-right:var(--wp--preset--spacing--2-xs,0.25em);}}
+.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button.wc-block-components-checkout-return-to-cart-button{{padding-left:var(--wp--preset--spacing--xs,6px);}}
+{SENTINEL_CLOSE_PHASE_AA}"""
 
 
 SENTINEL_OPEN_PHASE_V = "/* wc-tells-phase-v-real-bug-cleanup-6 */"
@@ -1907,6 +1961,12 @@ CHUNKS: list[tuple[str, str, str, str]] = [
         SENTINEL_CLOSE_PHASE_Z,
         CSS_PHASE_Z,
         SENTINEL_CLOSE_PHASE_Y,
+    ),
+    (
+        SENTINEL_OPEN_PHASE_AA,
+        SENTINEL_CLOSE_PHASE_AA,
+        CSS_PHASE_AA,
+        SENTINEL_CLOSE_PHASE_Z,
     ),
 ]
 

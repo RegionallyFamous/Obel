@@ -1391,6 +1391,80 @@ def check_no_fake_forms() -> Result:
     return r
 
 
+def check_swatch_js_targets_real_select() -> Result:
+    """The variation-swatch JS shim in `functions.php` must target the
+    real hidden `<select>` that WooCommerce emits -- not a phantom
+    `select.wo-swatch-select` class that nothing ever adds.
+
+    Context / why this check exists
+    -------------------------------
+    Every theme replaces WC's native variation dropdowns with a custom
+    swatch UI (bracketed by `// === BEGIN swatches === /` === END
+    swatches ===`). The native `<select>` stays in the DOM wrapped in
+    `<span class="screen-reader-text">` so the form still submits and
+    WC's `variation_form.js` can drive price / stock / image swap.
+    An inline footer script is supposed to forward swatch clicks into
+    the hidden `<select>` via `sel.dispatchEvent(new Event('change'))`.
+
+    A copy-paste of that JS across all six themes (obel, chonk, aero,
+    foundry, lysholm, selvedge) queried for `select.wo-swatch-select`
+    -- but the PHP renderer never writes that class onto the select
+    (WC re-emits `class=""` late in the tag, which stomps any class
+    we inject). So the selector returned `null`, the shim early-
+    returned, and swatch buttons did NOTHING. Variable products
+    became un-purchaseable on the PDP on every theme.
+
+    The fix is a single character change in every shim
+    (`select.wo-swatch-select` -> `select`) -- there is always exactly
+    one `<select>` per `.wo-swatch-wrap` by construction. This check
+    makes sure nobody re-introduces the phantom selector.
+
+    What's checked
+    --------------
+    Reads `<theme>/functions.php`, scans the region between the
+    `// === BEGIN swatches ===` / `// === END swatches ===` sentinels,
+    and FAILs if that region contains the literal string
+    `select.wo-swatch-select`. Themes without a swatches region skip.
+
+    Manual fix when this fails: in the offending `functions.php`,
+    change `wrap.querySelector('select.wo-swatch-select')` to
+    `wrap.querySelector('select')`.
+    """
+    r = Result(
+        "Swatch JS targets real <select> (no phantom select.wo-swatch-select)"
+    )
+    fn_path = ROOT / "functions.php"
+    if not fn_path.exists():
+        r.skip("no functions.php at theme root")
+        return r
+    text = fn_path.read_text(encoding="utf-8", errors="replace")
+    open_marker = "// === BEGIN swatches ==="
+    close_marker = "// === END swatches ==="
+    start = text.find(open_marker)
+    end = text.find(close_marker)
+    if start == -1 or end == -1 or end <= start:
+        r.skip("no swatches sentinel region in functions.php")
+        return r
+    region = text[start:end]
+    phantom = "select.wo-swatch-select"
+    if phantom in region:
+        offset_in_file = text.find(phantom, start, end)
+        lineno = text.count("\n", 0, offset_in_file) + 1 if offset_in_file != -1 else None
+        loc = f":{lineno}" if lineno else ""
+        r.fail(
+            f"functions.php{loc}: swatch JS shim queries for "
+            f"'select.wo-swatch-select', but nothing ever adds that "
+            f"class to the hidden <select> (WC re-emits class=\"\" "
+            f"late in the tag, overwriting any injected class). The "
+            f"querySelector returns null, the shim early-returns, and "
+            f"swatch buttons do nothing -- variable products become "
+            f"un-purchaseable. Fix: change the selector to "
+            f"'select' (there is always exactly one <select> per "
+            f".wo-swatch-wrap by construction)."
+        )
+    return r
+
+
 def check_no_empty_cover_blocks() -> Result:
     """Fail if any pattern/template/part contains a `wp:cover` whose `url`
     is empty/missing AND `dimRatio` is below 30 -- i.e., a cover that
@@ -3839,6 +3913,12 @@ def check_wc_chrome_sentinel_present() -> Result:
             "/* /wc-tells-phase-z-desktop-wc-chrome-polish */",
             "Phase Z (1280px cart/checkout widening + word-wrap order "
             "summary + return-to-cart button style)",
+        ),
+        (
+            "/* wc-tells-phase-aa-return-to-cart-svg-inflow */",
+            "/* /wc-tells-phase-aa-return-to-cart-svg-inflow */",
+            "Phase AA (return-to-cart SVG in-flow so the arrow sits "
+            "beside the label instead of on top of it)",
         ),
     ]
     missing: list[str] = []
@@ -6828,6 +6908,7 @@ def run_checks_for(theme_root: Path, offline: bool) -> int:
         check_block_markup_anti_patterns(),
         check_blocks_validator(),
         check_no_fake_forms(),
+        check_swatch_js_targets_real_select(),
         check_no_empty_cover_blocks(),
         check_no_duplicate_templates(),
         check_no_duplicate_stock_indicator(),

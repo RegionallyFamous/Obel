@@ -1090,7 +1090,13 @@ add_action(
 	groups.forEach(function(group){
 		var wrap = group.closest('.wo-swatch-wrap');
 		if (!wrap) return;
-		var sel = wrap.querySelector('select.wo-swatch-select');
+		// The hidden native <select> lives inside .wo-swatch-wrap, wrapped
+		// in <span class="screen-reader-text">. WC emits it with
+		// class="" and our PHP does not (cannot) add a stable hook class
+		// without fighting WC's own late class="" emit, so we target the
+		// only <select> inside this wrap instead -- there is always
+		// exactly one, by construction.
+		var sel = wrap.querySelector('select');
 		if (!sel) return;
 		group.addEventListener('click', function(e){
 			var btn = e.target.closest('.wo-swatch');
