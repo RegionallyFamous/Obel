@@ -5354,6 +5354,213 @@ def check_no_woocommerce_placeholder_in_findings() -> Result:
     return r
 
 
+def check_product_reviews_uses_inner_blocks_not_legacy_render() -> Result:
+    """Fail if any template/part/pattern contains a self-closing
+    `<!-- wp:woocommerce/product-reviews /-->` tag.
+
+    Why this exists:
+      A SELF-CLOSING `wp:woocommerce/product-reviews` block (no inner
+      blocks between the opener and closer) triggers WC's
+      `ProductReviews::render_legacy_block()` path:
+
+        protected function render( $attributes, $content, $block ) {
+            if ( empty( $block->parsed_block['innerBlocks'] ) ) {
+                return $this->render_legacy_block( $attributes, $content, $block );
+            }
+            …
+        }
+
+      That path delegates to WP's `comments_template()` → WC's
+      `templates/single-product-reviews.php`, which emits a plain
+      `<select id="rating" name="rating">` with no Interactivity
+      hooks. On block themes, WooCommerce intentionally does NOT
+      enqueue `wc-single-product.js` (see
+      `class-wc-frontend-scripts.php:527` — gated on
+      `! wp_is_block_theme()`), so the select is NEVER converted to
+      the styled stars widget. Shoppers see a raw native dropdown
+      with "Rate…" as the placeholder option (reported 2026-04-24).
+
+      The fix is to expand the block to the modern inner-block
+      structure (`product-reviews-title`, `product-review-template`,
+      `product-reviews-pagination`, `product-review-form`). The
+      inner-block path uses the WP Interactivity API — loaded on
+      every block theme by core — so the `<select id="rating-selector">`
+      is hidden and replaced by the `.stars-wrapper` radio group
+      automatically, with no theme-side enqueue.
+
+    What this check enforces:
+      A byte-level scan of every `.html` under `templates/` and
+      `parts/`, and every `.php` under `patterns/`, for the exact
+      self-closing delimiter pattern. Any hit fails the check and
+      lists the file + line + remediation hint.
+
+      The modern opener `<!-- wp:woocommerce/product-reviews -->`
+      (without the trailing space+slash) is allowed — that's the
+      correct, inner-block-carrying shape.
+
+    Related runtime gate:
+      `check_no_unstyled_review_rating_in_findings` watches the
+      `product-simple.reviews-open` snap flow for the failure
+      symptom. This static check catches the CAUSE before the flow
+      even runs.
+    """
+    r = Result("Product-reviews block uses modern inner-block structure")
+
+    theme_slug = ROOT.name.lower()
+    KNOWN = {"chonk", "lysholm", "obel", "selvedge", "foundry", "aero"}
+    if theme_slug not in KNOWN:
+        r.skip(
+            f"theme dir `{theme_slug}` is not one of the six known shopper themes"
+        )
+        return r
+
+    # The exact byte-sequence that flips WC into the legacy render
+    # path. The block editor normalises whitespace when saving, so
+    # any of these three shapes will appear in a stored template:
+    #   <!-- wp:woocommerce/product-reviews /-->
+    #   <!-- wp:woocommerce/product-reviews/-->
+    #   <!-- wp:woocommerce/product-reviews  /-->
+    # We match all three via a permissive regex.
+    legacy_re = re.compile(
+        r"<!--\s*wp:woocommerce/product-reviews\s*/-->"
+    )
+
+    hits: list[tuple[Path, int, str]] = []
+    scan_roots = [ROOT / "templates", ROOT / "parts", ROOT / "patterns"]
+    scanned = 0
+    for scan_root in scan_roots:
+        if not scan_root.is_dir():
+            continue
+        for path in scan_root.rglob("*"):
+            if path.suffix.lower() not in (".html", ".php"):
+                continue
+            if not path.is_file():
+                continue
+            scanned += 1
+            try:
+                text = path.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            for match in legacy_re.finditer(text):
+                line_no = text.count("\n", 0, match.start()) + 1
+                line_text = (
+                    text.splitlines()[line_no - 1]
+                    if line_no <= len(text.splitlines())
+                    else ""
+                )
+                rel = path.relative_to(ROOT)
+                hits.append((rel, line_no, line_text.strip()))
+
+    if hits:
+        lines = "\n  ".join(
+            f"{rel}:{ln}  →  `{preview[:100]}`"
+            for rel, ln, preview in hits
+        )
+        r.fail(
+            f"`{theme_slug}` has {len(hits)} self-closing "
+            f"`<!-- wp:woocommerce/product-reviews /-->` occurrence(s). "
+            f"That shape triggers WC's `render_legacy_block()` path, "
+            f"which emits a raw `<select id=\"rating\">` the browser "
+            f"never restyles (WC skips `wc-single-product.js` on block "
+            f"themes). Replace with the modern inner-block structure "
+            f"(`product-reviews-title`, `product-review-template`, "
+            f"`product-reviews-pagination`, `product-review-form` — see "
+            f"any other theme's `templates/single-product.html` for the "
+            f"canonical shape). Affected files:\n  {lines}"
+        )
+        return r
+
+    r.details.append(
+        f"scanned {scanned} template/part/pattern file(s); no legacy "
+        f"self-closing `wp:woocommerce/product-reviews` found."
+    )
+    return r
+
+
+def check_no_unstyled_review_rating_in_findings() -> Result:
+    """Fail if the latest `tmp/snaps/<theme>/<viewport>/<route>.findings.json`
+    files contain `unstyled-review-rating` warnings.
+
+    Why this exists:
+      The runtime counterpart to
+      `check_review_stars_fallback_present_per_theme`. The static
+      check verifies every theme's `functions.php` carries the
+      sentinel block + the right enqueue call; this one verifies
+      those enqueues actually work at page-render time. Pair: a
+      theme could keep the sentinel but WC could rename the script
+      handle, or the `is_product()` gate could start returning false
+      on a specific route. Runtime evidence closes those gaps.
+
+      The detector lives in `bin/snap.py`'s page-heuristics pass: it
+      fires when a visible `<select id="rating">` (or
+      `<select id="rating-selector">` from the newer Interactivity
+      block) has no accompanying `<p class="stars">` /
+      `<p class="stars-wrapper">` replacement widget. The snap
+      `product-simple.reviews-open` flow expands the Reviews
+      <details> accordion so the detector can see the form.
+
+    What this check enforces:
+      For each `*.findings.json` under `tmp/snaps/<current-theme>/`,
+      count every issue whose `kind` field equals
+      `unstyled-review-rating`. Fail with the affected route/viewport
+      list if the count is > 0.
+    """
+    r = Result("No unstyled-review-rating findings in latest snap.py evidence")
+
+    theme_slug = ROOT.name.lower()
+    snaps_root = ROOT.parent / "tmp" / "snaps" / theme_slug
+    if not snaps_root.is_dir():
+        r.skip(
+            f"no `tmp/snaps/{theme_slug}/` (theme has not been shot; run "
+            f"`python3 bin/snap.py shoot {theme_slug}` to populate)."
+        )
+        return r
+
+    hits: list[tuple[str, str]] = []
+    scanned = 0
+    for findings_path in sorted(snaps_root.rglob("*.findings.json")):
+        scanned += 1
+        try:
+            data = json.loads(findings_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        issues = data.get("issues") or data.get("findings") or []
+        for issue in issues:
+            kind = (issue.get("kind") or "").lower()
+            if kind == "unstyled-review-rating":
+                viewport = findings_path.parent.name
+                route = findings_path.stem.replace(".findings", "")
+                hits.append((route, viewport))
+                break
+
+    if hits:
+        from collections import defaultdict
+        by_vp: dict[str, list[str]] = defaultdict(list)
+        for route, vp in hits:
+            by_vp[vp].append(route)
+        groups = "; ".join(
+            f"{vp}: {', '.join(sorted(set(routes)))}"
+            for vp, routes in sorted(by_vp.items())
+        )
+        r.fail(
+            f"`{theme_slug}` is rendering an unstyled native <select> "
+            f"for the product review rating on {len(hits)} cell(s): "
+            f"{groups}. The `wc-single-product` JS is not executing on "
+            f"these pages — either the `review-stars-fallback` sentinel "
+            f"block was removed from `{theme_slug}/functions.php`, WC's "
+            f"`is_product()` returns false on the snap URL, or WC "
+            f"renamed the script handle. Inspect the flow screenshot "
+            f"at `tmp/snaps/{theme_slug}/<viewport>/product-simple."
+            f"reviews-open.png` and restore the fix."
+        )
+        return r
+
+    r.details.append(
+        f"scanned {scanned} findings.json files; no unstyled-review-rating."
+    )
+    return r
+
+
 def check_pattern_microcopy_distinct() -> Result:
     """Fail when patterns OR template/part headings ship copy that
     overlaps with another theme's same-named pattern, or whose heading
@@ -7991,6 +8198,8 @@ def _build_results(offline: bool) -> list[Result]:
         check_front_page_unique_layout(),
         check_pdp_has_image(),
         check_no_woocommerce_placeholder_in_findings(),
+        check_product_reviews_uses_inner_blocks_not_legacy_render(),
+        check_no_unstyled_review_rating_in_findings(),
         check_pattern_microcopy_distinct(),
         check_all_rendered_text_distinct_across_themes(),
         check_no_default_wc_strings(),

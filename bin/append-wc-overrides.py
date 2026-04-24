@@ -1792,6 +1792,45 @@ CSS_PHASE_BB = f"""{SENTINEL_OPEN_PHASE_BB}
 {SENTINEL_CLOSE_PHASE_BB}"""
 
 
+# Phase CC — review-form star button tap targets (issued 2026-04-24).
+#
+# FAIL MODE WE'RE FIXING
+# ----------------------
+# WooCommerce's modern `woocommerce/product-review-form` block (the one
+# we just migrated to after retiring the legacy
+# `<!-- wp:woocommerce/product-reviews /-->` self-closing tag) renders
+# its star rating control as five `<button role="radio">` elements
+# inside a `<p role="radiogroup" class="stars-wrapper">`. The default
+# CSS (`assets/client/blocks/woocommerce/product-review-form.css`)
+# sizes each star as a 24x24 inline SVG with ~1px horizontal gap — so
+# the bounding box is ~26x24 and the whole widget measures a cramped
+# ~130x24. On mobile that's below the 32x32 minimum snap.py enforces
+# (and below WCAG 2.2 AAA's 44x44 preferred target), and it looks
+# undersized next to our editorial typography.
+#
+# THE FIX
+# -------
+# On mobile (≤781px — same breakpoint used by Phase BB), inflate each
+# star's hit area to 32x32 without resizing the SVG glyph itself:
+#   * `inline-flex` + `align-items:center`/`justify-content:center`
+#     centres the 24px SVG inside the 32px box.
+#   * `min-height:32px` / `min-width:32px` meets snap.py's heuristic
+#     and WCAG 2.1 AA (24x24) with margin to spare.
+#   * Re-asserting `padding:0` stops any upstream theme defaults from
+#     asymmetrically bloating one side of the button.
+# Desktop keeps the default 24px glyph size so the stars don't look
+# oversized next to the surrounding editorial rhythm.
+#
+# Specificity: the selector triples `.stars-wrapper` to beat WC Blocks'
+# `.wp-block-woocommerce-product-review-form .stars-wrapper button`
+# (specificity 0,2,1). Tripled class selector = 0,3,0, which wins.
+SENTINEL_OPEN_PHASE_CC = "/* wc-tells-phase-cc-review-star-tap-target */"
+SENTINEL_CLOSE_PHASE_CC = "/* /wc-tells-phase-cc-review-star-tap-target */"
+CSS_PHASE_CC = f"""{SENTINEL_OPEN_PHASE_CC}
+@media (max-width:781px){{.stars-wrapper.stars-wrapper.stars-wrapper button[role="radio"]{{display:inline-flex;align-items:center;justify-content:center;min-width:32px;min-height:32px;padding:0;}}}}
+{SENTINEL_CLOSE_PHASE_CC}"""
+
+
 SENTINEL_OPEN_PHASE_V = "/* wc-tells-phase-v-real-bug-cleanup-6 */"
 SENTINEL_CLOSE_PHASE_V = "/* /wc-tells-phase-v-real-bug-cleanup-6 */"
 CSS_PHASE_V = f"""{SENTINEL_OPEN_PHASE_V}
@@ -2011,6 +2050,12 @@ CHUNKS: list[tuple[str, str, str, str]] = [
         SENTINEL_CLOSE_PHASE_BB,
         CSS_PHASE_BB,
         SENTINEL_CLOSE_PHASE_AA,
+    ),
+    (
+        SENTINEL_OPEN_PHASE_CC,
+        SENTINEL_CLOSE_PHASE_CC,
+        CSS_PHASE_CC,
+        SENTINEL_CLOSE_PHASE_BB,
     ),
 ]
 
