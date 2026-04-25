@@ -1682,7 +1682,7 @@ SENTINEL_CLOSE_PHASE_Z = "/* /wc-tells-phase-z-desktop-wc-chrome-polish */"
 #
 # Why the extra specificity acrobatics: WP's `is-layout-constrained`
 # parent caps every child at `var(--wp--style--global--wide-size)`
-# (1280px in every theme here) via
+# (1440px in every theme here) via
 #   .is-layout-constrained > .alignwide { max-width: wideSize; }
 # which has specificity (0,2,0). To override we set max-width on the
 # WC-block class itself with (0,3,0) specificity (the selector stacks

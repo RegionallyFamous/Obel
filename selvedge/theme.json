@@ -13,8 +13,8 @@
 		},
 		"useRootPaddingAwareAlignments": true,
 		"layout": {
-			"contentSize": "720px",
-			"wideSize": "1280px"
+			"contentSize": "780px",
+			"wideSize": "1440px"
 		},
 		"color": {
 			"defaultPalette": false,
@@ -434,7 +434,6 @@
 			},
 			"layout": {
 				"narrow": "480px",
-				"prose": "560px",
 				"comfortable": "640px"
 			},
 			"cover": {

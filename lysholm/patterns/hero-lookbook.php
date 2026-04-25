@@ -19,7 +19,7 @@
 <!-- wp:cover {"url":"<?php echo esc_url( get_theme_file_uri( 'playground/images/cat-moods-feelings.jpg' ) ); ?>","dimRatio":40,"overlayColor":"contrast","minHeight":720,"minHeightUnit":"px","contentPosition":"bottom left","isDark":false,"align":"full","style":{"spacing":{"padding":{"top":"var:preset|spacing|3-xl","right":"var:preset|spacing|2-xl","bottom":"var:preset|spacing|3-xl","left":"var:preset|spacing|2-xl"}}}} -->
 <div class="wp-block-cover alignfull is-light has-custom-content-position is-position-bottom-left" style="padding-top:var(--wp--preset--spacing--3-xl);padding-right:var(--wp--preset--spacing--2-xl);padding-bottom:var(--wp--preset--spacing--3-xl);padding-left:var(--wp--preset--spacing--2-xl);min-height:720px"><img class="wp-block-cover__image-background" alt="" src="<?php echo esc_url( get_theme_file_uri( 'playground/images/cat-moods-feelings.jpg' ) ); ?>" data-object-fit="cover"/><span aria-hidden="true" class="wp-block-cover__background has-contrast-background-color has-background-dim-40 has-background-dim"></span>
 	<div class="wp-block-cover__inner-container">
-		<!-- wp:group {"layout":{"type":"constrained","contentSize":"var(--wp--custom--layout--prose)","justifyContent":"left"}} -->
+		<!-- wp:group {"layout":{"type":"constrained","justifyContent":"left"}} -->
 		<div class="wp-block-group">
 			<!-- wp:paragraph {"fontSize":"xs","textColor":"base","style":{"typography":{"letterSpacing":"var(--wp--custom--letter-spacing--widest)","textTransform":"uppercase"}}} -->
 			<p class="has-base-color has-text-color has-xs-font-size" style="letter-spacing:var(--wp--custom--letter-spacing--widest);text-transform:uppercase"><?php esc_html_e( 'Spring lookbook · Vol. 01', 'lysholm' ); ?></p>

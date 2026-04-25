@@ -852,7 +852,7 @@ if ( ! get_option( '_wo_product_images_seeded' ) ) {
 // Idempotency: stored under `_wo_cart_checkout_seeded_v{N}`. The version
 // suffix lets us force a re-seed when the block markup changes in a way
 // that existing demos must pick up (e.g. adding `align:wide` to escape
-// the 560px prose contentSize from page.html, or — at v4 — moving the
+// the default 780px contentSize from page.html, or — at v4 — moving the
 // branded empty-cart inner block out of an inline HEREDOC and into each
 // theme's `<theme>/patterns/cart-page.php` so a real Proprietor inherits
 // the same chrome via the editor's Cart-block placeholder picker). Bump
@@ -876,15 +876,15 @@ if ( ! get_option( '_wo_cart_checkout_seeded_v4' ) ) {
 	// exactly the same Cart page chrome as the demo (root rule
 	// "Shopper-facing brand lives in the theme, not in playground/").
 	//
-	// The page.html template constrains `wp:post-content` to
-	// `contentSize:var(--wp--custom--layout--prose)` (~560px). Without
-	// `align:wide` on the root cart/checkout blocks, the entire two-
-	// column layout would render inside a 560px container at every
-	// viewport width. On desktop that collapses the right column to
-	// ~300px and per-letter wraps the totals/order-summary content.
-	// `align:wide` opts the block out of the prose constraint and uses
-	// the theme's wideSize (1280px) instead, which is the only width
-	// at which a 1fr / minmax(300px,360px) grid breathes properly.
+	// The page.html template constrains `wp:post-content` to the
+	// theme's default `contentSize` (780px). Without `align:wide` on
+	// the root cart/checkout blocks, the entire two-column layout
+	// would render inside a 780px container at every viewport width.
+	// On desktop that collapses the right column to ~300px and per-
+	// letter wraps the totals/order-summary content. `align:wide`
+	// opts the block out of the default contentSize and uses the
+	// theme's wideSize (1440px) instead, which is the only width at
+	// which a 1fr / minmax(300px,360px) grid breathes properly.
 	//
 	// `bin/check.py::check_cart_checkout_pages_are_wide` enforces this
 	// on every run by parsing the actual `post_content` of the WC
@@ -909,7 +909,7 @@ if ( ! get_option( '_wo_cart_checkout_seeded_v4' ) ) {
 	// Checkout: standard fields tree (no order-note duplication, no
 	// promotional banners), single order-summary on the right column.
 	// See note above re: `align:wide`. Without it, the checkout root
-	// block inherits the 560px prose contentSize from page.html and
+	// block inherits the default 780px contentSize from page.html and
 	// collapses the order-summary sidebar to ~300px on desktop, where
 	// product names ("Artisanal Silence (8 oz Jar)") wrap per-letter.
 	$checkout_blocks = <<<'CHECKOUT'

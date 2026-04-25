@@ -843,8 +843,8 @@ def check_block_attrs_use_tokens() -> Result:
     layout widths or aspect ratios instead of the SSOT tokens.
 
     What this catches:
-      - "contentSize":"720px"     -> drop the override (use settings.layout.contentSize)
-      - "contentSize":"1280px"    -> use "var(--wp--style--global--wide-size)"
+      - "contentSize":"780px"     -> drop the override (use settings.layout.contentSize)
+      - "contentSize":"1440px"    -> use "var(--wp--style--global--wide-size)"
       - "contentSize":"<other>px" -> use "var(--wp--custom--layout--<slug>)"
       - "aspectRatio":"4/3"       -> use "var(--wp--custom--aspect-ratio--<slug>)"
 
@@ -934,7 +934,7 @@ def check_block_markup_anti_patterns() -> Result:
          produces `repeat(auto-fill, minmax(<width>, 1fr))`), NEVER
          both. With both set, WordPress picks the `auto-fill` algorithm
          and ignores `columnCount`, so a `{"columnCount":3,
-         "minimumColumnWidth":"18rem"}` on a 1280px wide-size container
+         "minimumColumnWidth":"18rem"}` on a 1440px wide-size container
          renders as 4-5 column tracks with only 3 populated -- cards
          compress to the minimum width and a void appears beside them.
          This is the exact regression that shipped a "From the
@@ -1042,9 +1042,9 @@ def check_block_markup_anti_patterns() -> Result:
     # --- Invariant 8: wp:query with align=wide|full whose inner layout is
     # `constrained` (without an explicit `contentSize` override) silently
     # squeezes any direct child wp:post-template back to the THEME'S default
-    # contentSize -- typically 720px even when the query block itself is
-    # painted at 1280px wide. Result: a 3-column grid post-template renders as
-    # three ~225px cards stuffed into the left half of the section, with a
+    # contentSize -- typically 780px even when the query block itself is
+    # painted at 1440px wide. Result: a 3-column grid post-template renders as
+    # three ~245px cards stuffed into the left half of the section, with a
     # huge empty void on the right.
     #
     # Past incident: obel/templates/front-page.html "From the journal" section
@@ -1311,7 +1311,7 @@ def check_block_markup_anti_patterns() -> Result:
                 f"`layout:{{\"type\":\"constrained\"}}` (no `contentSize` "
                 f"override) AND contains a grid wp:post-template (line "
                 f"{grid_lineno}). The constrained layout falls back to the "
-                f"theme's DEFAULT contentSize (typically 720px), so the "
+                f"theme's DEFAULT contentSize (typically 780px), so the "
                 f"post grid is squeezed to content-size width even though "
                 f"the query block itself is painted at wide-size. The N "
                 f"columns then stack into the left half of the section "
@@ -4545,20 +4545,21 @@ def check_archive_sort_dropdown_styled() -> Result:
 def check_cart_checkout_pages_are_wide() -> Result:
     """Guard against the cart/checkout `contentSize` squeeze regression.
 
-    `templates/page.html` constrains `wp:post-content` to
-    `contentSize:var(--wp--custom--layout--prose)` (~560px) so blog and
-    long-form prose pages get an editorial measure. Without an explicit
-    `align:wide` on the seeded `wp:woocommerce/cart` and
-    `wp:woocommerce/checkout` root blocks, the entire two-column layout
-    inherits the 560px prose container at every viewport width.
+    `templates/page.html` constrains `wp:post-content` to the theme's
+    default `contentSize` (780px) so blog and long-form pages get an
+    editorial measure. Without an explicit `align:wide` on the seeded
+    `wp:woocommerce/cart` and `wp:woocommerce/checkout` root blocks,
+    the entire two-column layout inherits the 780px container at every
+    viewport width, which is still too narrow for the cart/checkout
+    grid to breathe.
 
     Symptom (caught in production review on 2026-04-20):
       * Tablet (<782px viewport): the responsive grid stacks to a
-        single column inside the 560px container, so the squeeze is
+        single column inside the default container, so the squeeze is
         invisible.
       * Desktop (>=782px viewport): the grid kicks in inside that same
-        560px container -> sidebar takes 300-360px and the form
-        column collapses to ~200-260px. Order-summary item content
+        780px container -> sidebar takes 300-360px and the form
+        column collapses to ~420-480px. Order-summary item content
         ("Artisanal Silence (8 oz Jar)") wraps per-letter again,
         exactly the bug `check_no_squeezed_wc_sidebars` was supposed
         to prevent. CSS alone could not fix it because the container
@@ -4574,9 +4575,9 @@ def check_cart_checkout_pages_are_wide() -> Result:
         on the Cart page).
 
     Both root blocks carry `{"align":"wide"}` so they opt out of the
-    prose contentSize and use the theme's wideSize (1280px) instead.
-    At 1280px the 1fr / minmax(300px,360px) grid breathes correctly:
-    ~880px form, ~360px sidebar.
+    default contentSize (780px) and use the theme's wideSize (1440px)
+    instead. At 1440px the 1fr / minmax(300px,360px) grid breathes
+    correctly: ~1040px form, ~360px sidebar.
 
     This rule asserts the markers are present in the per-theme cart
     pattern (Cart) and in the inlined `wo-configure.php` of the
@@ -4639,7 +4640,7 @@ def check_cart_checkout_pages_are_wide() -> Result:
             "patterns/cart-page.php",
             "Cart root block (`wp:woocommerce/cart`) is missing "
             '`{"align":"wide"}` in patterns/cart-page.php. Without it '
-            "the cart inherits `contentSize:prose` (~560px) from "
+            "the cart inherits the default `contentSize` (780px) from "
             "`templates/page.html` and the sidebar collapses on desktop, "
             "producing per-letter text wrapping in the totals column.",
         ),
@@ -4649,7 +4650,7 @@ def check_cart_checkout_pages_are_wide() -> Result:
             "playground/wo-configure.php (inlined into blueprint)",
             "Checkout root block (`wp:woocommerce/checkout`) is missing "
             '`{"align":"wide"}` in inlined wo-configure.php. Without it '
-            "the checkout inherits `contentSize:prose` (~560px) from "
+            "the checkout inherits the default `contentSize` (780px) from "
             "`templates/page.html` and the order-summary sidebar collapses "
             "on desktop, producing per-letter wraps of product names like "
             "'Artisanal Silence'.",
@@ -4694,6 +4695,119 @@ def check_cart_checkout_pages_are_wide() -> Result:
             "patterns/cart-page.php, and on checkout root block + "
             "wrapper div in inlined wo-configure.php"
         )
+    return r
+
+
+def check_prose_layout_token_purged() -> Result:
+    """The `--wp--custom--layout--prose` token is banned monorepo-wide.
+
+    Context / why this check exists
+    -------------------------------
+    Every theme used to ship a `settings.custom.layout.prose` token
+    set to `560px`, and all six `templates/{single,page,singular}.html`
+    + several utility templates wrapped `wp:post-content` in a
+    `{"layout":{"type":"constrained","contentSize":"var(--wp--custom--
+    layout--prose)"}}` group. That forced every blog post + page body
+    into a 560px column — too narrow to feel editorial, narrower than
+    any of the mockups we've built against, and visibly distinct from
+    the 780px default `contentSize` we actually want.
+
+    The fix was a one-time purge: delete the token from every
+    `theme.json`, strip every `contentSize:var(--wp--custom--layout--
+    prose)` from templates/parts/patterns, and let `wp:post-content`
+    fall back to the theme's default `contentSize: 780px`. This rule
+    exists so the token stays purged: any future copy-paste from an
+    old template, any resurrected pattern from git archaeology, any
+    `bin/clone.py` output from a pre-purge branch immediately trips
+    the gate.
+
+    What's checked
+    --------------
+    The repo is scanned for three ban patterns:
+      * `--wp--custom--layout--prose` — the CSS custom property form
+        used inside serialized block attrs and CSS `var()` calls.
+      * `layout|prose`              — the `var:preset|...` form WP
+        occasionally emits for the same token.
+      * `"prose": "`                — the `settings.custom.layout.prose`
+        key in `theme.json`.
+
+    Scan covers every theme's `templates/`, `parts/`, `patterns/`,
+    `styles/`, `theme.json`, and `functions.php`, plus the shared
+    `playground/wo-configure.php` and everything under `bin/` except
+    `check.py` itself (where the token strings appear literally in
+    this docstring and the BANNED_PATTERNS tuple below). Any hit is a
+    FAIL; the message names the file + match.
+    """
+    r = Result("layout--prose token purged from monorepo")
+
+    banned: tuple[tuple[str, str], ...] = (
+        ("--wp--custom--layout--prose", "CSS custom property form"),
+        ("layout|prose", "var:preset form"),
+        ('"prose": "', "theme.json settings.custom.layout key"),
+    )
+
+    # Every theme dir + shared playground/bin trees.
+    scan_roots: list[Path] = []
+    for theme_dir in sorted(MONOREPO_ROOT.glob("*/theme.json")):
+        scan_roots.append(theme_dir.parent)
+    for sub in ("playground", "bin"):
+        p = MONOREPO_ROOT / sub
+        if p.is_dir():
+            scan_roots.append(p)
+
+    allowed_paths: set[Path] = {
+        # This file itself documents the ban patterns verbatim.
+        (MONOREPO_ROOT / "bin" / "check.py").resolve(),
+    }
+
+    scan_suffixes = {
+        ".html",
+        ".php",
+        ".json",
+        ".css",
+        ".js",
+        ".py",
+    }
+    # Skip generated / large build artefacts under these dir names,
+    # anywhere in the scan tree.
+    skip_dir_names = {
+        "node_modules",
+        "vendor",
+        "tmp",
+        ".git",
+        "snaps",
+        "blocks-validator",
+    }
+
+    files_scanned = 0
+    for root in scan_roots:
+        for path in root.rglob("*"):
+            if not path.is_file():
+                continue
+            if path.suffix not in scan_suffixes:
+                continue
+            if any(part in skip_dir_names for part in path.parts):
+                continue
+            if path.resolve() in allowed_paths:
+                continue
+            files_scanned += 1
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            for needle, label in banned:
+                if needle in text:
+                    rel = path.relative_to(MONOREPO_ROOT)
+                    r.fail(
+                        f"{rel}: contains banned token `{needle}` "
+                        f"({label}). The `--wp--custom--layout--prose` "
+                        "token was purged from the monorepo; fall back "
+                        "to the theme's default `contentSize` (780px) "
+                        "or choose a different layout token."
+                    )
+
+    if r.passed:
+        r.details.append(f"{files_scanned} file(s) scanned; no banned token found")
     return r
 
 
@@ -8193,6 +8307,7 @@ def _build_results(offline: bool) -> list[Result]:
         check_disabled_atc_button_styled_per_theme(),
         check_distinctive_chrome(),
         check_cart_checkout_pages_are_wide(),
+        check_prose_layout_token_purged(),
         check_wc_chrome_sentinel_present(),
         check_blueprint_landing_page(),
         check_front_page_unique_layout(),

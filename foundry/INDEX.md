@@ -401,8 +401,8 @@ Read this file at the start of any LLM session to discover the project's structu
 
 ### Layout
 
-- `contentSize` = 720px
-- `wideSize` = 1280px
+- `contentSize` = 780px
+- `wideSize` = 1440px
 
 ### Custom (settings.custom)
 
@@ -410,7 +410,6 @@ Read this file at the start of any LLM session to discover the project's structu
 - `transition.base` = 200ms ease-out
 - `transition.slow` = 320ms ease-out
 - `layout.narrow` = 480px
-- `layout.prose` = 560px
 - `layout.comfortable` = 640px
 - `cover.hero` = 640px
 - `cover.promo` = 520px
