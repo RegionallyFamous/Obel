@@ -560,16 +560,16 @@ add_filter(
 // salad). Without theme intervention WC's frontend.css applies
 // `nav { float:left; width:30% }` and `content { float:right;
 // width:68% }` inside whatever container the page template provides.
-// Our default `page.html` uses a 560px "prose" content size, so 30%
-// of that is ~170px (a thin floating nav) and 68% is ~380px (a
-// cramped text column). The result is a vast empty page with two
-// tiny columns drifting in the middle — not a brand moment, not
-// even usable.
+// Our default `page.html` uses the theme's 780px `contentSize`, so
+// 30% of that is ~234px (a thin floating nav) and 68% is ~530px (a
+// still-cramped text column). The result is a vast empty page with
+// two drifting columns in the middle — not a brand moment, not even
+// usable.
 //
 // FIX
 // ---
 // `templates/page-my-account.html` widens the layout to `wideSize`
-// (1280px), and the CSS block in theme.json (search for
+// (1440px), and the CSS block in theme.json (search for
 // `.woocommerce-account .woocommerce {`) replaces WC's float layout
 // with a CSS grid: a fixed-width sidebar for the nav + a fluid main
 // column for the dashboard content. Then the hooks below replace the

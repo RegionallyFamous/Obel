@@ -21,8 +21,10 @@ Conventions
   chosen to bracket the responsive breakpoints used in the themes:
     - mobile  390px   below the 782px grid breakpoint (single-column)
     - tablet  768px   straddling the breakpoint (single-column on most pages)
-    - desktop 1280px  matches theme.json wideSize and the cart/checkout
-                       sidebar at its natural max
+    - desktop 1280px  just below theme.json wideSize (1440px); the
+                       cart/checkout sidebar still paints near its
+                       natural max because the align:wide container
+                       is clamped to viewport minus gutters
     - wide    1920px  ultrawide; surfaces issues with `align:full` blocks
 * Heights are large enough to keep the fold visible at common screen
   ratios. Playwright's `full_page=True` overrides the height anyway so
@@ -140,7 +142,7 @@ ROUTES: list[Route] = [
 VIEWPORTS: list[Viewport] = [
     Viewport(name="mobile", width=390, height=844),     # iPhone 14
     Viewport(name="tablet", width=768, height=1024),    # iPad portrait
-    Viewport(name="desktop", width=1280, height=800),   # matches wideSize
+    Viewport(name="desktop", width=1280, height=800),   # just below 1440 wideSize
     Viewport(name="wide", width=1920, height=1080),     # 1080p desktop
 ]
 
@@ -554,7 +556,8 @@ INSPECT_SELECTORS: dict[str, list[str]] = {
         ".wc-block-cart",
     ],
     # Checkout layout: main column should match theme.json wideSize
-    # (1280px) on desktop, NOT contentSize (720px).
+    # (1440px, clamped to viewport at desktop=1280px) on desktop,
+    # NOT contentSize (780px).
     "checkout-filled": [
         ".wc-block-checkout",
         ".wc-block-checkout__sidebar",
@@ -612,6 +615,17 @@ INSPECT_SELECTORS: dict[str, list[str]] = {
     "journal": [
         ".wp-block-query",
         ".wp-block-post-template",
+    ],
+    # Single post body column: a one-time regression (a custom layout
+    # token, now banned by `check_prose_layout_token_purged`) pinned
+    # every theme's `wp:post-content` to 560px, visibly too narrow
+    # against the editorial contentSize we actually want. Tracking the
+    # rendered `.entry-content.wp-block-post-content` width lets
+    # `_cross_theme_parity` flag any future drift before a reviewer
+    # has to notice it by eye (same mechanism that caught the
+    # `wo-archive-hero` and `wo-account-help` regressions).
+    "journal-post": [
+        ".entry-content.wp-block-post-content",
     ],
     "category": [
         ".wp-block-woocommerce-product-template",
