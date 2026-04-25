@@ -15,11 +15,11 @@
     "hero": "diagram-led"
   },
   "palette_hex": [
-    "#f1f1ef",
-    "#323335",
-    "#676969",
-    "#b7b8b8",
-    "#8b8c8b"
+    "#f5f5ea",
+    "#afafa9",
+    "#f4d564",
+    "#2b2b2b",
+    "#71716e"
   ],
   "type_specimen": "Display: Acumin Pro Condensed. Body: Inter."
 }
